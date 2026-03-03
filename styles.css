@@ -1510,6 +1510,43 @@ td:first-child {
   }
 }
 
+/* Inline Verify Button (toolbar) */
+.btn-verify-inline {
+  padding: 6px 16px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--blue);
+  color: #fff;
+  font-family: "Outfit", sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  box-shadow: 0 0 12px hsla(233, 100%, 57%, 0.25);
+}
+
+.btn-verify-inline:hover:not(:disabled) {
+  box-shadow: 0 0 20px hsla(233, 100%, 57%, 0.45);
+  transform: translateY(-1px);
+}
+
+.btn-verify-inline:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-verify-inline.verifying {
+  background: hsl(45, 93%, 47%);
+  box-shadow: 0 0 16px hsla(45, 93%, 47%, 0.3);
+}
+
+.btn-verify-inline.verified {
+  background: var(--green);
+  box-shadow: 0 0 16px hsla(152, 69%, 37%, 0.3);
+}
+
 .icon-check {
   width: 20px;
   height: 20px;
