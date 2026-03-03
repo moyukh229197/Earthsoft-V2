@@ -1520,57 +1520,59 @@ td:first-child {
   fill: none;
 }
 
-/* Theme Toggle Switch */
-.theme-switch {
-  position: relative;
-  display: inline-block;
-  width: 54px;
-  height: 28px;
-}
-
-.theme-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.theme-switch .slider {
-  position: absolute;
+/* Compact Theme Capsule Toggle */
+.theme-capsule {
+  display: inline-flex;
   cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: var(--stroke);
-  transition: .4s;
-  display: flex;
+}
+
+.theme-capsule input {
+  display: none;
+}
+
+.theme-capsule-track {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 6px;
-  border-radius: 28px;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--bg-accent-1);
+  border: 1px solid var(--stroke);
+  transition: all 0.3s ease;
 }
 
-.theme-switch .slider:before {
-  position: absolute;
-  content: "";
-  height: 22px;
-  width: 22px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  transition: .4s;
-  border-radius: 50%;
-  z-index: 2;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+.theme-capsule-track:hover {
+  border-color: var(--blue);
 }
 
-.theme-switch input:checked+.slider {
-  background-color: var(--blue);
+/* Dark mode (default): show moon, hide sun */
+.theme-capsule .icon-sun {
+  display: none;
 }
 
-.theme-switch input:checked+.slider:before {
-  transform: translateX(26px);
+.theme-capsule .icon-moon {
+  display: block;
+}
+
+/* Light mode (checked): show sun, hide moon */
+.theme-capsule input:checked~.theme-capsule-track .icon-sun {
+  display: block;
+}
+
+.theme-capsule input:checked~.theme-capsule-track .icon-moon {
+  display: none;
+}
+
+.theme-capsule input:checked~.theme-capsule-track {
+  background: hsl(48, 96%, 89%);
+  border-color: hsl(45, 93%, 47%);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Fluid Water Wave Animation for Stat Cards */

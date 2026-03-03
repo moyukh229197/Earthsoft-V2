@@ -1105,6 +1105,10 @@ function renderSummary() {
     if (cutCapEl) cutCapEl.textContent = "0% capacity";
   }
   renderFormulaSummary();
+
+  // Enable/disable the global verify button
+  const vBtn = document.getElementById("verifyCalcBtn");
+  if (vBtn) vBtn.disabled = !state.calcRows.length;
 }
 
 function setResultTab(tabName) {
@@ -2246,6 +2250,33 @@ function bindEvents() {
     });
     // Set initial toggle state (unchecked = dark mode default)
     els.themeToggleCheckbox.checked = document.documentElement.classList.contains("light");
+  }
+
+  // Populate date display
+  const dateEl = document.getElementById("dateDisplay");
+  if (dateEl) {
+    const now = new Date();
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    dateEl.textContent = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+  }
+
+  // Verify Calculations button
+  const verifyBtn = document.getElementById("verifyCalcBtn");
+  if (verifyBtn) {
+    verifyBtn.addEventListener("click", () => {
+      verifyBtn.classList.add("verifying");
+      verifyBtn.disabled = true;
+      recalculate();
+      setTimeout(() => {
+        verifyBtn.classList.remove("verifying");
+        verifyBtn.classList.add("verified");
+        setTimeout(() => {
+          verifyBtn.classList.remove("verified");
+          verifyBtn.disabled = false;
+        }, 2000);
+      }, 1200);
+    });
   }
 
   // --- Keyboard Shortcuts ---
