@@ -2902,7 +2902,12 @@ function bindEvents() {
       startAiExtractBtn.disabled = true;
 
       try {
-        const response = await fetch("http://localhost:3000/api/extract-bridges", {
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:';
+        const apiUrl = isLocal
+          ? "http://localhost:3000/api/extract-bridges"
+          : "https://earthsoft-ai-backend.onrender.com/api/extract-bridges";
+
+        const response = await fetch(apiUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text })
