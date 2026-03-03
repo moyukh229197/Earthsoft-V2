@@ -659,6 +659,55 @@ h1 {
   }
 }
 
+/* SVG Wave Animations for Water Tank Cards */
+@keyframes svgWave {
+  0% {
+    transform: translateX(0) scaleY(1);
+  }
+
+  50% {
+    transform: translateX(-25%) scaleY(0.55);
+  }
+
+  100% {
+    transform: translateX(-50%) scaleY(1);
+  }
+}
+
+@keyframes svgWave2 {
+  0% {
+    transform: translateX(0) scaleY(1);
+  }
+
+  50% {
+    transform: translateX(25%) scaleY(0.65);
+  }
+
+  100% {
+    transform: translateX(50%) scaleY(1);
+  }
+}
+
+.wave-animation {
+  animation: svgWave 4s ease-in-out infinite;
+}
+
+.wave-animation-2 {
+  animation: svgWave2 5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
 .stat h2 {
   margin: 0 0 6px;
   font-size: 1.35rem;

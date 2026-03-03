@@ -1089,14 +1089,20 @@ function renderSummary() {
 
   // Compute Fluid Animation Fill Levels
   const grandVol = fillTotal + cutTotal;
+  const fillCapEl = document.getElementById("fillCapacity");
+  const cutCapEl = document.getElementById("cutCapacity");
   if (grandVol > 0) {
-    const fillPct = (fillTotal / grandVol) * 100;
-    const cutPct = (cutTotal / grandVol) * 100;
-    if (els.fillWaterNode) els.fillWaterNode.style.setProperty("--fill-level", `${Math.min(fillPct, 100)}%`);
-    if (els.cutWaterNode) els.cutWaterNode.style.setProperty("--fill-level", `${Math.min(cutPct, 100)}%`);
+    const fillPct = Math.round((fillTotal / grandVol) * 100);
+    const cutPct = Math.round((cutTotal / grandVol) * 100);
+    if (els.fillWaterNode) els.fillWaterNode.style.height = `${Math.min(fillPct, 100)}%`;
+    if (els.cutWaterNode) els.cutWaterNode.style.height = `${Math.min(cutPct, 100)}%`;
+    if (fillCapEl) fillCapEl.textContent = `${fillPct}% capacity`;
+    if (cutCapEl) cutCapEl.textContent = `${cutPct}% capacity`;
   } else {
-    if (els.fillWaterNode) els.fillWaterNode.style.setProperty("--fill-level", "0%");
-    if (els.cutWaterNode) els.cutWaterNode.style.setProperty("--fill-level", "0%");
+    if (els.fillWaterNode) els.fillWaterNode.style.height = "0%";
+    if (els.cutWaterNode) els.cutWaterNode.style.height = "0%";
+    if (fillCapEl) fillCapEl.textContent = "0% capacity";
+    if (cutCapEl) cutCapEl.textContent = "0% capacity";
   }
   renderFormulaSummary();
 }
