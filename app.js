@@ -1685,14 +1685,61 @@ function renderCharts() {
   const fl = state.calcRows.map((r) => Number(r3(r.proposedLevel)));
   const diff = state.calcRows.map((r) => Number(r3(r.rlDiff)));
 
+  // Lovable design colors
+  const groundColor = "hsl(354, 72%, 55%)";   // red
+  const proposedColor = "hsl(233, 100%, 57%)"; // blue
+  const gridColor = "hsla(222, 20%, 25%, 0.3)";
+  const tickColor = "hsl(215, 20%, 55%)";
+
   if (state.charts.lSection) state.charts.lSection.destroy();
+
+  const lCtx = els.lSectionChart.getContext("2d");
+  // Ground gradient fill
+  const groundGrad = lCtx.createLinearGradient(0, 0, 0, els.lSectionChart.height);
+  groundGrad.addColorStop(0, "hsla(354, 72%, 55%, 0.3)");
+  groundGrad.addColorStop(1, "hsla(354, 72%, 55%, 0)");
+  // Proposed gradient fill
+  const proposedGrad = lCtx.createLinearGradient(0, 0, 0, els.lSectionChart.height);
+  proposedGrad.addColorStop(0, "hsla(233, 100%, 57%, 0.3)");
+  proposedGrad.addColorStop(1, "hsla(233, 100%, 57%, 0)");
+
   state.charts.lSection = new Chart(els.lSectionChart, {
     type: "line",
     data: {
       labels,
       datasets: [
-        { label: "Ground RL", data: gl, borderColor: "#2f80dd", tension: 0.22, fill: false, pointRadius: 0 },
-        { label: "Proposed RL", data: fl, borderColor: "#e57c35", tension: 0.22, fill: false, pointRadius: 0 },
+        {
+          label: "Ground RL",
+          data: gl,
+          borderColor: groundColor,
+          backgroundColor: groundGrad,
+          tension: 0.35,
+          fill: true,
+          pointRadius: 3,
+          pointBackgroundColor: groundColor,
+          pointBorderWidth: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: "hsl(222, 47%, 6%)",
+          pointHoverBorderColor: groundColor,
+          pointHoverBorderWidth: 2,
+          borderWidth: 2,
+        },
+        {
+          label: "Proposed RL",
+          data: fl,
+          borderColor: proposedColor,
+          backgroundColor: proposedGrad,
+          tension: 0.35,
+          fill: true,
+          pointRadius: 3,
+          pointBackgroundColor: proposedColor,
+          pointBorderWidth: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: "hsl(222, 47%, 6%)",
+          pointHoverBorderColor: proposedColor,
+          pointHoverBorderWidth: 2,
+          borderWidth: 2,
+        },
       ],
     },
     options: {
@@ -1700,8 +1747,27 @@ function renderCharts() {
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
       plugins: {
-        legend: { labels: { boxWidth: 14 } },
+        legend: {
+          labels: {
+            boxWidth: 12,
+            boxHeight: 2,
+            usePointStyle: false,
+            color: tickColor,
+            font: { size: 10, family: "Outfit", weight: 500 },
+            padding: 16,
+          },
+          position: "top",
+          align: "end",
+        },
         tooltip: {
+          backgroundColor: "hsla(222, 40%, 12%, 0.9)",
+          titleColor: "#fff",
+          bodyColor: "hsl(215, 20%, 75%)",
+          borderColor: "hsla(222, 20%, 30%, 0.5)",
+          borderWidth: 1,
+          padding: 10,
+          titleFont: { family: "Outfit", weight: 600, size: 12 },
+          bodyFont: { family: "Outfit", size: 11 },
           callbacks: {
             afterBody: (ctx) => {
               const i = ctx[0].dataIndex;
@@ -1709,13 +1775,36 @@ function renderCharts() {
             },
           },
         },
+        zoom: {
+          pan: { enabled: true, mode: "x" },
+          zoom: {
+            wheel: { enabled: true, speed: 0.1 },
+            pinch: { enabled: true },
+            mode: "x",
+          },
+        },
       },
       scales: {
-        x: { title: { display: true, text: "Distance from start (km)" } },
-        y: { title: { display: true, text: "Reduced Level (m)" } },
+        x: {
+          title: { display: false },
+          ticks: { color: tickColor, font: { size: 10, family: "Outfit" }, maxTicksLimit: 10 },
+          grid: { color: gridColor, drawBorder: false },
+          border: { color: gridColor },
+        },
+        y: {
+          title: { display: false },
+          ticks: { color: tickColor, font: { size: 10, family: "Outfit" } },
+          grid: { color: gridColor, drawBorder: false },
+          border: { color: gridColor },
+        },
       },
     },
   });
+
+  // Double-click to reset zoom
+  els.lSectionChart.ondblclick = () => {
+    state.charts.lSection?.resetZoom();
+  };
 
   if (state.charts.volume) state.charts.volume.destroy();
   state.charts.volume = new Chart(els.volumeChart, {
@@ -1726,14 +1815,14 @@ function renderCharts() {
           type: "bar",
           label: "Fill Vol (m³)",
           data: state.calcRows.map((r) => Number(r3(r.fillVol))),
-          backgroundColor: "rgba(23, 163, 74, 0.55)",
+          backgroundColor: "hsla(152, 69%, 37%, 0.55)",
           borderRadius: 4,
         },
         {
           type: "bar",
           label: "Cut Vol (m³)",
           data: state.calcRows.map((r) => -Number(r3(r.cutVol))),
-          backgroundColor: "rgba(217, 63, 76, 0.55)",
+          backgroundColor: "hsla(354, 72%, 55%, 0.55)",
           borderRadius: 4,
         },
       ],
@@ -1741,13 +1830,55 @@ function renderCharts() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { position: "top" } },
+      plugins: {
+        legend: {
+          position: "top",
+          align: "end",
+          labels: {
+            boxWidth: 12,
+            color: tickColor,
+            font: { size: 10, family: "Outfit", weight: 500 },
+          },
+        },
+        tooltip: {
+          backgroundColor: "hsla(222, 40%, 12%, 0.9)",
+          titleColor: "#fff",
+          bodyColor: "hsl(215, 20%, 75%)",
+          borderColor: "hsla(222, 20%, 30%, 0.5)",
+          borderWidth: 1,
+          padding: 10,
+          titleFont: { family: "Outfit", weight: 600, size: 12 },
+          bodyFont: { family: "Outfit", size: 11 },
+        },
+        zoom: {
+          pan: { enabled: true, mode: "x" },
+          zoom: {
+            wheel: { enabled: true, speed: 0.1 },
+            pinch: { enabled: true },
+            mode: "x",
+          },
+        },
+      },
       scales: {
-        x: { ticks: { maxTicksLimit: 9 } },
-        y: { title: { display: true, text: "Volume (+Fill / -Cut)" } },
+        x: {
+          ticks: { maxTicksLimit: 9, color: tickColor, font: { size: 10, family: "Outfit" } },
+          grid: { color: gridColor, drawBorder: false },
+          border: { color: gridColor },
+        },
+        y: {
+          title: { display: false },
+          ticks: { color: tickColor, font: { size: 10, family: "Outfit" } },
+          grid: { color: gridColor, drawBorder: false },
+          border: { color: gridColor },
+        },
       },
     },
   });
+
+  // Double-click to reset zoom
+  els.volumeChart.ondblclick = () => {
+    state.charts.volume?.resetZoom();
+  };
 }
 
 function buildSettingsInputs() {
