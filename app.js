@@ -2723,16 +2723,81 @@ function bindEvents() {
     const aoaLevels = XLSX.utils.sheet_to_json(wsLevels, { header: 1, defval: "", raw: false, blankrows: false });
     if (!aoaLevels.length) throw new Error("File has no data rows.");
 
+    // ---- AI MAPPER LOGIC FOR LEVELS ----
+    // Send the first 50 rows to the AI to figure out the column index mapping
+    const previewAoa = aoaLevels.slice(0, 50);
+    const previewCsv = previewAoa.map(r => r.join(',')).join('\n');
+    let mapResult;
+
+    document.body.style.cursor = "wait";
+    try {
+      const response = await fetch("/api/extract-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: previewCsv, dataType: 'levels' })
+      });
+      if (!response.ok) throw new Error(`Server Error: ${response.status}`);
+      const resData = await response.json();
+      mapResult = resData.data; // { chainageIndex, groundLevelIndex, proposedLevelIndex, dataStartRowIndex }
+    } catch (e) {
+      document.body.style.cursor = "default";
+      throw new Error("AI Mapping failed for Levels file: " + e.message);
+    }
+    document.body.style.cursor = "default";
+
+    if (!mapResult || mapResult.chainageIndex < 0 || mapResult.groundLevelIndex < 0 || mapResult.proposedLevelIndex < 0) {
+      throw new Error("The AI could not confidently identify Chainage, Ground Level, and Proposed Level columns in your file.");
+    }
+
+    // Now process all 10,000+ rows instantly using the AI's map
     const interval = inferImportInterval();
-    const startCh = inferImportStartChainage();
-    const parsedResult = parseImportedRows(aoaLevels, startCh, interval);
-    if (parsedResult.error) throw new Error(parsedResult.error);
-    const parsed = parsedResult.rows;
+    const startChInput = inferImportStartChainage();
+    let baseOffset = 0;
+    const parsed = [];
+
+    const startIdx = Math.max(0, mapResult.dataStartRowIndex || 1);
+
+    for (let i = startIdx; i < aoaLevels.length; i++) {
+      const row = aoaLevels[i];
+      if (!row || !row.length) continue;
+
+      let chainageStr = String(row[mapResult.chainageIndex] || "").trim();
+      let chainageNum = parseChainage(chainageStr);
+
+      let glNum = parseLooseNumber(row[mapResult.groundLevelIndex], NaN);
+      let plNum = parseLooseNumber(row[mapResult.proposedLevelIndex], NaN);
+
+      if (!Number.isFinite(glNum) || !Number.isFinite(plNum)) continue;
+
+      if (!Number.isFinite(chainageNum)) {
+        if (parsed.length === 0 && Number.isFinite(startChInput)) {
+          baseOffset = startChInput;
+          chainageNum = baseOffset;
+        } else if (parsed.length > 0) {
+          baseOffset += interval;
+          chainageNum = baseOffset;
+        } else {
+          continue;
+        }
+      } else {
+        baseOffset = chainageNum;
+      }
+
+      parsed.push({
+        chainage: chainageNum,
+        station: mapResult.stationIndex >= 0 ? String(row[mapResult.stationIndex] || "").trim() : "",
+        structureNo: mapResult.structureNoIndex >= 0 ? String(row[mapResult.structureNoIndex] || "").trim() : "",
+        groundLevel: glNum,
+        proposedLevel: plNum
+      });
+    }
+
     if (!parsed.length) {
-      throw new Error("No valid rows found after header detection. Check Ground Level / Proposed Level values.");
+      throw new Error("No valid rows found using the AI map. Check your data.");
     }
     state.rawRows = parsed;
 
+    // Process additional sheets via AI
     if (wb.SheetNames.length > 1) {
       for (let i = 1; i < wb.SheetNames.length; i++) {
         const sheetName = wb.SheetNames[i].toLowerCase();
@@ -2740,26 +2805,19 @@ function bindEvents() {
         const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false, blankrows: false });
         if (!aoa.length) continue;
 
-        if (sheetName.includes("bridge") || detectBridgeHeaderRow(aoa)) {
-          const bRes = parseBridgeRowsFromAoa(aoa);
-          if (bRes && !bRes.error && bRes.rows.length) {
-            state.bridgeRows = bRes.rows;
-            state.project.uploads.bridges = true;
-          }
+        const csvContent = aoa.map(r => r.join(',')).join('\n');
+
+        if (sheetName.includes("bridge")) {
+          const res = await fetch("/api/extract-data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: csvContent, dataType: 'bridges' }) }).then(r => r.json()).catch(() => null);
+          if (res && res.success && res.data && res.data.length) { state.bridgeRows = res.data; state.project.uploads.bridges = true; }
         }
-        else if (sheetName.includes("curve") || detectSimpleHeaderRow(aoa, ["chainage", "curve", "radius", "length"])) {
-          const cRes = parseCurveRowsFromAoa(aoa);
-          if (cRes && cRes.rows.length) {
-            state.curveRows = cRes.rows;
-            state.project.uploads.curves = true;
-          }
+        else if (sheetName.includes("curve")) {
+          const res = await fetch("/api/extract-data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: csvContent, dataType: 'curves' }) }).then(r => r.json()).catch(() => null);
+          if (res && res.success && res.data && res.data.length) { state.curveRows = res.data; state.project.uploads.curves = true; }
         }
-        else if (sheetName.includes("loop") || sheetName.includes("station") || sheetName.includes("platform") || detectSimpleHeaderRow(aoa, ["stations", "csb", "loopstart", "loopend", "pfstart", "pfend", "width"])) {
-          const lRes = parseLoopPlatformRowsFromAoa(aoa);
-          if (lRes && lRes.rows.length) {
-            state.loopPlatformRows = lRes.rows;
-            state.project.uploads.loops = true;
-          }
+        else if (sheetName.includes("loop") || sheetName.includes("station") || sheetName.includes("platform")) {
+          const res = await fetch("/api/extract-data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: csvContent, dataType: 'loops' }) }).then(r => r.json()).catch(() => null);
+          if (res && res.success && res.data && res.data.length) { state.loopPlatformRows = res.data; state.project.uploads.loops = true; }
         }
       }
     }
@@ -2780,88 +2838,101 @@ function bindEvents() {
     recalculate();
   };
 
-  const importBridgeFile = async (file) => {
-    let allRows = [];
-    let skippedROB = 0;
-    let sheetsProcessed = 0;
+  // --- Universal AI File Processor ---
+  const processFileWithAI = async (file, dataType) => {
+    // 1. Read file as an array of arrays
+    const aoa = await readSheetAoaFromFile(file);
+    if (!aoa || !aoa.length) throw new Error("File appears empty or unreadable.");
+
+    // 2. Convert to raw CSV string (to save tokens)
+    const csvContent = aoa.map(row => row.join(',')).join('\n');
+
+    // 3. Optional: display loading state inside the app (e.g., changing cursor)
+    document.body.style.cursor = "wait";
 
     try {
-      // Try multi-sheet processing first
-      const sheets = await readAllSheetsFromFile(file);
-      for (const sheet of sheets) {
-        const sheetNameLower = sheet.name.toLowerCase().trim();
-        // Skip ROB sheets entirely — they don't affect embankment
-        if (sheetNameLower.includes('rob')) {
-          skippedROB++;
-          continue;
-        }
-        if (!sheet.aoa.length) continue;
+      // 4. Send to Vercel API
+      const response = await fetch("/api/extract-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: csvContent, dataType })
+      });
 
-        // Determine category from sheet name
-        let sheetCategory = 'Minor';
-        if (sheetNameLower.includes('major')) sheetCategory = 'Major';
-        else if (sheetNameLower.includes('minor')) sheetCategory = 'Minor';
-        else if (sheetNameLower.includes('rub')) sheetCategory = 'Minor';
-        else if (sheetNameLower.includes('viaduct')) sheetCategory = 'Viaduct';
-        else if (sheetNameLower.includes('important')) sheetCategory = 'Important';
-
-        const parsedResult = parseBridgeRowsFromAoa(sheet.aoa, sheetCategory);
-        if (parsedResult.rows.length) {
-          allRows = allRows.concat(parsedResult.rows);
-          sheetsProcessed++;
-        }
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Server Error: ${response.status}`);
       }
-    } catch (multiErr) {
-      // Fallback: single sheet
-      console.warn('Multi-sheet read failed, falling back to single sheet:', multiErr);
-      const aoa = await readSheetAoaFromFile(file);
-      const parsedResult = parseBridgeRowsFromAoa(aoa, 'Minor');
-      if (parsedResult.error) throw new Error(parsedResult.error);
-      allRows = parsedResult.rows;
-      sheetsProcessed = 1;
+
+      const resData = await response.json();
+      return resData;
+
+    } finally {
+      document.body.style.cursor = "default";
     }
+  };
 
-    if (!allRows.length) throw new Error('No valid bridge rows found in any sheet.');
+  const importBridgeFile = async (file) => {
+    try {
+      const result = await processFileWithAI(file, "bridges");
+      if (result && result.success && result.data && result.data.length > 0) {
+        state.bridgeRows = state.bridgeRows.concat(result.data);
+        state.bridgeRows.sort((a, b) => a.startChainage - b.startChainage);
 
-    // Sort by start chainage
-    allRows.sort((a, b) => a.startChainage - b.startChainage);
+        state.project.uploads.bridges = true;
+        state.project.verified = false;
+        updateWizardUI();
+        applyProjectGate();
+        renderBridgeInputs();
+        recalculate();
 
-    state.bridgeRows = allRows;
-    state.project.uploads.bridges = true;
-    state.project.verified = false;
-    updateWizardUI();
-    applyProjectGate();
-    renderBridgeInputs();
-    recalculate();
-    const msg = `Bridge list imported: ${allRows.length} bridges from ${sheetsProcessed} sheet(s).`
-      + (skippedROB ? ` Skipped ${skippedROB} ROB sheet(s).` : '');
-    alert(msg);
+        alert(`Successfully imported and formatted ${result.data.length} bridge(s) using AI!`);
+      } else {
+        alert("The AI could not identify any bridge structures in that file.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert(`AI Bridge Extraction failed: ${err.message}`);
+    }
   };
 
   const importCurveFile = async (file) => {
-    const aoa = await readSheetAoaFromFile(file);
-    const parsedResult = parseCurveRowsFromAoa(aoa);
-    state.curveRows = parsedResult.rows;
-    state.project.uploads.curves = true;
-    state.project.verified = false;
-    updateWizardUI();
-    applyProjectGate();
-    alert(`Curve list imported: ${state.curveRows.length} rows.`);
-    recalculate();
+    try {
+      const result = await processFileWithAI(file, "curves");
+      if (result && result.success && result.data && result.data.length > 0) {
+        state.curveRows = result.data;
+        state.project.uploads.curves = true;
+        state.project.verified = false;
+        updateWizardUI();
+        applyProjectGate();
+        recalculate();
+        alert(`Successfully imported and formatted ${result.data.length} curve(s) using AI!`);
+      } else {
+        alert("The AI could not identify any curve alignments in that file.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert(`AI Curve Extraction failed: ${err.message}`);
+    }
   };
 
   const importLoopFile = async (file) => {
-    const aoa = await readSheetAoaFromFile(file);
-    const parsedResult = parseLoopPlatformRowsFromAoa(aoa);
-    state.loopPlatformRows = parsedResult.rows;
-    state.project.uploads.loops = true;
-    state.project.verified = false;
-    updateWizardUI();
-    applyProjectGate();
-    const loopRanges = state.loopPlatformRows.filter((r) => Number.isFinite(r.loopStartCh) && Number.isFinite(r.loopEndCh)).length;
-    const pfRanges = state.loopPlatformRows.filter((r) => Number.isFinite(r.pfStartCh) && Number.isFinite(r.pfEndCh)).length;
-    alert(`Loops & platforms imported: ${state.loopPlatformRows.length} rows (Loop ranges: ${loopRanges}, Platform ranges: ${pfRanges}).`);
-    recalculate();
+    try {
+      const result = await processFileWithAI(file, "loops");
+      if (result && result.success && result.data && result.data.length > 0) {
+        state.loopPlatformRows = result.data;
+        state.project.uploads.loops = true;
+        state.project.verified = false;
+        updateWizardUI();
+        applyProjectGate();
+        recalculate();
+        alert(`Successfully imported and formatted ${result.data.length} station/loop(s) using AI!`);
+      } else {
+        alert("The AI could not identify any Loop or Station data in that file.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert(`AI Loops Extraction failed: ${err.message}`);
+    }
   };
 
   if (els.importBtn && els.importOptionsModal) {

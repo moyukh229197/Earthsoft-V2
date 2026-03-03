@@ -294,19 +294,6 @@
           <div class="bridge-head">
             <h3>Bridges</h3>
             <div class="bridge-actions">
-              <button id="bridgeAiBtn" class="btn btn-secondary" type="button"
-                style="background-color: var(--primary-bg); color: var(--primary); border: 1px solid var(--primary); font-weight: 500;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                  stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;">
-                  <path
-                    d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z">
-                  </path>
-                  <path d="M5 3v4"></path>
-                  <path d="M19 17v4"></path>
-                  <path d="M3 5h4"></path>
-                  <path d="M17 19h4"></path>
-                </svg> AI Magic Extract
-              </button>
               <button id="bridgeAddBtn" class="btn btn-secondary" type="button">Add Bridge Row</button>
               <button id="bridgeApplyBtn" class="btn btn-primary" type="button">Apply Bridge Deductions</button>
             </div>
@@ -2607,45 +2594,6 @@
       "proposedLevel": 584.912681514608
     }
   ]
-}</script>
-
-  <!-- AI Bridge Extraction Modal (NEW) -->
-  <div id="aiBridgeModal" class="modal-overlay hidden"
-    onclick="document.getElementById('aiBridgeModal').classList.add('hidden')">
-    <div class="modal-content glass" onclick="event.stopPropagation()" style="max-width: 600px;">
-      <div class="modal-header">
-        <h2 style="display: flex; align-items: center; gap: 8px;">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path
-              d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z">
-            </path>
-          </svg>
-          AI Magic Extract
-        </h2>
-        <button id="closeAiModalBtn" class="btn btn-secondary btn-icon" title="Close"><svg width="16" height="16"
-            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round">
-            <path d="M18 6 6 18" />
-            <path d="m6 6 12 12" />
-          </svg></button>
-      </div>
-      <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px;">
-        <p style="color: var(--text-2); font-size: 0.9rem;">
-          Paste unstructured surveyor notes, messy tables, or emails below. The Llama 3 AI will extract the bridges
-          instantly.
-        </p>
-        <textarea id="aiTextInput" rows="8"
-          placeholder="e.g. Please add a 1x12m PSC slab bridge over the river at chainage 15+200. Also there is a minor box bridge (1x3x3) near 16+100..."
-          style="width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: inherit; font-size: 0.9rem; resize: vertical; background: var(--card-bg); color: var(--text-1);"></textarea>
-      </div>
-      <div class="modal-footer">
-        <button id="startAiExtractBtn" class="btn btn-primary" style="width: 100%; justify-content: center;">
-          Extract Bridges with AI
-        </button>
-      </div>
-    </div>
-  </div>
-
   <script src="./app.js"></script>
 </body>
 
