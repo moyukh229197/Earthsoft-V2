@@ -111,7 +111,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 0 16px 16px;
+  padding: 0;
   min-width: 0;
   /* Prevent flex overflow */
 }
@@ -219,7 +219,7 @@ body {
 }
 
 .topbar {
-  padding: 10px 16px;
+  padding: 12px 20px;
   display: flex;
   justify-content: space-between;
   gap: 8px;
@@ -228,8 +228,6 @@ body {
   position: sticky;
   top: 0;
   z-index: 40;
-  margin: 0 -16px;
-  border-radius: 0;
 }
 
 .brand {
