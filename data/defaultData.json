@@ -1,0 +1,1782 @@
+{
+  "meta": {
+    "projectName": "Nashik to Dahanu Railway Earthwork",
+    "sourceFile": "/Users/moyukhroy/Desktop/Earthwork calculation .xlsx",
+    "chainageStart": 1140.0,
+    "chainageEnd": 6140.0,
+    "distanceCovered": 5000.0,
+    "rowCount": 251,
+    "defaults": {
+      "formationWidthFill": 7.85,
+      "blanketThickness": 0.3,
+      "preparedSubgradeThickness": 0.0,
+      "bermWidth": 3.0,
+      "cuttingWidth": 12.05,
+      "sideSlopeFactor": 2.236,
+      "sq3Thickness": 0.2,
+      "sq2Thickness": 0.15,
+      "aboveBallastThickness": 0.3,
+      "sleeperThickness": 0.25,
+      "railHeight": 0.18
+    }
+  },
+  "rows": [
+    {
+      "chainage": 1140.0,
+      "station": "NASHIK Rd.\nStation",
+      "structureNo": "",
+      "groundLevel": 558.140413821273,
+      "proposedLevel": 560.414537697254
+    },
+    {
+      "chainage": 1160.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 558.231559026159,
+      "proposedLevel": 560.417568276502
+    },
+    {
+      "chainage": 1180.0,
+      "station": "0+000",
+      "structureNo": "",
+      "groundLevel": 558.075388425389,
+      "proposedLevel": 560.42059885575
+    },
+    {
+      "chainage": 1200.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 558.330761331,
+      "proposedLevel": 560.423629434998
+    },
+    {
+      "chainage": 1220.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 558.301371247354,
+      "proposedLevel": 560.426660014246
+    },
+    {
+      "chainage": 1240.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 558.346376502034,
+      "proposedLevel": 560.429690593494
+    },
+    {
+      "chainage": 1260.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 558.27328938484,
+      "proposedLevel": 560.432721172742
+    },
+    {
+      "chainage": 1280.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 558.110240507428,
+      "proposedLevel": 560.43575175199
+    },
+    {
+      "chainage": 1300.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 558.299510306241,
+      "proposedLevel": 560.438782331238
+    },
+    {
+      "chainage": 1320.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 558.691520166316,
+      "proposedLevel": 560.441812910486
+    },
+    {
+      "chainage": 1340.0,
+      "station": "",
+      "structureNo": "Exg.1/1",
+      "groundLevel": 557.455839331032,
+      "proposedLevel": 560.442797066132
+    },
+    {
+      "chainage": 1360.0,
+      "station": "",
+      "structureNo": "Exg.1/1",
+      "groundLevel": 555.769964408715,
+      "proposedLevel": 560.442797066132
+    },
+    {
+      "chainage": 1380.0,
+      "station": "",
+      "structureNo": "Exg.1/1",
+      "groundLevel": 553.962882904026,
+      "proposedLevel": 560.442797066132
+    },
+    {
+      "chainage": 1400.0,
+      "station": "",
+      "structureNo": "Exg.1/1",
+      "groundLevel": 552.194784389112,
+      "proposedLevel": 560.442797066132
+    },
+    {
+      "chainage": 1420.0,
+      "station": "",
+      "structureNo": "Exg.1/1",
+      "groundLevel": 552.015013277358,
+      "proposedLevel": 560.442797066132
+    },
+    {
+      "chainage": 1440.0,
+      "station": "",
+      "structureNo": "Exg.1/1",
+      "groundLevel": 552.349973604828,
+      "proposedLevel": 560.442797066132
+    },
+    {
+      "chainage": 1460.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 553.394769550156,
+      "proposedLevel": 560.442797066132
+    },
+    {
+      "chainage": 1480.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 554.740561536697,
+      "proposedLevel": 560.442797066132
+    },
+    {
+      "chainage": 1500.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 556.452656909431,
+      "proposedLevel": 560.442797066132
+    },
+    {
+      "chainage": 1520.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 558.21090196141,
+      "proposedLevel": 560.442797066132
+    },
+    {
+      "chainage": 1540.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 558.899249726927,
+      "proposedLevel": 560.442797066132
+    },
+    {
+      "chainage": 1560.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 559.456347965739,
+      "proposedLevel": 560.442797066132
+    },
+    {
+      "chainage": 1580.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 559.592702276422,
+      "proposedLevel": 560.442797066132
+    },
+    {
+      "chainage": 1600.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 559.686466997226,
+      "proposedLevel": 560.442797066132
+    },
+    {
+      "chainage": 1620.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 559.826647704186,
+      "proposedLevel": 560.442797066132
+    },
+    {
+      "chainage": 1640.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 559.8409823651,
+      "proposedLevel": 560.52395259962
+    },
+    {
+      "chainage": 1660.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 559.726760848209,
+      "proposedLevel": 560.644137040108
+    },
+    {
+      "chainage": 1680.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 559.399769444971,
+      "proposedLevel": 560.764321480596
+    },
+    {
+      "chainage": 1700.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 558.997519620011,
+      "proposedLevel": 560.884505921084
+    },
+    {
+      "chainage": 1720.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 558.334068155905,
+      "proposedLevel": 561.004690361572
+    },
+    {
+      "chainage": 1740.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 557.629442289786,
+      "proposedLevel": 561.124874802061
+    },
+    {
+      "chainage": 1760.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 557.012501454106,
+      "proposedLevel": 561.245059242549
+    },
+    {
+      "chainage": 1780.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 557.091023233079,
+      "proposedLevel": 561.365243683037
+    },
+    {
+      "chainage": 1800.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 557.33485726961,
+      "proposedLevel": 561.485428123525
+    },
+    {
+      "chainage": 1820.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 557.599644684935,
+      "proposedLevel": 561.605612564013
+    },
+    {
+      "chainage": 1840.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 557.852665836872,
+      "proposedLevel": 561.725797004501
+    },
+    {
+      "chainage": 1860.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 558.116569665517,
+      "proposedLevel": 561.845981444989
+    },
+    {
+      "chainage": 1880.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 558.675552541332,
+      "proposedLevel": 561.966165885477
+    },
+    {
+      "chainage": 1900.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 559.275868764951,
+      "proposedLevel": 562.086350325965
+    },
+    {
+      "chainage": 1920.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 559.884024947817,
+      "proposedLevel": 562.206534766453
+    },
+    {
+      "chainage": 1940.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 560.128771482176,
+      "proposedLevel": 562.326719206941
+    },
+    {
+      "chainage": 1960.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 560.395770083584,
+      "proposedLevel": 562.446903647429
+    },
+    {
+      "chainage": 1980.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 560.737643112447,
+      "proposedLevel": 562.567088087917
+    },
+    {
+      "chainage": 2000.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 561.389686391223,
+      "proposedLevel": 562.687272528405
+    },
+    {
+      "chainage": 2020.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 562.162101251407,
+      "proposedLevel": 562.807456968893
+    },
+    {
+      "chainage": 2040.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 563.175179586618,
+      "proposedLevel": 562.927641409382
+    },
+    {
+      "chainage": 2060.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 563.511342757798,
+      "proposedLevel": 563.04782584987
+    },
+    {
+      "chainage": 2080.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 563.821893021773,
+      "proposedLevel": 563.168010290358
+    },
+    {
+      "chainage": 2100.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 563.673550854837,
+      "proposedLevel": 563.288194730846
+    },
+    {
+      "chainage": 2120.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 563.486242279349,
+      "proposedLevel": 563.408379171334
+    },
+    {
+      "chainage": 2140.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 563.859194072896,
+      "proposedLevel": 563.528563611822
+    },
+    {
+      "chainage": 2160.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 564.138414877051,
+      "proposedLevel": 563.64874805231
+    },
+    {
+      "chainage": 2180.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 563.929879063335,
+      "proposedLevel": 563.768932492798
+    },
+    {
+      "chainage": 2200.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 563.800356060718,
+      "proposedLevel": 563.889116933286
+    },
+    {
+      "chainage": 2220.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 563.740805962748,
+      "proposedLevel": 564.009301373774
+    },
+    {
+      "chainage": 2240.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 563.76179582315,
+      "proposedLevel": 564.129485814262
+    },
+    {
+      "chainage": 2260.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 563.7175528751,
+      "proposedLevel": 564.24967025475
+    },
+    {
+      "chainage": 2280.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 563.827251075176,
+      "proposedLevel": 564.369854695238
+    },
+    {
+      "chainage": 2300.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 564.296746914179,
+      "proposedLevel": 564.490039135727
+    },
+    {
+      "chainage": 2320.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 564.585700766763,
+      "proposedLevel": 564.610223576215
+    },
+    {
+      "chainage": 2340.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 564.668987385266,
+      "proposedLevel": 564.735034651744
+    },
+    {
+      "chainage": 2360.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 564.135851534769,
+      "proposedLevel": 564.920215975382
+    },
+    {
+      "chainage": 2380.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 563.061326277602,
+      "proposedLevel": 565.105397299021
+    },
+    {
+      "chainage": 2400.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 562.146869608956,
+      "proposedLevel": 565.290578622659
+    },
+    {
+      "chainage": 2420.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 561.580867606849,
+      "proposedLevel": 565.475759946297
+    },
+    {
+      "chainage": 2440.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 561.866206793936,
+      "proposedLevel": 565.660941269935
+    },
+    {
+      "chainage": 2460.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 562.650232493257,
+      "proposedLevel": 565.846122593573
+    },
+    {
+      "chainage": 2480.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 563.534057497663,
+      "proposedLevel": 566.031303917211
+    },
+    {
+      "chainage": 2500.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 564.537801603823,
+      "proposedLevel": 566.216485240849
+    },
+    {
+      "chainage": 2520.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 564.657778081139,
+      "proposedLevel": 566.401666564487
+    },
+    {
+      "chainage": 2540.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 564.465487968979,
+      "proposedLevel": 566.586847888125
+    },
+    {
+      "chainage": 2560.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 564.215915868916,
+      "proposedLevel": 566.772029211763
+    },
+    {
+      "chainage": 2580.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 563.953865161397,
+      "proposedLevel": 566.957210535401
+    },
+    {
+      "chainage": 2600.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 563.407860871738,
+      "proposedLevel": 567.142391859039
+    },
+    {
+      "chainage": 2620.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 562.957013401042,
+      "proposedLevel": 567.327573182677
+    },
+    {
+      "chainage": 2640.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 563.757198049647,
+      "proposedLevel": 567.512754506315
+    },
+    {
+      "chainage": 2660.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 564.538952204269,
+      "proposedLevel": 567.697935829953
+    },
+    {
+      "chainage": 2680.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 565.001414101021,
+      "proposedLevel": 567.883117153591
+    },
+    {
+      "chainage": 2700.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 565.286498362479,
+      "proposedLevel": 568.068298477229
+    },
+    {
+      "chainage": 2720.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 565.197147806152,
+      "proposedLevel": 568.253479800867
+    },
+    {
+      "chainage": 2740.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 565.091446326134,
+      "proposedLevel": 568.438661124506
+    },
+    {
+      "chainage": 2760.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 565.17408993979,
+      "proposedLevel": 568.623842448144
+    },
+    {
+      "chainage": 2780.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 565.35455200546,
+      "proposedLevel": 568.809023771782
+    },
+    {
+      "chainage": 2800.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 565.700662020139,
+      "proposedLevel": 568.99420509542
+    },
+    {
+      "chainage": 2820.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 566.021689535623,
+      "proposedLevel": 569.179386419058
+    },
+    {
+      "chainage": 2840.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 566.117036632898,
+      "proposedLevel": 569.364567742696
+    },
+    {
+      "chainage": 2860.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 566.372836861748,
+      "proposedLevel": 569.549749066334
+    },
+    {
+      "chainage": 2880.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 566.69807465912,
+      "proposedLevel": 569.734930389972
+    },
+    {
+      "chainage": 2900.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 567.000162491873,
+      "proposedLevel": 569.92011171361
+    },
+    {
+      "chainage": 2920.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 567.175988607148,
+      "proposedLevel": 570.105293037248
+    },
+    {
+      "chainage": 2940.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 567.116758955,
+      "proposedLevel": 570.290474360886
+    },
+    {
+      "chainage": 2960.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 566.685766552382,
+      "proposedLevel": 570.475655684524
+    },
+    {
+      "chainage": 2980.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 566.248734845213,
+      "proposedLevel": 570.660837008162
+    },
+    {
+      "chainage": 3000.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 565.56964406231,
+      "proposedLevel": 570.8460183318
+    },
+    {
+      "chainage": 3020.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 565.054552254331,
+      "proposedLevel": 571.031199655438
+    },
+    {
+      "chainage": 3040.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 565.495137514688,
+      "proposedLevel": 571.216380979076
+    },
+    {
+      "chainage": 3060.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 565.910555643051,
+      "proposedLevel": 571.401562302715
+    },
+    {
+      "chainage": 3080.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 566.214805098645,
+      "proposedLevel": 571.586743626353
+    },
+    {
+      "chainage": 3100.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 566.457022741205,
+      "proposedLevel": 571.771924949991
+    },
+    {
+      "chainage": 3120.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 566.401516542697,
+      "proposedLevel": 571.957106273629
+    },
+    {
+      "chainage": 3140.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 566.385286767852,
+      "proposedLevel": 572.142287597267
+    },
+    {
+      "chainage": 3160.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 566.299076919868,
+      "proposedLevel": 572.327468920905
+    },
+    {
+      "chainage": 3180.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 566.296907582836,
+      "proposedLevel": 572.512650244543
+    },
+    {
+      "chainage": 3200.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 566.62737509727,
+      "proposedLevel": 572.697831568181
+    },
+    {
+      "chainage": 3220.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 566.838518393395,
+      "proposedLevel": 572.883012891819
+    },
+    {
+      "chainage": 3240.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 567.234227418767,
+      "proposedLevel": 573.068194215457
+    },
+    {
+      "chainage": 3260.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 567.490863755835,
+      "proposedLevel": 573.253375539095
+    },
+    {
+      "chainage": 3280.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 567.644193041367,
+      "proposedLevel": 573.438556862733
+    },
+    {
+      "chainage": 3300.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 567.81569819807,
+      "proposedLevel": 573.623738186371
+    },
+    {
+      "chainage": 3320.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 567.700086095241,
+      "proposedLevel": 573.808919510009
+    },
+    {
+      "chainage": 3340.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 567.730120118659,
+      "proposedLevel": 573.994100833647
+    },
+    {
+      "chainage": 3360.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 568.034792759635,
+      "proposedLevel": 574.179282157285
+    },
+    {
+      "chainage": 3380.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 568.356208503946,
+      "proposedLevel": 574.364463480924
+    },
+    {
+      "chainage": 3400.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 568.856253615672,
+      "proposedLevel": 574.549644804561
+    },
+    {
+      "chainage": 3420.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.42372906571,
+      "proposedLevel": 574.7348261282
+    },
+    {
+      "chainage": 3440.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.716662481159,
+      "proposedLevel": 574.920007451838
+    },
+    {
+      "chainage": 3460.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.870173876431,
+      "proposedLevel": 575.105188775476
+    },
+    {
+      "chainage": 3480.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.561110311064,
+      "proposedLevel": 575.290370099114
+    },
+    {
+      "chainage": 3500.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.073334444352,
+      "proposedLevel": 575.475551422752
+    },
+    {
+      "chainage": 3520.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 568.971736896085,
+      "proposedLevel": 575.66073274639
+    },
+    {
+      "chainage": 3540.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 568.976263137824,
+      "proposedLevel": 575.845914070028
+    },
+    {
+      "chainage": 3560.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.179727746874,
+      "proposedLevel": 576.031095393666
+    },
+    {
+      "chainage": 3580.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.534301219109,
+      "proposedLevel": 576.216276717304
+    },
+    {
+      "chainage": 3600.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.726355982467,
+      "proposedLevel": 576.401458040942
+    },
+    {
+      "chainage": 3620.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.838848834424,
+      "proposedLevel": 576.58663936458
+    },
+    {
+      "chainage": 3640.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.760380449517,
+      "proposedLevel": 576.771820688218
+    },
+    {
+      "chainage": 3660.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.642327163004,
+      "proposedLevel": 576.957002011856
+    },
+    {
+      "chainage": 3680.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.709142805091,
+      "proposedLevel": 577.142183335494
+    },
+    {
+      "chainage": 3700.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.971032634143,
+      "proposedLevel": 577.327364659132
+    },
+    {
+      "chainage": 3720.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 570.052427243743,
+      "proposedLevel": 577.51254598277
+    },
+    {
+      "chainage": 3740.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.954085809966,
+      "proposedLevel": 577.697727306409
+    },
+    {
+      "chainage": 3760.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.681134352363,
+      "proposedLevel": 577.882908630047
+    },
+    {
+      "chainage": 3780.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.360248807517,
+      "proposedLevel": 578.068089953685
+    },
+    {
+      "chainage": 3800.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.175226088447,
+      "proposedLevel": 578.253271277323
+    },
+    {
+      "chainage": 3820.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.347198833595,
+      "proposedLevel": 578.438452600961
+    },
+    {
+      "chainage": 3840.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.558358071302,
+      "proposedLevel": 578.623633924599
+    },
+    {
+      "chainage": 3860.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.824063274155,
+      "proposedLevel": 578.808815248237
+    },
+    {
+      "chainage": 3880.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.918521173091,
+      "proposedLevel": 578.993996571875
+    },
+    {
+      "chainage": 3900.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.905407987131,
+      "proposedLevel": 579.179177895513
+    },
+    {
+      "chainage": 3920.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.826885392736,
+      "proposedLevel": 579.362681514577
+    },
+    {
+      "chainage": 3940.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 569.952125380715,
+      "proposedLevel": 579.412681514578
+    },
+    {
+      "chainage": 3960.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 570.130035598335,
+      "proposedLevel": 579.462681514578
+    },
+    {
+      "chainage": 3980.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 570.29136638344,
+      "proposedLevel": 579.512681514578
+    },
+    {
+      "chainage": 4000.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 570.310059369107,
+      "proposedLevel": 579.562681514578
+    },
+    {
+      "chainage": 4020.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 570.317604712453,
+      "proposedLevel": 579.612681514579
+    },
+    {
+      "chainage": 4040.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 570.325006892958,
+      "proposedLevel": 579.662681514579
+    },
+    {
+      "chainage": 4060.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 570.64211670766,
+      "proposedLevel": 579.712681514579
+    },
+    {
+      "chainage": 4080.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 571.032793718784,
+      "proposedLevel": 579.762681514579
+    },
+    {
+      "chainage": 4100.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 571.522720455871,
+      "proposedLevel": 579.81268151458
+    },
+    {
+      "chainage": 4120.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 571.992030912537,
+      "proposedLevel": 579.86268151458
+    },
+    {
+      "chainage": 4140.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 572.30619743247,
+      "proposedLevel": 579.91268151458
+    },
+    {
+      "chainage": 4160.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 572.580124956809,
+      "proposedLevel": 579.962681514581
+    },
+    {
+      "chainage": 4180.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 572.857219629967,
+      "proposedLevel": 580.012681514581
+    },
+    {
+      "chainage": 4200.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 573.056631557632,
+      "proposedLevel": 580.062681514581
+    },
+    {
+      "chainage": 4220.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 573.181262667821,
+      "proposedLevel": 580.112681514581
+    },
+    {
+      "chainage": 4240.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 573.41331739948,
+      "proposedLevel": 580.162681514582
+    },
+    {
+      "chainage": 4260.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 573.601135346659,
+      "proposedLevel": 580.212681514582
+    },
+    {
+      "chainage": 4280.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 573.724721631926,
+      "proposedLevel": 580.262681514582
+    },
+    {
+      "chainage": 4300.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 573.665388714873,
+      "proposedLevel": 580.312681514582
+    },
+    {
+      "chainage": 4320.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 573.52821320655,
+      "proposedLevel": 580.362681514583
+    },
+    {
+      "chainage": 4340.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 573.377830899841,
+      "proposedLevel": 580.412681514583
+    },
+    {
+      "chainage": 4360.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 573.236648969225,
+      "proposedLevel": 580.462681514583
+    },
+    {
+      "chainage": 4380.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 573.441822946759,
+      "proposedLevel": 580.512681514584
+    },
+    {
+      "chainage": 4400.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 573.642968983738,
+      "proposedLevel": 580.562681514584
+    },
+    {
+      "chainage": 4420.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 574.12805069833,
+      "proposedLevel": 580.612681514584
+    },
+    {
+      "chainage": 4440.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 574.484165355829,
+      "proposedLevel": 580.662681514584
+    },
+    {
+      "chainage": 4460.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 574.370206852024,
+      "proposedLevel": 580.712681514585
+    },
+    {
+      "chainage": 4480.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 574.166050737627,
+      "proposedLevel": 580.762681514585
+    },
+    {
+      "chainage": 4500.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 573.60440926827,
+      "proposedLevel": 580.812681514585
+    },
+    {
+      "chainage": 4520.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 573.184654644825,
+      "proposedLevel": 580.862681514585
+    },
+    {
+      "chainage": 4540.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 572.989875439737,
+      "proposedLevel": 580.912681514586
+    },
+    {
+      "chainage": 4560.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 572.870258852884,
+      "proposedLevel": 580.962681514586
+    },
+    {
+      "chainage": 4580.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 572.947090146023,
+      "proposedLevel": 581.012681514586
+    },
+    {
+      "chainage": 4600.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 573.28010647557,
+      "proposedLevel": 581.062681514587
+    },
+    {
+      "chainage": 4620.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 573.773198187642,
+      "proposedLevel": 581.112681514587
+    },
+    {
+      "chainage": 4640.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 574.261451454353,
+      "proposedLevel": 581.162681514587
+    },
+    {
+      "chainage": 4660.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 574.584751980388,
+      "proposedLevel": 581.212681514587
+    },
+    {
+      "chainage": 4680.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 574.884678841293,
+      "proposedLevel": 581.262681514588
+    },
+    {
+      "chainage": 4700.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 575.267321309085,
+      "proposedLevel": 581.312681514588
+    },
+    {
+      "chainage": 4720.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 575.620531796543,
+      "proposedLevel": 581.362681514588
+    },
+    {
+      "chainage": 4740.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 575.721087625677,
+      "proposedLevel": 581.412681514588
+    },
+    {
+      "chainage": 4760.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 575.750522320482,
+      "proposedLevel": 581.462681514589
+    },
+    {
+      "chainage": 4780.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 575.454350602663,
+      "proposedLevel": 581.512681514589
+    },
+    {
+      "chainage": 4800.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 575.202970295691,
+      "proposedLevel": 581.562681514589
+    },
+    {
+      "chainage": 4820.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 575.231566229359,
+      "proposedLevel": 581.61268151459
+    },
+    {
+      "chainage": 4840.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 575.528847335581,
+      "proposedLevel": 581.66268151459
+    },
+    {
+      "chainage": 4860.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 576.267178610005,
+      "proposedLevel": 581.71268151459
+    },
+    {
+      "chainage": 4880.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 576.803708122759,
+      "proposedLevel": 581.76268151459
+    },
+    {
+      "chainage": 4900.0,
+      "station": "NEW NASHIK STATION",
+      "structureNo": "",
+      "groundLevel": 576.899393323562,
+      "proposedLevel": 581.812681514591
+    },
+    {
+      "chainage": 4920.0,
+      "station": "4+920",
+      "structureNo": "",
+      "groundLevel": 576.961851618109,
+      "proposedLevel": 581.862681514591
+    },
+    {
+      "chainage": 4940.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 576.9035918537,
+      "proposedLevel": 581.912681514591
+    },
+    {
+      "chainage": 4960.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 577.099761416351,
+      "proposedLevel": 581.962681514592
+    },
+    {
+      "chainage": 4980.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 577.452965169378,
+      "proposedLevel": 582.012681514592
+    },
+    {
+      "chainage": 5000.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 578.007565520836,
+      "proposedLevel": 582.062681514592
+    },
+    {
+      "chainage": 5020.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 578.712712748363,
+      "proposedLevel": 582.112681514592
+    },
+    {
+      "chainage": 5040.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.130143990892,
+      "proposedLevel": 582.162681514593
+    },
+    {
+      "chainage": 5060.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.366446511782,
+      "proposedLevel": 582.212681514593
+    },
+    {
+      "chainage": 5080.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.537053217966,
+      "proposedLevel": 582.262681514593
+    },
+    {
+      "chainage": 5100.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.628603390134,
+      "proposedLevel": 582.312681514593
+    },
+    {
+      "chainage": 5120.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.839645513492,
+      "proposedLevel": 582.362681514594
+    },
+    {
+      "chainage": 5140.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 580.058955906324,
+      "proposedLevel": 582.412681514594
+    },
+    {
+      "chainage": 5160.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 580.080354467078,
+      "proposedLevel": 582.462681514594
+    },
+    {
+      "chainage": 5180.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 580.086490225884,
+      "proposedLevel": 582.512681514595
+    },
+    {
+      "chainage": 5200.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.950225740723,
+      "proposedLevel": 582.562681514595
+    },
+    {
+      "chainage": 5220.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.80574591323,
+      "proposedLevel": 582.612681514595
+    },
+    {
+      "chainage": 5240.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.503730549524,
+      "proposedLevel": 582.662681514595
+    },
+    {
+      "chainage": 5260.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.234216125049,
+      "proposedLevel": 582.712681514596
+    },
+    {
+      "chainage": 5280.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.055505464562,
+      "proposedLevel": 582.762681514596
+    },
+    {
+      "chainage": 5300.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 578.962088460513,
+      "proposedLevel": 582.812681514596
+    },
+    {
+      "chainage": 5320.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.007218453541,
+      "proposedLevel": 582.862681514596
+    },
+    {
+      "chainage": 5340.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 578.998133843754,
+      "proposedLevel": 582.912681514597
+    },
+    {
+      "chainage": 5360.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 578.75266018313,
+      "proposedLevel": 582.962681514597
+    },
+    {
+      "chainage": 5380.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 578.8634839404,
+      "proposedLevel": 583.012681514597
+    },
+    {
+      "chainage": 5400.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.548020043276,
+      "proposedLevel": 583.062681514597
+    },
+    {
+      "chainage": 5420.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.833504340638,
+      "proposedLevel": 583.112681514598
+    },
+    {
+      "chainage": 5440.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.714039030119,
+      "proposedLevel": 583.162681514598
+    },
+    {
+      "chainage": 5460.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.298901489589,
+      "proposedLevel": 583.212681514598
+    },
+    {
+      "chainage": 5480.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 578.650555671025,
+      "proposedLevel": 583.262681514599
+    },
+    {
+      "chainage": 5500.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 578.20493802044,
+      "proposedLevel": 583.312681514599
+    },
+    {
+      "chainage": 5520.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 577.885744384737,
+      "proposedLevel": 583.362681514599
+    },
+    {
+      "chainage": 5540.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 577.960732698139,
+      "proposedLevel": 583.412681514599
+    },
+    {
+      "chainage": 5560.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 578.266032232577,
+      "proposedLevel": 583.4626815146
+    },
+    {
+      "chainage": 5580.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 578.831262158461,
+      "proposedLevel": 583.5126815146
+    },
+    {
+      "chainage": 5600.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.476066380398,
+      "proposedLevel": 583.5626815146
+    },
+    {
+      "chainage": 5620.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 580.180316355553,
+      "proposedLevel": 583.6126815146
+    },
+    {
+      "chainage": 5640.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 580.930516739847,
+      "proposedLevel": 583.662681514601
+    },
+    {
+      "chainage": 5660.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 581.535977971689,
+      "proposedLevel": 583.712681514601
+    },
+    {
+      "chainage": 5680.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 582.083228705898,
+      "proposedLevel": 583.762681514601
+    },
+    {
+      "chainage": 5700.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 582.51691918396,
+      "proposedLevel": 583.812681514602
+    },
+    {
+      "chainage": 5720.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 582.930306697511,
+      "proposedLevel": 583.862681514602
+    },
+    {
+      "chainage": 5740.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 582.716971694595,
+      "proposedLevel": 583.912681514602
+    },
+    {
+      "chainage": 5760.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 582.502257447456,
+      "proposedLevel": 583.962681514602
+    },
+    {
+      "chainage": 5780.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 581.754519711084,
+      "proposedLevel": 584.012681514603
+    },
+    {
+      "chainage": 5800.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 581.13635395116,
+      "proposedLevel": 584.062681514603
+    },
+    {
+      "chainage": 5820.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 580.648840823814,
+      "proposedLevel": 584.112681514603
+    },
+    {
+      "chainage": 5840.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 580.279202363936,
+      "proposedLevel": 584.162681514603
+    },
+    {
+      "chainage": 5860.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 580.309489624704,
+      "proposedLevel": 584.212681514604
+    },
+    {
+      "chainage": 5880.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 580.316326650936,
+      "proposedLevel": 584.262681514604
+    },
+    {
+      "chainage": 5900.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 580.179923548585,
+      "proposedLevel": 584.312681514604
+    },
+    {
+      "chainage": 5920.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.986175223774,
+      "proposedLevel": 584.362681514605
+    },
+    {
+      "chainage": 5940.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.637616952528,
+      "proposedLevel": 584.412681514605
+    },
+    {
+      "chainage": 5960.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.64242479186,
+      "proposedLevel": 584.462681514605
+    },
+    {
+      "chainage": 5980.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 579.956908739447,
+      "proposedLevel": 584.512681514605
+    },
+    {
+      "chainage": 6000.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 580.503462941836,
+      "proposedLevel": 584.562681514606
+    },
+    {
+      "chainage": 6020.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 581.171651516471,
+      "proposedLevel": 584.612681514606
+    },
+    {
+      "chainage": 6040.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 581.504693456971,
+      "proposedLevel": 584.662681514606
+    },
+    {
+      "chainage": 6060.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 581.634301974909,
+      "proposedLevel": 584.712681514607
+    },
+    {
+      "chainage": 6080.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 581.79086308302,
+      "proposedLevel": 584.762681514607
+    },
+    {
+      "chainage": 6100.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 581.874529744381,
+      "proposedLevel": 584.812681514607
+    },
+    {
+      "chainage": 6120.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 582.037508325985,
+      "proposedLevel": 584.862681514607
+    },
+    {
+      "chainage": 6140.0,
+      "station": "",
+      "structureNo": "",
+      "groundLevel": 582.215555256596,
+      "proposedLevel": 584.912681514608
+    }
+  ]
+}
