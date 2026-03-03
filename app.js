@@ -2878,14 +2878,10 @@ function bindEvents() {
   const closeAiModalBtn = document.getElementById("closeAiModalBtn");
   const startAiExtractBtn = document.getElementById("startAiExtractBtn");
   const aiTextInput = document.getElementById("aiTextInput");
-  const groqApiKeyInput = document.getElementById("groqApiKeyInput");
 
   if (bridgeAiBtn && aiBridgeModal) {
     bridgeAiBtn.addEventListener("click", () => {
       aiTextInput.value = "";
-      if (groqApiKeyInput) {
-        groqApiKeyInput.value = localStorage.getItem("earthsoft_groq_key") || "";
-      }
       aiBridgeModal.classList.remove("hidden");
     });
   }
@@ -2901,81 +2897,29 @@ function bindEvents() {
       const text = aiTextInput.value.trim();
       if (!text) return alert("Please paste some text first!");
 
-      const apiKey = groqApiKeyInput ? groqApiKeyInput.value.trim() : "";
-      if (!apiKey) return alert("Please enter your Groq API Key first!");
-
-      // Save key for future use
-      localStorage.setItem("earthsoft_groq_key", apiKey);
-
       const originalBtnText = startAiExtractBtn.innerHTML;
       startAiExtractBtn.innerHTML = '<span class="spinner"></span> Extracting with AI...';
       startAiExtractBtn.disabled = true;
 
-      const SYSTEM_PROMPT = `
-You are a highly precise civil engineering data extraction assistant.
-The human will provide messy, unstructured text (surveyor notes, emails, messy tables).
-Your ONLY job is to extract Bridge/Structure information and return a strictly formatted JSON array.
-If the text contains any structures explicitly labeled as 'ROB' or 'Road Over Bridge', IGNORE THEM completely.
-
-For every valid bridge found, return an object in this EXACT JSON structure:
-{
-  "bridgeNo": "string (e.g., BR-1, 10/2, etc.)",
-  "bridgeCategory": "string (Major, Minor, Viaduct, Important)",
-  "bridgeType": "string (Box, PSC Slab, Composite Girder, OWG, etc.)",
-  "bridgeSize": "string (e.g., 1x7.5x5.5, 10x9.15)",
-  "bridgeSpans": "string (number of spans, e.g., '1', '10')",
-  "startChainage": "number (in meters, e.g. 12500)",
-  "endChainage": "number (in meters)",
-  "length": "number (in meters)"
-}
-
-Rules:
-1. Try your best to extract Start and End chainage. If you only see a single Chainage (like 'Ch: 12+500'), treat that as the center. 
-2. If only center chainage and size are given, calculate start/end mathematically (Length = spans * span_size).
-3. Chainages of '12+500' mean 12500 meters.
-4. ONLY return a beautifully formatted JSON Array of these objects. No markdown formatting, no conversational text, no backticks. JUST the literal JSON array starting with '[' and ending with ']'.
-`;
-
       try {
-        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        const response = await fetch("/api/extract-bridges", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${apiKey}`,
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({
-            model: "llama3-70b-8192",
-            messages: [
-              { role: "system", content: SYSTEM_PROMPT },
-              { role: "user", content: text }
-            ],
-            temperature: 0.1,
-            max_tokens: 4000
-          })
+          body: JSON.stringify({ text })
         });
 
         if (!response.ok) {
           const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error?.message || `Groq API Error: ${response.status}`);
+          throw new Error(errData.error || `Server Error: ${response.status}`);
         }
 
         const data = await response.json();
-        let aiOutput = data.choices && data.choices[0]?.message?.content?.trim();
 
-        if (!aiOutput) throw new Error("No readable response from AI.");
-
-        // Clean up markdown formatting if the LLM hallucinated it
-        if (aiOutput.startsWith('```json')) {
-          aiOutput = aiOutput.replace(/^```json\n/, '').replace(/\n```$/, '');
-        } else if (aiOutput.startsWith('```')) {
-          aiOutput = aiOutput.replace(/^```\n?/, '').replace(/\n?```$/, '');
-        }
-
-        const extractedBridges = JSON.parse(aiOutput);
-
-        if (extractedBridges && extractedBridges.length > 0) {
+        if (data.rows && data.rows.length > 0) {
           // Add the newly extracted bridges to existing ones
-          state.bridgeRows = state.bridgeRows.concat(extractedBridges);
+          state.bridgeRows = state.bridgeRows.concat(data.rows);
           state.project.uploads.bridges = true;
           state.project.verified = false;
 
@@ -2985,7 +2929,7 @@ Rules:
           recalculate();
 
           aiBridgeModal.classList.add("hidden");
-          alert(`Successfully extracted and added ${extractedBridges.length} bridges using AI!`);
+          alert(`Successfully extracted and added ${data.rows.length} bridges using AI!`);
         } else {
           alert("The AI could not find any clear bridge data in that text.");
         }
