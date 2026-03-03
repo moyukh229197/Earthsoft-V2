@@ -110,7 +110,7 @@ body {
 .main-content {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   padding: 0;
   min-width: 0;
   /* Prevent flex overflow */
@@ -234,6 +234,9 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.topbar .brand {
   flex: 1;
 }
 
@@ -413,6 +416,7 @@ h1 {
 .work-page {
   display: none;
   animation: fadeIn 0.4s ease;
+  padding: 0 20px;
 }
 
 @keyframes fadeIn {
@@ -465,7 +469,7 @@ h1 {
   margin-top: 0;
   display: grid;
   grid-template-columns: minmax(0, 2.3fr) minmax(300px, 1fr);
-  gap: 16px;
+  gap: 12px;
   align-items: stretch;
 }
 
@@ -549,7 +553,7 @@ h1 {
   max-width: none;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
+  gap: 12px;
 }
 
 .stat {
@@ -802,7 +806,7 @@ h1 {
 .grid2 {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
+  gap: 12px;
   margin-top: 0;
 }
 

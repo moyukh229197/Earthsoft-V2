@@ -2,6 +2,9 @@ const r3 = (v) => (Number.isFinite(v) ? Number(v).toFixed(3) : "0.000");
 const CROSS_SVG_W = 1700;
 const CROSS_SVG_H = 980;
 
+const BRIDGE_CATEGORIES = ["Minor", "Major", "Viaduct", "Important", "RoR"];
+const BRIDGE_TYPES = ["Box", "PSC Slab", "Composite Girder", "OWG", "Other"];
+
 const state = {
   meta: null,
   rawRows: [],
@@ -293,11 +296,28 @@ function parseImportedRows(aoa, startCh, interval) {
 function resolveBridgeColumns(headerCells) {
   return {
     bridgeNo: findColByAliases(headerCells, ["bridgeno", "bridgenumber", "structureno", "structure", "bridge"]),
-    startChainage: findColByAliases(headerCells, ["bridgestartchainage", "startchainage", "fromchainage", "chfrom", "startch", "from"]),
-    endChainage: findColByAliases(headerCells, ["bridgeendchainage", "endchainage", "tochainage", "chto", "endch", "to"]),
-    length: findColByAliases(headerCells, ["totalspanlength", "bridgelength", "spanlength", "length", "spanm"]),
+    startChainage: findColByAliases(headerCells, ["bridgestartchainage", "startchainage", "fromchainage", "chfrom", "startch"]),
+    endChainage: findColByAliases(headerCells, ["bridgeendchainage", "endchainage", "tochainage", "chto", "endch"]),
+    length: findColByAliases(headerCells, ["totalspanlength", "bridgelength", "spanlength", "length", "spanm", "totallength"]),
     chainage: findColByAliases(headerCells, ["chainage", "ch", "centerchainage", "location"]),
+    category: findColByAliases(headerCells, ["category", "purpose", "bridgecategory", "typeofobstruction", "typeofcrossing"]),
+    type: findColByAliases(headerCells, ["bridgetype", "structuretype", "typeofspan", "typeofsuperstructure"]),
+    size: findColByAliases(headerCells, ["bridgesize", "size", "dimensions", "proposedspan"]),
+    spans: findColByAliases(headerCells, ["noofspans", "numberofspans"]),
   };
+}
+
+// Parse size strings like "10x9.15", "1x7.5x5.5" to extract span count and individual span length
+function parseBridgeSpanSize(sizeStr) {
+  if (!sizeStr) return { spans: NaN, spanLength: NaN, totalLength: NaN };
+  const s = String(sizeStr).trim();
+  // Pattern: NxL or NxLxH (e.g. 10x9.15 or 1x7.5x5.5)
+  const m = s.match(/^(\d+)\s*[xX×]\s*([\d.]+)/);
+  if (!m) return { spans: NaN, spanLength: NaN, totalLength: NaN };
+  const spans = parseInt(m[1], 10);
+  const spanLength = parseFloat(m[2]);
+  if (!Number.isFinite(spans) || !Number.isFinite(spanLength)) return { spans: NaN, spanLength: NaN, totalLength: NaN };
+  return { spans, spanLength, totalLength: spans * spanLength };
 }
 
 function detectBridgeHeaderRow(aoa) {
@@ -311,7 +331,8 @@ function detectBridgeHeaderRow(aoa) {
       + (cols.startChainage >= 0 ? 3 : 0)
       + (cols.endChainage >= 0 ? 3 : 0)
       + (cols.length >= 0 ? 2 : 0)
-      + (cols.chainage >= 0 ? 1 : 0);
+      + (cols.chainage >= 0 ? 1 : 0)
+      + (cols.size >= 0 ? 1 : 0);
     if (score > best.score) {
       best = { rowIndex: i, score, cols };
     }
@@ -321,7 +342,8 @@ function detectBridgeHeaderRow(aoa) {
   const hasCore = (c.startChainage >= 0 && c.endChainage >= 0)
     || (c.chainage >= 0 && c.length >= 0)
     || (c.startChainage >= 0 && c.length >= 0)
-    || (c.endChainage >= 0 && c.length >= 0);
+    || (c.endChainage >= 0 && c.length >= 0)
+    || (c.chainage >= 0 && c.size >= 0);  // chainage + size (length derived from span size)
   return hasCore ? best : null;
 }
 
@@ -329,8 +351,14 @@ function normalizeBridgeEntry(raw, index = 0) {
   const bridgeNo = String(raw.bridgeNo || `BR-${index + 1}`).trim();
   let start = parseChainage(raw.startChainage);
   let end = parseChainage(raw.endChainage);
-  const lengthRaw = parseLooseNumber(raw.length, NaN);
+  let lengthRaw = parseLooseNumber(raw.length, NaN);
   const center = parseChainage(raw.chainage);
+
+  // If length is not available, try to derive from size string (e.g. "10x9.15")
+  if (!Number.isFinite(lengthRaw) && raw.bridgeSize) {
+    const parsed = parseBridgeSpanSize(raw.bridgeSize);
+    if (Number.isFinite(parsed.totalLength)) lengthRaw = parsed.totalLength;
+  }
 
   if (!Number.isFinite(start) && Number.isFinite(end) && Number.isFinite(lengthRaw)) start = end - lengthRaw;
   if (!Number.isFinite(end) && Number.isFinite(start) && Number.isFinite(lengthRaw)) end = start + lengthRaw;
@@ -343,23 +371,49 @@ function normalizeBridgeEntry(raw, index = 0) {
   if (end <= start) return null;
 
   const length = Number.isFinite(lengthRaw) && lengthRaw > 0 ? lengthRaw : (end - start);
+
+  // Derive bridgeSpans from size string if not explicitly provided
+  let spansVal = String(raw.bridgeSpans || "");
+  if (!spansVal || spansVal === "1") {
+    const parsed = parseBridgeSpanSize(raw.bridgeSize);
+    if (Number.isFinite(parsed.spans)) spansVal = String(parsed.spans);
+  }
+
   return {
     bridgeNo,
+    bridgeCategory: String(raw.bridgeCategory || "Minor"),
+    bridgeType: String(raw.bridgeType || "Box"),
+    bridgeSize: String(raw.bridgeSize || "-"),
+    bridgeSpans: spansVal || "1",
     startChainage: start,
     endChainage: end,
     length,
   };
 }
 
-function parseBridgeRowsFromAoa(aoa) {
+function parseBridgeRowsFromAoa(aoa, sheetCategory = 'Minor') {
   const header = detectBridgeHeaderRow(aoa);
   if (!header) return { rows: [], error: "Bridge sheet must include Start/End chainage or Chainage+Length columns." };
   const rows = [];
   const cols = header.cols;
   for (let i = header.rowIndex + 1; i < aoa.length; i += 1) {
     const row = Array.isArray(aoa[i]) ? aoa[i] : [];
+
+    // Check for ROB/Road Over Bridge to exclude
+    const purpose = cols.category >= 0 ? String(row[cols.category] || "").toLowerCase() : "";
+    const type = cols.type >= 0 ? String(row[cols.type] || "").toLowerCase() : "";
+    if (purpose.includes("rob") || type.includes("rob") || purpose.includes("road over")) continue;
+
+    // Read category from cell, or fall back to sheet-level category
+    let cellCategory = cols.category >= 0 ? String(row[cols.category] || "").trim() : "";
+    if (!cellCategory) cellCategory = sheetCategory;
+
     const raw = {
       bridgeNo: cols.bridgeNo >= 0 ? row[cols.bridgeNo] : "",
+      bridgeCategory: cellCategory,
+      bridgeType: cols.type >= 0 ? (String(row[cols.type] || "").trim() || "Box") : "Box",
+      bridgeSize: cols.size >= 0 ? (String(row[cols.size] || "").trim() || "-") : "-",
+      bridgeSpans: cols.spans >= 0 ? (String(row[cols.spans] || "").trim() || "1") : "1",
       startChainage: cols.startChainage >= 0 ? row[cols.startChainage] : "",
       endChainage: cols.endChainage >= 0 ? row[cols.endChainage] : "",
       length: cols.length >= 0 ? row[cols.length] : "",
@@ -547,6 +601,21 @@ async function readSheetAoaFromFile(file) {
   return aoa;
 }
 
+// Read ALL sheets from an Excel file, returning [{name, aoa}]
+async function readAllSheetsFromFile(file) {
+  const ext = file.name.toLowerCase();
+  if (!(ext.endsWith(".csv") || ext.endsWith(".xlsx") || ext.endsWith(".xls"))) {
+    throw new Error("Supported files are .csv, .xlsx, .xls");
+  }
+  const data = await file.arrayBuffer();
+  const wb = XLSX.read(data, { type: "array", cellDates: false });
+  return wb.SheetNames.map((name) => {
+    const ws = wb.Sheets[name];
+    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false, blankrows: false });
+    return { name, aoa };
+  });
+}
+
 function buildBridgeIntervals() {
   return state.bridgeRows
     .map((b, i) => normalizeBridgeEntry(b, i))
@@ -566,7 +635,7 @@ function getSegmentBridgeInfo(start, end, bridges) {
     const ovEnd = Math.min(end, b.endChainage);
     if (ovEnd > ovStart) {
       overlaps.push([ovStart, ovEnd]);
-      refs.add(b.bridgeNo);
+      refs.add(`${b.bridgeNo} (${b.bridgeCategory}/${b.bridgeType} | ${b.bridgeSize} x ${b.bridgeSpans})`);
     }
   }
   if (!overlaps.length) return { deductedLen: 0, refs: [] };
@@ -591,7 +660,7 @@ function getBridgeRefsAtChainage(chainage, bridges) {
   if (!Number.isFinite(chainage) || !bridges.length) return [];
   return bridges
     .filter((b) => chainage >= b.startChainage && chainage <= b.endChainage)
-    .map((b) => b.bridgeNo);
+    .map((b) => `${b.bridgeNo} (${b.bridgeCategory}/${b.bridgeType} | ${b.bridgeSize} x ${b.bridgeSpans})`);
 }
 
 function renderBridgeInputs() {
@@ -599,7 +668,7 @@ function renderBridgeInputs() {
   if (!state.bridgeRows.length) {
     els.bridgeTableBody.innerHTML = `
       <tr>
-        <td colspan="5" class="muted">No bridge rows loaded. Use Import Data > Import Bridge List or Add Bridge Row.</td>
+        <td colspan="9" class="muted">No bridge rows loaded. Use Import Data > Import Bridge List or Add Bridge Row.</td>
       </tr>
     `;
     if (els.bridgeMeta) els.bridgeMeta.textContent = "No bridge deduction applied.";
@@ -608,6 +677,18 @@ function renderBridgeInputs() {
   els.bridgeTableBody.innerHTML = state.bridgeRows.map((b, i) => `
     <tr data-bridge-row="${i}">
       <td><input data-bridge-field="bridgeNo" value="${String(b.bridgeNo || "")}" /></td>
+      <td>
+        <select data-bridge-field="bridgeCategory">
+          ${BRIDGE_CATEGORIES.map(cat => `<option value="${cat}" ${b.bridgeCategory === cat ? 'selected' : ''}>${cat}</option>`).join("")}
+        </select>
+      </td>
+      <td>
+        <select data-bridge-field="bridgeType">
+          ${BRIDGE_TYPES.map(type => `<option value="${type}" ${b.bridgeType === type ? 'selected' : ''}>${type}</option>`).join("")}
+        </select>
+      </td>
+      <td><input data-bridge-field="bridgeSize" value="${String(b.bridgeSize || "")}" style="width: 80px;" placeholder="e.g. 6.1m" /></td>
+      <td><input data-bridge-field="bridgeSpans" type="number" min="1" value="${String(b.bridgeSpans || "1")}" style="width: 50px;" /></td>
       <td><input data-bridge-field="startChainage" value="${Number.isFinite(parseChainage(b.startChainage)) ? r3(parseChainage(b.startChainage)) : String(b.startChainage ?? "")}" /></td>
       <td><input data-bridge-field="endChainage" value="${Number.isFinite(parseChainage(b.endChainage)) ? r3(parseChainage(b.endChainage)) : String(b.endChainage ?? "")}" /></td>
       <td><input data-bridge-field="length" value="${Number.isFinite(parseLooseNumber(b.length, NaN)) ? r3(parseLooseNumber(b.length, NaN)) : String(b.length ?? "")}" /></td>
@@ -738,6 +819,10 @@ function syncBridgeStateFromTable() {
     if (tr.querySelectorAll("[data-bridge-field]").length === 0) return;
     const raw = {
       bridgeNo: tr.querySelector('[data-bridge-field="bridgeNo"]')?.value ?? "",
+      bridgeCategory: tr.querySelector('[data-bridge-field="bridgeCategory"]')?.value ?? "Minor",
+      bridgeType: tr.querySelector('[data-bridge-field="bridgeType"]')?.value ?? "Box",
+      bridgeSize: tr.querySelector('[data-bridge-field="bridgeSize"]')?.value ?? "-",
+      bridgeSpans: tr.querySelector('[data-bridge-field="bridgeSpans"]')?.value ?? "1",
       startChainage: tr.querySelector('[data-bridge-field="startChainage"]')?.value ?? "",
       endChainage: tr.querySelector('[data-bridge-field="endChainage"]')?.value ?? "",
       length: tr.querySelector('[data-bridge-field="length"]')?.value ?? "",
@@ -1109,6 +1194,8 @@ function renderSummary() {
   // Enable/disable the global verify button
   const vBtn = document.getElementById("verifyCalcBtn");
   if (vBtn) vBtn.disabled = !state.calcRows.length;
+
+  saveState();
 }
 
 function setResultTab(tabName) {
@@ -1185,7 +1272,7 @@ function updateWizardUI() {
 function applyProjectGate() {
   const active = Boolean(state.project.active);
   if (els.importBtn) els.importBtn.disabled = !active;
-  if (els.exportBtn) els.exportBtn.disabled = !state.project.verified;
+  if (els.exportBtn) els.exportBtn.disabled = !active;
   if (els.openSettingsBtn) els.openSettingsBtn.disabled = !active;
   if (els.saveProjectBtn) els.saveProjectBtn.disabled = !active;
   const projectTitle = state.project.name ? `${state.project.name}` : "No active project";
@@ -1306,6 +1393,7 @@ async function saveCurrentProject() {
 }
 
 function resetForNewProject() {
+  localStorage.removeItem("earthsoft_saved_work");
   state.project = {
     active: false,
     verified: false,
@@ -2693,18 +2781,61 @@ function bindEvents() {
   };
 
   const importBridgeFile = async (file) => {
-    const aoa = await readSheetAoaFromFile(file);
-    const parsedResult = parseBridgeRowsFromAoa(aoa);
-    if (parsedResult.error) throw new Error(parsedResult.error);
-    if (!parsedResult.rows.length) throw new Error("No valid bridge rows found.");
-    state.bridgeRows = parsedResult.rows;
+    let allRows = [];
+    let skippedROB = 0;
+    let sheetsProcessed = 0;
+
+    try {
+      // Try multi-sheet processing first
+      const sheets = await readAllSheetsFromFile(file);
+      for (const sheet of sheets) {
+        const sheetNameLower = sheet.name.toLowerCase().trim();
+        // Skip ROB sheets entirely — they don't affect embankment
+        if (sheetNameLower.includes('rob')) {
+          skippedROB++;
+          continue;
+        }
+        if (!sheet.aoa.length) continue;
+
+        // Determine category from sheet name
+        let sheetCategory = 'Minor';
+        if (sheetNameLower.includes('major')) sheetCategory = 'Major';
+        else if (sheetNameLower.includes('minor')) sheetCategory = 'Minor';
+        else if (sheetNameLower.includes('rub')) sheetCategory = 'Minor';
+        else if (sheetNameLower.includes('viaduct')) sheetCategory = 'Viaduct';
+        else if (sheetNameLower.includes('important')) sheetCategory = 'Important';
+
+        const parsedResult = parseBridgeRowsFromAoa(sheet.aoa, sheetCategory);
+        if (parsedResult.rows.length) {
+          allRows = allRows.concat(parsedResult.rows);
+          sheetsProcessed++;
+        }
+      }
+    } catch (multiErr) {
+      // Fallback: single sheet
+      console.warn('Multi-sheet read failed, falling back to single sheet:', multiErr);
+      const aoa = await readSheetAoaFromFile(file);
+      const parsedResult = parseBridgeRowsFromAoa(aoa, 'Minor');
+      if (parsedResult.error) throw new Error(parsedResult.error);
+      allRows = parsedResult.rows;
+      sheetsProcessed = 1;
+    }
+
+    if (!allRows.length) throw new Error('No valid bridge rows found in any sheet.');
+
+    // Sort by start chainage
+    allRows.sort((a, b) => a.startChainage - b.startChainage);
+
+    state.bridgeRows = allRows;
     state.project.uploads.bridges = true;
     state.project.verified = false;
     updateWizardUI();
     applyProjectGate();
     renderBridgeInputs();
     recalculate();
-    alert(`Bridge list imported: ${parsedResult.rows.length} rows.`);
+    const msg = `Bridge list imported: ${allRows.length} bridges from ${sheetsProcessed} sheet(s).`
+      + (skippedROB ? ` Skipped ${skippedROB} ROB sheet(s).` : '');
+    alert(msg);
   };
 
   const importCurveFile = async (file) => {
@@ -2741,6 +2872,76 @@ function bindEvents() {
     els.closeImportOptionsBtn.addEventListener("click", () => els.importOptionsModal.close());
   }
 
+  // --- AI Bridge Extraction Logic ---
+  const aiBridgeModal = document.getElementById("aiBridgeModal");
+  const bridgeAiBtn = document.getElementById("bridgeAiBtn");
+  const closeAiModalBtn = document.getElementById("closeAiModalBtn");
+  const startAiExtractBtn = document.getElementById("startAiExtractBtn");
+  const aiTextInput = document.getElementById("aiTextInput");
+
+  if (bridgeAiBtn && aiBridgeModal) {
+    bridgeAiBtn.addEventListener("click", () => {
+      aiTextInput.value = "";
+      aiBridgeModal.classList.remove("hidden");
+    });
+  }
+
+  if (closeAiModalBtn && aiBridgeModal) {
+    closeAiModalBtn.addEventListener("click", () => {
+      aiBridgeModal.classList.add("hidden");
+    });
+  }
+
+  if (startAiExtractBtn && aiTextInput && aiBridgeModal) {
+    startAiExtractBtn.addEventListener("click", async () => {
+      const text = aiTextInput.value.trim();
+      if (!text) return alert("Please paste some text first!");
+
+      const originalBtnText = startAiExtractBtn.innerHTML;
+      startAiExtractBtn.innerHTML = '<span class="spinner"></span> Extracting with AI...';
+      startAiExtractBtn.disabled = true;
+
+      try {
+        const response = await fetch("http://localhost:3000/api/extract-bridges", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || `Server responded with ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.rows && data.rows.length > 0) {
+          // Add the newly extracted bridges to existing ones
+          state.bridgeRows = state.bridgeRows.concat(data.rows);
+          state.project.uploads.bridges = true;
+          state.project.verified = false;
+
+          updateWizardUI();
+          applyProjectGate();
+          renderBridgeInputs();
+          recalculate();
+
+          aiBridgeModal.classList.add("hidden");
+          alert(`Successfully extracted and added ${data.rows.length} bridges using AI!`);
+        } else {
+          alert("The AI could not find any clear bridge data in that text.");
+        }
+      } catch (err) {
+        console.error("AI Extraction Error:", err);
+        alert(`Failed to extract bridges. Ensure 'node server/server.js' is running.\n\nError: ${err.message}`);
+      } finally {
+        startAiExtractBtn.innerHTML = originalBtnText;
+        startAiExtractBtn.disabled = false;
+      }
+    });
+  }
+  // ----------------------------------
+
   if (els.importOptionsModal) {
     els.importOptionsModal.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-import-kind]");
@@ -2768,6 +2969,10 @@ function bindEvents() {
       const nextNo = state.bridgeRows.length + 1;
       state.bridgeRows.push({
         bridgeNo: `BR-${nextNo}`,
+        bridgeCategory: "Minor",
+        bridgeType: "Box",
+        bridgeSize: "6.1m",
+        bridgeSpans: "1",
         startChainage: r3(base),
         endChainage: r3(base + 20),
         length: r3(20),
@@ -3040,9 +3245,33 @@ function bindEvents() {
   });
 }
 
+function saveState() {
+  const data = {
+    project: state.project,
+    meta: state.meta,
+    rawRows: state.rawRows,
+    bridgeRows: state.bridgeRows,
+    curveRows: state.curveRows,
+    loopPlatformRows: state.loopPlatformRows,
+    settings: state.settings,
+    snapshots: state.snapshots,
+  };
+  localStorage.setItem("earthsoft_saved_work", JSON.stringify(data));
+}
+
+function loadStoredState() {
+  const saved = localStorage.getItem("earthsoft_saved_work");
+  if (!saved) return;
+  try {
+    const data = JSON.parse(saved);
+    if (!data) return;
+    Object.assign(state, data);
+  } catch (e) {
+    console.error("Failed to load state:", e);
+  }
+}
+
 async function init() {
-  localStorage.clear();
-  state.meta = {};
   const visualLayerDefaults = {
     ballastCushionThickness: 0.35,
     topLayerThickness: 0.5,
@@ -3050,10 +3279,17 @@ async function init() {
   };
   state.defaultSettings = { ...visualLayerDefaults };
   state.seedDefaultSettings = { ...state.defaultSettings };
+
+  // Initialize defaults
+  state.meta = {};
   state.settings = { ...state.defaultSettings };
   state.rawRows = [];
   state.seedRows = [];
   state.seedMeta = {};
+  state.snapshots = [];
+
+  loadStoredState();
+  state.meta = state.meta || {};
 
   bindEvents();
   bindCrossCanvasInteraction();
