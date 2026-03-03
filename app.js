@@ -2104,10 +2104,11 @@ function bindEvents() {
 
   if (els.themeToggleCheckbox) {
     els.themeToggleCheckbox.addEventListener("change", (e) => {
-      document.body.dataset.theme = e.target.checked ? "dark" : "";
+      // Dark is default (unchecked). Checked = light mode.
+      document.documentElement.classList.toggle("light", e.target.checked);
     });
-    // Set initial toggle state based on active theme
-    els.themeToggleCheckbox.checked = document.body.dataset.theme === "dark";
+    // Set initial toggle state (unchecked = dark mode default)
+    els.themeToggleCheckbox.checked = document.documentElement.classList.contains("light");
   }
 
   // --- Keyboard Shortcuts ---
