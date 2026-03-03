@@ -464,7 +464,7 @@ h1 {
   margin-top: 0;
   display: grid;
   grid-template-columns: minmax(0, 2.3fr) minmax(300px, 1fr);
-  gap: 12px;
+  gap: 16px;
   align-items: stretch;
 }
 
@@ -548,7 +548,7 @@ h1 {
   max-width: none;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 12px;
+  gap: 16px;
 }
 
 .stat {
@@ -800,14 +800,14 @@ h1 {
 
 .grid2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: 1fr;
+  gap: 16px;
   margin-top: 0;
 }
 
 .panel {
-  padding: 14px 16px;
-  min-height: 340px;
+  padding: 16px 20px;
+  min-height: 380px;
 }
 
 .panel h3 {
@@ -816,7 +816,7 @@ h1 {
 
 .chart-wrap {
   position: relative;
-  height: 290px;
+  height: 340px;
 }
 
 .chart-wrap canvas {
