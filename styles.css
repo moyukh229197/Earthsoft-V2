@@ -1263,9 +1263,19 @@ td:first-child {
 }
 
 .modal {
-  width: min(860px, 92vw);
+  width: auto;
+  max-width: 92vw;
   border: 0;
   padding: 0;
+  background: transparent;
+  color: inherit;
+  overflow: visible;
+}
+
+.modal[open] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .modal-xl {
