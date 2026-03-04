@@ -3114,10 +3114,14 @@ function bindEvents() {
 
   if (els.confirmExportBtn) {
     els.confirmExportBtn.addEventListener("click", () => {
+      const rowLimitInput = document.getElementById("exportRowLimit");
+      const rowLimit = rowLimitInput ? parseInt(rowLimitInput.value) || 0 : 0;
+
       const options = {
         calcSheet: document.getElementById("includeCalcSheet").checked,
         crossSections: document.getElementById("includeCrossSections").checked,
         rollDiagram: document.getElementById("includeRollDiagram").checked,
+        rowLimit: rowLimit
       };
       els.exportModal.close();
       generateProjectReport(options);
@@ -4486,7 +4490,21 @@ async function init() {
 
 init();
 
+window._isPdfExportCancelled = false;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const cancelBtn = document.getElementById('cancelPdfExportBtn');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      window._isPdfExportCancelled = true;
+      const loadingText = document.getElementById('aiLoadingText');
+      if (loadingText) loadingText.textContent = "Cancelling export safely... Please wait.";
+    });
+  }
+});
+
 async function generateProjectReport(options) {
+  window._isPdfExportCancelled = false;
   if (typeof html2pdf === "undefined") {
     alert("PDF library (html2pdf) failed to load. Please check your internet connection.");
     return;
@@ -4524,7 +4542,17 @@ async function generateProjectReport(options) {
 
     wrapper.appendChild(container);
 
+    const exportRowsLimit = options.rowLimit && options.rowLimit > 0 ? options.rowLimit : state.calcRows.length;
+    const exportCalcRows = state.calcRows.slice(0, exportRowsLimit);
+
+    if (exportCalcRows.length === 0) {
+      throw new Error("No data to export.");
+    }
+
     if (progressBar) progressBar.style.width = "5%";
+
+    const cancelBtn = document.getElementById("cancelPdfExportBtn");
+    if (cancelBtn) cancelBtn.style.display = "block";
 
     // 1. Title Page
     const titlePage = document.createElement("div");
@@ -4542,11 +4570,11 @@ async function generateProjectReport(options) {
       <div style="text-align: left; max-width: 650px; margin: 0 auto; padding: 40px; border: 2px solid #f1f5f9; border-radius: 20px; background: #f8fafc; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);">
         <h3 style="margin-top: 0; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 20px;">Project Summary</h3>
         <table style="width: 100%; border-collapse: collapse; font-size: 16px;">
-          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #64748b;">Total Chainage:</td><td style="text-align: right; font-weight: 600;">${r3(state.calcRows[0]?.chainage || 0)} m to ${r3(state.calcRows[state.calcRows.length - 1]?.chainage || 0)} m</td></tr>
-          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #64748b;">Total Length:</td><td style="text-align: right; font-weight: 600;">${r3((state.calcRows[state.calcRows.length - 1]?.chainage || 0) - (state.calcRows[0]?.chainage || 0))} m</td></tr>
-          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #166534; font-weight: 600;">Total Filling (Bank):</td><td style="text-align: right; font-weight: 700; color: #166534;">${formatVolume(state.calcRows.reduce((a, b) => a + (b.fillVol || 0), 0))}</td></tr>
-          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #991b1b; font-weight: 600;">Total Cutting (Cut):</td><td style="text-align: right; font-weight: 700; color: #991b1b;">${formatVolume(state.calcRows.reduce((a, b) => a + (b.cutVol || 0), 0))}</td></tr>
-          <tr><td style="padding: 12px 0; color: #64748b;">Total Data Points:</td><td style="text-align: right; font-weight: 600;">${state.calcRows.length} Cross-Sections</td></tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #64748b;">Total Chainage:</td><td style="text-align: right; font-weight: 600;">${r3(exportCalcRows[0]?.chainage || 0)} m to ${r3(exportCalcRows[exportCalcRows.length - 1]?.chainage || 0)} m</td></tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #64748b;">Total Length:</td><td style="text-align: right; font-weight: 600;">${r3((exportCalcRows[exportCalcRows.length - 1]?.chainage || 0) - (exportCalcRows[0]?.chainage || 0))} m</td></tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #166534; font-weight: 600;">Total Filling (Bank):</td><td style="text-align: right; font-weight: 700; color: #166534;">${formatVolume(exportCalcRows.reduce((a, b) => a + (b.fillVol || 0), 0))}</td></tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #991b1b; font-weight: 600;">Total Cutting (Cut):</td><td style="text-align: right; font-weight: 700; color: #991b1b;">${formatVolume(exportCalcRows.reduce((a, b) => a + (b.cutVol || 0), 0))}</td></tr>
+          <tr><td style="padding: 12px 0; color: #64748b;">Total Data Points:</td><td style="text-align: right; font-weight: 600;">${exportCalcRows.length} Cross-Sections</td></tr>
         </table>
       </div>
     `;
@@ -4559,11 +4587,13 @@ async function generateProjectReport(options) {
       const originalHeader = document.querySelector(".table-panel thead, .test-table thead, table thead");
 
       const CHUNK_SIZE = 35; // Maximum rows per PDF page
-      const totalRows = state.calcRows.length;
+      const totalRows = exportCalcRows.length;
 
       const calcPagesCount = Math.ceil(totalRows / CHUNK_SIZE);
 
       for (let i = 0; i < totalRows; i += CHUNK_SIZE) {
+        if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+
         const currentPage = Math.floor(i / CHUNK_SIZE) + 1;
         if (loadingText) loadingText.textContent = `Building Calculation Sheet: Page ${currentPage} of ${calcPagesCount}`;
         if (progressBar) progressBar.style.width = `${5 + (currentPage / calcPagesCount) * 15}%`; // 5% -> 20% span
@@ -4595,7 +4625,7 @@ async function generateProjectReport(options) {
         }
 
         const tbody = document.createElement("tbody");
-        const rowsChunk = state.calcRows.slice(i, i + CHUNK_SIZE);
+        const rowsChunk = exportCalcRows.slice(i, i + CHUNK_SIZE);
 
         rowsChunk.forEach((r, idx) => {
           const tr = document.createElement("tr");
@@ -4649,6 +4679,7 @@ async function generateProjectReport(options) {
 
     // 3. Roll Diagram
     if (options.rollDiagram) {
+      if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
       if (loadingText) loadingText.textContent = "Exporting Roll Diagram...";
       const rollPage = document.createElement("div");
       rollPage.style.padding = "40px";
@@ -4691,15 +4722,17 @@ async function generateProjectReport(options) {
       let currentCsPage = document.createElement("div");
       currentCsPage.style.padding = "20px";
 
-      for (let i = 0; i < state.calcRows.length; i++) {
+      for (let i = 0; i < exportCalcRows.length; i++) {
+        if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+
         if (loadingText && i % 5 === 0) {
-          loadingText.textContent = `Building Cross-Sections: ${i} / ${state.calcRows.length}`;
+          loadingText.textContent = `Building Cross-Sections: ${i} / ${exportCalcRows.length} (Limit: ${options.rowLimit ? options.rowLimit : 'All'})`;
         }
         if (progressBar && i % 5 === 0) {
-          progressBar.style.width = `${30 + ((i / state.calcRows.length) * 20)}%`; // 30% -> 50% span
+          progressBar.style.width = `${30 + ((i / exportCalcRows.length) * 20)}%`; // 30% -> 50% span
         }
 
-        const row = state.calcRows[i];
+        const row = exportCalcRows[i];
         const sectionDiv = document.createElement("div");
         sectionDiv.style.marginBottom = "50px";
         sectionDiv.style.textAlign = "center";
@@ -4721,9 +4754,9 @@ async function generateProjectReport(options) {
         currentCsPage.appendChild(sectionDiv);
 
         // Page break logic
-        if ((i + 1) % itemsPerBatch === 0 || i === state.calcRows.length - 1) {
+        if ((i + 1) % itemsPerBatch === 0 || i === exportCalcRows.length - 1) {
           container.appendChild(currentCsPage);
-          if (i < state.calcRows.length - 1) {
+          if (i < exportCalcRows.length - 1) {
             currentCsPage = document.createElement("div");
             currentCsPage.style.padding = "20px";
           }
@@ -4733,6 +4766,8 @@ async function generateProjectReport(options) {
 
     if (loadingText) loadingText.textContent = "Finalizing PDF document. This may take a minute...";
     if (progressBar) progressBar.style.width = "50%";
+
+    if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
 
     // Allow browser time to complete layout of generated DOM tables
     container.offsetHeight;
@@ -4757,6 +4792,7 @@ async function generateProjectReport(options) {
 
     // 50% -> 100% processing worker pipeline
     for (let j = 1; j < pagesArray.length; j++) {
+      if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
       worker = worker.get('pdf').then(pdf => {
         pdf.addPage();
         if (loadingText) loadingText.textContent = `Rendering page ${j} of ${pagesArray.length}...`;
@@ -4767,6 +4803,7 @@ async function generateProjectReport(options) {
       }).from(pagesArray[j]).toContainer().toCanvas().toPdf();
     }
 
+    if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
     await worker.save();
 
     if (progressBar) progressBar.style.width = "100%";
@@ -4774,11 +4811,20 @@ async function generateProjectReport(options) {
     await new Promise(r => setTimeout(r, 800));
 
   } catch (error) {
+    if (error.message === "Export cancelled by user.") {
+      console.log("PDF Export was cancelled by the user.");
+      // Display a temporary cancellation notification or silently fail out
+      if (loadingText) loadingText.textContent = "Export cancelled.";
+      return;
+    }
     console.error("Report Generation Error:", error);
     alert("An error occurred during report generation. This might happen if your project data is very large. Check the console for logs.");
   } finally {
     const wrapper = document.getElementById("pdf-export-wrapper");
     if (wrapper) wrapper.remove();
+
+    const cancelBtn = document.getElementById("cancelPdfExportBtn");
+    if (cancelBtn) cancelBtn.style.display = "none";
 
     if (loadingHeader) loadingHeader.textContent = "AI Processing..."; // Reset to original
     if (progressBarContainer) progressBarContainer.style.display = "none";
