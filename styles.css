@@ -1020,15 +1020,28 @@ h1 {
   white-space: nowrap;
 }
 
-.bridge-table input {
+.bridge-table input,
+.bridge-table select {
   width: 100%;
-  min-width: 120px;
   border-radius: 8px;
   border: 1px solid var(--stroke);
   padding: 6px 8px;
   font-size: 0.82rem;
   background: var(--bg-accent-1);
   color: var(--text);
+  box-sizing: border-box;
+}
+
+.bridge-table input {
+  min-width: 90px;
+}
+
+.bridge-table input[type="number"] {
+  min-width: 60px;
+}
+
+.bridge-table select {
+  min-width: 110px;
 }
 
 .bridge-table .bridge-del {

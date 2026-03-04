@@ -11,7 +11,7 @@ function formatVolume(v) {
 const CROSS_SVG_W = 1700;
 const CROSS_SVG_H = 980;
 
-const BRIDGE_CATEGORIES = ["Minor", "Major", "Viaduct", "Important", "RoR"];
+const BRIDGE_CATEGORIES = ["Minor", "Major", "Viaduct", "Important", "RoR", "Tunnel", "ROB", "MIBOR", "Aqueduct"];
 const BRIDGE_TYPES = ["Box", "PSC Slab", "Composite Girder", "OWG", "Other"];
 
 const state = {
@@ -316,12 +316,13 @@ function resolveBridgeColumns(headerCells) {
     bridgeNo: findColByAliases(headerCells, ["bridgeno", "bridgenumber", "structureno", "structure", "bridge"]),
     startChainage: findColByAliases(headerCells, ["bridgestartchainage", "startchainage", "fromchainage", "chfrom", "startch"]),
     endChainage: findColByAliases(headerCells, ["bridgeendchainage", "endchainage", "tochainage", "chto", "endch"]),
-    length: findColByAliases(headerCells, ["totalspanlength", "bridgelength", "spanlength", "length", "spanm", "totallength"]),
+    length: findColByAliases(headerCells, ["totalspanlength", "bridgelength", "length", "spanm", "totallength"]),
     chainage: findColByAliases(headerCells, ["chainage", "ch", "centerchainage", "location"]),
     category: findColByAliases(headerCells, ["category", "purpose", "bridgecategory", "typeofobstruction", "typeofcrossing"]),
     type: findColByAliases(headerCells, ["bridgetype", "structuretype", "typeofspan", "typeofsuperstructure"]),
     size: findColByAliases(headerCells, ["bridgesize", "size", "dimensions", "proposedspan"]),
     spans: findColByAliases(headerCells, ["noofspans", "numberofspans"]),
+    spanLength: findColByAliases(headerCells, ["spanlength", "individualspan", "unitsize"]),
   };
 }
 
@@ -372,10 +373,28 @@ function normalizeBridgeEntry(raw, index = 0) {
   let lengthRaw = parseLooseNumber(raw.length, NaN);
   const center = parseChainage(raw.chainage);
 
-  // If length is not available, try to derive from size string (e.g. "10x9.15")
-  if (!Number.isFinite(lengthRaw) && raw.bridgeSize) {
-    const parsed = parseBridgeSpanSize(raw.bridgeSize);
-    if (Number.isFinite(parsed.totalLength)) lengthRaw = parsed.totalLength;
+  // Derive parameters from size string if possible
+  const sizeParsed = parseBridgeSpanSize(raw.bridgeSize);
+
+  // Spans
+  let spansVal = String(raw.bridgeSpans || "");
+  if (!spansVal || spansVal === "1") {
+    if (Number.isFinite(sizeParsed.spans)) spansVal = String(sizeParsed.spans);
+  }
+
+  // Individual Span Length
+  let spanLen = parseLooseNumber(raw.bridgeSpanLength, NaN);
+  if (!Number.isFinite(spanLen)) {
+    if (Number.isFinite(sizeParsed.spanLength)) spanLen = sizeParsed.spanLength;
+  }
+
+  // Total Length
+  if (!Number.isFinite(lengthRaw)) {
+    if (Number.isFinite(spanLen) && Number.isFinite(parseInt(spansVal, 10))) {
+      lengthRaw = spanLen * parseInt(spansVal, 10);
+    } else if (Number.isFinite(sizeParsed.totalLength)) {
+      lengthRaw = sizeParsed.totalLength;
+    }
   }
 
   if (!Number.isFinite(start) && Number.isFinite(end) && Number.isFinite(lengthRaw)) start = end - lengthRaw;
@@ -390,12 +409,8 @@ function normalizeBridgeEntry(raw, index = 0) {
 
   const length = Number.isFinite(lengthRaw) && lengthRaw > 0 ? lengthRaw : (end - start);
 
-  // Derive bridgeSpans from size string if not explicitly provided
-  let spansVal = String(raw.bridgeSpans || "");
-  if (!spansVal || spansVal === "1") {
-    const parsed = parseBridgeSpanSize(raw.bridgeSize);
-    if (Number.isFinite(parsed.spans)) spansVal = String(parsed.spans);
-  }
+  const DEDUCTIBLE_CATEGORIES = ["Major", "Important", "RoR", "Viaduct", "Tunnel"];
+  const shouldDeduct = DEDUCTIBLE_CATEGORIES.some(cat => raw.bridgeCategory && String(raw.bridgeCategory).toLowerCase() === cat.toLowerCase());
 
   return {
     bridgeNo,
@@ -403,9 +418,11 @@ function normalizeBridgeEntry(raw, index = 0) {
     bridgeType: String(raw.bridgeType || "Box"),
     bridgeSize: String(raw.bridgeSize || "-"),
     bridgeSpans: spansVal || "1",
+    bridgeSpanLength: Number.isFinite(spanLen) ? spanLen : "",
     startChainage: start,
     endChainage: end,
     length,
+    shouldDeduct,
   };
 }
 
@@ -417,13 +434,26 @@ function parseBridgeRowsFromAoa(aoa, sheetCategory = 'Minor') {
   for (let i = header.rowIndex + 1; i < aoa.length; i += 1) {
     const row = Array.isArray(aoa[i]) ? aoa[i] : [];
 
-    // Check for ROB/Road Over Bridge to exclude
-    const purpose = cols.category >= 0 ? String(row[cols.category] || "").toLowerCase() : "";
-    const type = cols.type >= 0 ? String(row[cols.type] || "").toLowerCase() : "";
-    if (purpose.includes("rob") || type.includes("rob") || purpose.includes("road over")) continue;
-
-    // Read category from cell, or fall back to sheet-level category
+    // Read category from cell
     let cellCategory = cols.category >= 0 ? String(row[cols.category] || "").trim() : "";
+
+    // Auto-detect category if possible
+    const purpose = cols.category >= 0 ? String(row[cols.category] || "").toLowerCase() : "";
+    const typeStr = cols.type >= 0 ? String(row[cols.type] || "").toLowerCase() : "";
+    const bridgeNoStr = cols.bridgeNo >= 0 ? String(row[cols.bridgeNo] || "").toLowerCase() : "";
+
+    if (!cellCategory) {
+      if (purpose.includes("rob") || typeStr.includes("rob") || bridgeNoStr.includes("rob")) cellCategory = "ROB";
+      else if (purpose.includes("mibor") || typeStr.includes("mibor")) cellCategory = "MIBOR";
+      else if (purpose.includes("aqueduct") || purpose.includes("aquiduct") || purpose.includes("aque")) cellCategory = "Aqueduct";
+      else if (purpose.includes("minor") || typeStr.includes("minor")) cellCategory = "Minor";
+      else if (purpose.includes("major") || typeStr.includes("major")) cellCategory = "Major";
+      else if (purpose.includes("viaduct") || typeStr.includes("viaduct")) cellCategory = "Viaduct";
+      else if (purpose.includes("tunnel") || purpose.includes("tinnel")) cellCategory = "Tunnel";
+      else if (purpose.includes("important") || typeStr.includes("important")) cellCategory = "Important";
+      else if (purpose.includes("ror") || typeStr.includes("ror")) cellCategory = "RoR";
+    }
+
     if (!cellCategory) cellCategory = sheetCategory;
 
     const raw = {
@@ -432,6 +462,7 @@ function parseBridgeRowsFromAoa(aoa, sheetCategory = 'Minor') {
       bridgeType: cols.type >= 0 ? (String(row[cols.type] || "").trim() || "Box") : "Box",
       bridgeSize: cols.size >= 0 ? (String(row[cols.size] || "").trim() || "-") : "-",
       bridgeSpans: cols.spans >= 0 ? (String(row[cols.spans] || "").trim() || "1") : "1",
+      bridgeSpanLength: cols.spanLength >= 0 ? row[cols.spanLength] : "",
       startChainage: cols.startChainage >= 0 ? row[cols.startChainage] : "",
       endChainage: cols.endChainage >= 0 ? row[cols.endChainage] : "",
       length: cols.length >= 0 ? row[cols.length] : "",
@@ -652,7 +683,7 @@ function getSegmentBridgeInfo(start, end, bridges) {
     const ovStart = Math.max(start, b.startChainage);
     const ovEnd = Math.min(end, b.endChainage);
     if (ovEnd > ovStart) {
-      overlaps.push([ovStart, ovEnd]);
+      if (b.shouldDeduct) overlaps.push([ovStart, ovEnd]);
       refs.add(`${b.bridgeNo} (${b.bridgeCategory}/${b.bridgeType} | ${b.bridgeSize} x ${b.bridgeSpans})`);
     }
   }
@@ -686,7 +717,7 @@ function renderBridgeInputs() {
   if (!state.bridgeRows.length) {
     els.bridgeTableBody.innerHTML = `
       <tr>
-        <td colspan="9" class="muted">No bridge rows loaded. Use Import Data > Import Bridge List or Add Bridge Row.</td>
+        <td colspan="10" class="muted">No bridge rows loaded. Use Import Data > Import Bridge List or Add Bridge Row.</td>
       </tr>
     `;
     if (els.bridgeMeta) els.bridgeMeta.textContent = "No bridge deduction applied.";
@@ -707,17 +738,21 @@ function renderBridgeInputs() {
       </td>
       <td><input data-bridge-field="bridgeSize" value="${String(b.bridgeSize || "")}" style="width: 80px;" placeholder="e.g. 6.1m" /></td>
       <td><input data-bridge-field="bridgeSpans" type="number" min="1" value="${String(b.bridgeSpans || "1")}" style="width: 50px;" /></td>
+      <td><input data-bridge-field="bridgeSpanLength" value="${Number.isFinite(b.bridgeSpanLength) ? r3(b.bridgeSpanLength) : String(b.bridgeSpanLength ?? "")}" style="width: 70px;" /></td>
       <td><input data-bridge-field="startChainage" value="${Number.isFinite(parseChainage(b.startChainage)) ? r3(parseChainage(b.startChainage)) : String(b.startChainage ?? "")}" /></td>
       <td><input data-bridge-field="endChainage" value="${Number.isFinite(parseChainage(b.endChainage)) ? r3(parseChainage(b.endChainage)) : String(b.endChainage ?? "")}" /></td>
       <td><input data-bridge-field="length" value="${Number.isFinite(parseLooseNumber(b.length, NaN)) ? r3(parseLooseNumber(b.length, NaN)) : String(b.length ?? "")}" /></td>
       <td><button type="button" class="bridge-del" data-bridge-del="${i}">Delete</button></td>
     </tr>
   `).join("");
-  const validBridges = buildBridgeIntervals();
-  const totalDeduction = validBridges.reduce((acc, b) => acc + safeNum(b.length), 0);
+  const allValidBridges = buildBridgeIntervals();
+  const deductibleBridges = allValidBridges.filter(b => b.shouldDeduct);
+  const totalLength = allValidBridges.reduce((acc, b) => acc + safeNum(b.length), 0);
+  const deductibleLength = deductibleBridges.reduce((acc, b) => acc + safeNum(b.length), 0);
+
   if (els.bridgeMeta) {
-    const invalidCount = Math.max(state.bridgeRows.length - validBridges.length, 0);
-    els.bridgeMeta.textContent = `Bridge rows: ${state.bridgeRows.length} | Valid intervals: ${validBridges.length} | Total bridge length: ${r3(totalDeduction)} m${invalidCount ? ` | Invalid rows: ${invalidCount}` : ""}`;
+    const invalidCount = Math.max(state.bridgeRows.length - allValidBridges.length, 0);
+    els.bridgeMeta.textContent = `Bridge rows: ${state.bridgeRows.length} | Valid: ${allValidBridges.length} | Total Length: ${r3(totalLength)}m | Deductible (Major/RoR/etc): ${r3(deductibleLength)}m${invalidCount ? ` | Invalid: ${invalidCount}` : ""}`;
   }
 }
 
@@ -841,6 +876,7 @@ function syncBridgeStateFromTable() {
       bridgeType: tr.querySelector('[data-bridge-field="bridgeType"]')?.value ?? "Box",
       bridgeSize: tr.querySelector('[data-bridge-field="bridgeSize"]')?.value ?? "-",
       bridgeSpans: tr.querySelector('[data-bridge-field="bridgeSpans"]')?.value ?? "1",
+      bridgeSpanLength: tr.querySelector('[data-bridge-field="bridgeSpanLength"]')?.value ?? "",
       startChainage: tr.querySelector('[data-bridge-field="startChainage"]')?.value ?? "",
       endChainage: tr.querySelector('[data-bridge-field="endChainage"]')?.value ?? "",
       length: tr.querySelector('[data-bridge-field="length"]')?.value ?? "",
