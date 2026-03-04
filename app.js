@@ -1996,11 +1996,16 @@ function renderRollDiagram() {
   const minCh = rows[0].chainage;
   const maxCh = rows[rows.length - 1].chainage;
   const totalL = Math.max(maxCh - minCh, 1);
-  const baseScale = Math.max(0.3, Math.min(4, window._planScale || 1));
-  const PX_PER_M_X = 0.4 * baseScale;
-  const PX_PER_M_Y = 2.8 * baseScale; // Reduced by 30% from 4.0
 
   const PAD_L = 60, PAD_R = 40, PAD_T = 70, PAD_B = 45; // Reduced paddings
+  const MAX_SAFE_W = 16000;
+  const maxScaleLimit = (MAX_SAFE_W - PAD_L - PAD_R) / (totalL * 0.4);
+
+  const baseScale = Math.max(0.12, Math.min(Math.min(10, maxScaleLimit), window._planScale || 1));
+  window._planScale = baseScale; // Update state inline
+
+  const PX_PER_M_X = 0.4 * baseScale;
+  const PX_PER_M_Y = 2.8 * baseScale; // Reduced by 30% from 4.0
 
   const maxHalfW = rows.reduce((m, r) => {
     const w = r.bank > 0 ? r.fillBottom : (r.cut > 0 ? r.cutBottom : (r.effectiveFormationWidth || 0));
@@ -2215,13 +2220,18 @@ function renderSideView() {
   const maxCh = rows[rows.length - 1].chainage;
   const totalL = Math.max(maxCh - minCh, 1);
 
-  const baseScale = Math.max(0.3, Math.min(4, window._sideScale || 1));
-  const PX_PER_M_X = 0.4 * baseScale;
-
   const PAD_L = 72;   // room for Y-axis labels
   const PAD_R = 30;
   const PAD_T = 60;   // legend + title
   const PAD_B = 50;   // chainage labels
+
+  const MAX_SAFE_W = 16000;
+  const maxScaleLimit = (MAX_SAFE_W - PAD_L - PAD_R) / (totalL * 0.4);
+
+  const baseScale = Math.max(0.12, Math.min(Math.min(10, maxScaleLimit), window._sideScale || 1));
+  window._sideScale = baseScale; // Update state inline
+
+  const PX_PER_M_X = 0.4 * baseScale;
 
   // Elevation range from calcRows
   const allGLs = rows.map(r => safeNum(r.groundLevel));
