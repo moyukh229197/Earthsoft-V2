@@ -3792,7 +3792,7 @@ function bindEvents() {
 
         const resData = await response.json();
         if (resData && resData.success && resData.data && resData.data.length > 0) {
-          importedRows = resData.data;
+          importedRows = resData.data.map((r, i) => normalizeBridgeEntry(r, i)).filter(Boolean);
         }
       } catch (aiErr) {
         throw new Error("AI bridge extraction failed: " + aiErr.message);
@@ -3929,12 +3929,12 @@ function bindEvents() {
       startAiExtractBtn.disabled = true;
 
       try {
-        const response = await fetch("/api/extract-bridges", {
+        const response = await fetch("/api/extract-data", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ text })
+          body: JSON.stringify({ text, dataType: "bridges" })
         });
 
         if (!response.ok) {
@@ -3942,11 +3942,12 @@ function bindEvents() {
           throw new Error(errData.error || `Server Error: ${response.status}`);
         }
 
-        const data = await response.json();
+        const resData = await response.json();
 
-        if (data.rows && data.rows.length > 0) {
-          // Add the newly extracted bridges to existing ones
-          state.bridgeRows = data.rows;
+        if (resData && resData.success && resData.data && resData.data.length > 0) {
+          // Normalize the AI extracted bridges to add shouldDeduct flags and compute lengths
+          const newRows = resData.data.map((r, i) => normalizeBridgeEntry(r, i)).filter(Boolean);
+          state.bridgeRows = newRows;
           state.project.uploads.bridges = true;
           state.project.verified = false;
 
@@ -3956,7 +3957,7 @@ function bindEvents() {
           recalculate();
 
           aiBridgeModal.classList.add("hidden");
-          alert(`Successfully extracted and added ${data.rows.length} bridges using AI!`);
+          alert(`Successfully extracted and added ${resData.data.length} bridges using AI!`);
         } else {
           alert("The AI could not find any clear bridge data in that text.");
         }
