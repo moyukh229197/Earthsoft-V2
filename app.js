@@ -1456,7 +1456,15 @@ async function generateNativePdf(title, bodyHtml, orientation = "portrait") {
     </div>
   `;
 
-  // We don't attach the container to the document body because html2pdf can render offscreen nodes.
+  // html2canvas requires the element to be in the DOM to compute layout/styles.
+  // We position it off-screen so it's invisible to the user.
+  container.style.position = "fixed";
+  container.style.left = "-9999px";
+  container.style.top = "0";
+  container.style.width = orientation === "landscape" ? "297mm" : "210mm";
+  container.style.zIndex = "-1";
+  document.body.appendChild(container);
+
   const fileBase = String(state.project.name || "project").replace(/[^\w.-]+/g, "_").replace(/^_+|_+$/g, "") || "project";
   const filename = `${fileBase}_${title.replace(/\s+/g, "_")}.pdf`;
 
@@ -1481,6 +1489,9 @@ async function generateNativePdf(title, bodyHtml, orientation = "portrait") {
     alert("Failed to generate PDF. See console for details.");
     els.exportBtn.textContent = "Export PDF";
     els.exportBtn.disabled = false;
+  } finally {
+    // Clean up: remove the off-screen container from the DOM
+    if (container.parentNode) container.parentNode.removeChild(container);
   }
 }
 
