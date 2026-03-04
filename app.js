@@ -4501,9 +4501,10 @@ async function generateProjectReport(options) {
   try {
     const container = document.createElement("div");
     container.id = "pdf-report-container";
-    container.style.position = "fixed";
-    container.style.left = "-9999px";
+    container.style.position = "absolute";
+    container.style.left = "0";
     container.style.top = "0";
+    container.style.zIndex = "-9999";
     container.style.width = "1122px"; // Standard landscape width
     container.style.backgroundColor = "#ffffff";
     container.style.color = "#000000";
@@ -4549,51 +4550,63 @@ async function generateProjectReport(options) {
     // 2. Calculation Sheet
     if (options.calcSheet) {
       if (loadingText) loadingText.textContent = "Exporting Calculation Sheet...";
-      const calcPage = document.createElement("div");
-      calcPage.style.padding = "40px";
-      calcPage.innerHTML = `<h2 style="margin-top: 0; color: #0f172a; border-bottom: 3px solid #3b82f6; padding-bottom: 12px; margin-bottom: 30px;">Calculation Sheet (Summary)</h2>`;
-
-      const table = document.createElement("table");
-      table.style.width = "100%";
-      table.style.borderCollapse = "collapse";
-      table.style.fontSize = "10px"; // Increased slightly
-
-      // Clone the existing table head
+      const CHUNK_SIZE = 35; // Maximum rows per PDF page
+      const totalRows = state.calcRows.length;
       const originalHeader = els.tableBody.closest("table").querySelector("thead");
-      if (originalHeader) {
-        const thead = originalHeader.cloneNode(true);
-        thead.style.backgroundColor = "#f8fafc";
-        thead.querySelectorAll("th").forEach(th => {
-          th.style.border = "1px solid #cbd5e1";
-          th.style.padding = "8px 4px";
-          th.style.color = "#334155";
-          th.style.textAlign = "center";
-          th.style.fontSize = "10px";
+      const originalRows = els.tableBody.querySelectorAll("tr");
+
+      for (let i = 0; i < totalRows; i += CHUNK_SIZE) {
+        if (loadingText) loadingText.textContent = `Exporting Calculation Sheet: Page ${Math.floor(i / CHUNK_SIZE) + 1}`;
+
+        const chunkPage = document.createElement("div");
+        chunkPage.style.padding = "40px";
+        if (i === 0) {
+          chunkPage.innerHTML = `<h2 style="margin-top: 0; color: #0f172a; border-bottom: 3px solid #3b82f6; padding-bottom: 12px; margin-bottom: 30px;">Calculation Sheet (Summary)</h2>`;
+        } else {
+          chunkPage.innerHTML = `<h2 style="margin-top: 0; color: #0f172a; border-bottom: 3px solid #3b82f6; padding-bottom: 12px; margin-bottom: 30px;">Calculation Sheet (Summary) - Continued</h2>`;
+        }
+
+        const table = document.createElement("table");
+        table.style.width = "100%";
+        table.style.borderCollapse = "collapse";
+        table.style.fontSize = "10.5px";
+
+        if (originalHeader) {
+          const thead = originalHeader.cloneNode(true);
+          thead.style.backgroundColor = "#f8fafc";
+          thead.querySelectorAll("th").forEach(th => {
+            th.style.border = "1px solid #cbd5e1";
+            th.style.padding = "8px 4px";
+            th.style.color = "#334155";
+            th.style.textAlign = "center";
+            th.style.fontSize = "10.5px";
+          });
+          table.appendChild(thead);
+        }
+
+        const tbody = document.createElement("tbody");
+        const rowsChunk = Array.from(originalRows).slice(i, i + CHUNK_SIZE);
+
+        rowsChunk.forEach((originalRow, idx) => {
+          const tr = originalRow.cloneNode(true);
+          tr.style.backgroundColor = idx % 2 === 0 ? "#ffffff" : "#fdfdfd";
+          tr.querySelectorAll("td").forEach(td => {
+            td.style.border = "1px solid #e2e8f0";
+            td.style.padding = "6px 4px";
+            td.style.textAlign = "center";
+            const btn = td.querySelector("button");
+            if (btn) td.textContent = btn.textContent;
+          });
+          tr.querySelectorAll(".t-fill").forEach(el => { el.style.color = "#166534"; el.style.fontWeight = "600"; });
+          tr.querySelectorAll(".t-cut").forEach(el => { el.style.color = "#991b1b"; el.style.fontWeight = "600"; });
+          tbody.appendChild(tr);
         });
-        table.appendChild(thead);
+
+        table.appendChild(tbody);
+        chunkPage.appendChild(table);
+        container.appendChild(chunkPage);
+        addPageBreak(container);
       }
-
-      // Clone table body and apply styles
-      const tbody = els.tableBody.cloneNode(true);
-      tbody.querySelectorAll("tr").forEach((tr, idx) => {
-        if (idx % 2 === 0) tr.style.backgroundColor = "#ffffff";
-        else tr.style.backgroundColor = "#fdfdfd";
-      });
-      tbody.querySelectorAll("td").forEach(td => {
-        td.style.border = "1px solid #e2e8f0";
-        td.style.padding = "6px 4px";
-        td.style.textAlign = "center";
-        // Remove interactive elements
-        const btn = td.querySelector("button");
-        if (btn) td.textContent = btn.textContent;
-      });
-      // Explicit colors for export
-      tbody.querySelectorAll(".t-fill").forEach(el => { el.style.color = "#166534"; el.style.fontWeight = "600"; });
-      tbody.querySelectorAll(".t-cut").forEach(el => { el.style.color = "#991b1b"; el.style.fontWeight = "600"; });
-
-      table.appendChild(tbody);
-      calcPage.appendChild(table);
-      container.appendChild(calcPage);
       addPageBreak(container);
     }
 
@@ -4672,12 +4685,18 @@ async function generateProjectReport(options) {
 
     if (loadingText) loadingText.textContent = "Finalizing PDF document...";
 
+    // Give the browser time to complete layout of the injected massive DOM
+    // This is a crucial step to avoid elements reporting 0 height in html2canvas
+    container.offsetHeight; // Force reflow
+    await new Promise(r => setTimeout(r, 600));
+
     const opt = {
       margin: 10,
       filename: `${state.project.name || "Earthsoft_Report"}_${new Date().toISOString().split('T')[0]}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, logging: false, letterRendering: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+      pagebreak: { mode: ['css', 'legacy'] }
     };
 
     // Use html2pdf to generate and save
