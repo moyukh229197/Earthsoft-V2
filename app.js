@@ -2395,43 +2395,44 @@ function renderSideView() {
   }
   ctx.stroke();
 
+  // ── Helper: interpolate formation/ground RL at any chainage ──────────────
+  const flAt = (ch) => {
+    for (let i = 0; i < rows.length - 1; i++) {
+      if (ch >= rows[i].chainage && ch <= rows[i + 1].chainage) {
+        const t = (ch - rows[i].chainage) / (rows[i + 1].chainage - rows[i].chainage);
+        return rows[i].proposedLevel + t * (rows[i + 1].proposedLevel - rows[i].proposedLevel);
+      }
+    }
+    return rows[rows.length - 1].proposedLevel;
+  };
+  const glAt = (ch) => {
+    for (let i = 0; i < rows.length - 1; i++) {
+      if (ch >= rows[i].chainage && ch <= rows[i + 1].chainage) {
+        const t = (ch - rows[i].chainage) / (rows[i + 1].chainage - rows[i].chainage);
+        return rows[i].groundLevel + t * (rows[i + 1].groundLevel - rows[i].groundLevel);
+      }
+    }
+    return rows[rows.length - 1].groundLevel;
+  };
+
+  // ── Collect ALL annotation labels for de-overlap ──────────────────────────
+  // Each label: { x, baseY, text, color, font, type }
+  const allLabels = [];
+
   // ── Bridges / Viaducts / Tunnels ─────────────────────────────────────────
   for (const b of bridges) {
     const bx1 = getX(b.startChainage), bx2 = getX(b.endChainage);
     if (bx1 == null || bx2 == null) continue;
 
-    // Find formation RL at start and end (interpolate from calcRows)
-    const flAt = (ch) => {
-      const sorted = rows;
-      for (let i = 0; i < sorted.length - 1; i++) {
-        if (ch >= sorted[i].chainage && ch <= sorted[i + 1].chainage) {
-          const t = (ch - sorted[i].chainage) / (sorted[i + 1].chainage - sorted[i].chainage);
-          return sorted[i].proposedLevel + t * (sorted[i + 1].proposedLevel - sorted[i].proposedLevel);
-        }
-      }
-      return rows[rows.length - 1].proposedLevel;
-    };
-    const glAt = (ch) => {
-      const sorted = rows;
-      for (let i = 0; i < sorted.length - 1; i++) {
-        if (ch >= sorted[i].chainage && ch <= sorted[i + 1].chainage) {
-          const t = (ch - sorted[i].chainage) / (sorted[i + 1].chainage - sorted[i].chainage);
-          return sorted[i].groundLevel + t * (sorted[i + 1].groundLevel - sorted[i].groundLevel);
-        }
-      }
-      return rows[rows.length - 1].groundLevel;
-    };
-
     const fl1 = flAt(b.startChainage), fl2 = flAt(b.endChainage);
     const gl1 = glAt(b.startChainage), gl2 = glAt(b.endChainage);
-    const by1 = getY(fl1), by2 = getY(fl2);               // formation at bridge ends
-    const gy1 = getY(gl1), gy2 = getY(gl2);               // ground at bridge ends
+    const by1 = getY(fl1), by2 = getY(fl2);
+    const gy1 = getY(gl1), gy2 = getY(gl2);
     const bW = Math.max(bx2 - bx1, 4);
     const tunnel = isTunnel(b);
 
     if (tunnel) {
-      // ── TUNNEL ── dark filled arch with hatching
-      const archH = 18; // Fixed height
+      const archH = 18;
       const midBy = (by1 + by2) / 2;
       ctx.fillStyle = "rgba(60,40,20,0.65)";
       ctx.strokeStyle = "rgba(180,130,60,0.8)";
@@ -2444,72 +2445,72 @@ function renderSideView() {
       ctx.closePath();
       ctx.fill(); ctx.stroke();
 
-      // Hatching inside tunnel
       ctx.strokeStyle = "rgba(180,130,60,0.25)"; ctx.lineWidth = 1;
-      for (let hx = bx1; hx < bx2; hx += 10) { // Fixed spacing
-        ctx.beginPath(); ctx.moveTo(hx, midBy + archH); ctx.lineTo(hx + 6, midBy); ctx.stroke(); // Fixed spacing
+      for (let hx = bx1; hx < bx2; hx += 10) {
+        ctx.beginPath(); ctx.moveTo(hx, midBy + archH); ctx.lineTo(hx + 6, midBy); ctx.stroke();
       }
 
-      // Label
-      ctx.fillStyle = "#d97706"; ctx.font = `bold 10px Outfit,sans-serif`;
-      ctx.textAlign = "center";
-      ctx.fillText("⬛ TUNNEL: " + b.bridgeNo, (bx1 + bx2) / 2, midBy - archH * 1.5 - 8);
+      // Collect tunnel label for de-overlap
+      allLabels.push({
+        x: (bx1 + bx2) / 2,
+        baseY: midBy - archH * 1.5 - 8,
+        text: "TUNNEL: " + b.bridgeNo,
+        color: "#d97706",
+        font: "bold 10px Outfit,sans-serif",
+        type: "tunnel"
+      });
 
     } else {
-      // ── BRIDGE / VIADUCT ── blue deck, piers down to ground, span line
-      // Shaded bridge deck rectangle
       ctx.fillStyle = "rgba(37,99,235,0.18)";
       ctx.strokeStyle = "rgba(99,163,255,0.8)";
       ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.moveTo(bx1, by1 - 6); // Fixed height
-      ctx.lineTo(bx2, by2 - 6); // Fixed height
-      ctx.lineTo(bx2, by2 + 6); // Fixed height
-      ctx.lineTo(bx1, by1 + 6); // Fixed height
+      ctx.moveTo(bx1, by1 - 6);
+      ctx.lineTo(bx2, by2 - 6);
+      ctx.lineTo(bx2, by2 + 6);
+      ctx.lineTo(bx1, by1 + 6);
       ctx.closePath();
       ctx.fill(); ctx.stroke();
 
-      // Formation RL line across bridge in blue
       ctx.strokeStyle = "hsl(215,100%,65%)";
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.moveTo(bx1, by1); ctx.lineTo(bx2, by2); ctx.stroke();
 
-      // Pier marks (every ~60px)
-      const pierSpacing = 60; // Fixed spacing
+      const pierSpacing = 60;
       const numPiers = Math.max(0, Math.floor(bW / pierSpacing) - 1);
-      ctx.strokeStyle = "rgba(99,163,255,0.6)"; ctx.lineWidth = 3; // Fixed width
+      ctx.strokeStyle = "rgba(99,163,255,0.6)"; ctx.lineWidth = 3;
       for (let p = 1; p <= numPiers; p++) {
         const t = p / (numPiers + 1);
         const px = bx1 + t * bW;
         const pyTop = by1 + t * (by2 - by1);
-        // Interpolate ground Y at this pier
         const pierCh = b.startChainage + t * (b.endChainage - b.startChainage);
         const pierGl = glAt(pierCh);
         const pyBot = getY(pierGl);
-        ctx.beginPath(); ctx.moveTo(px, pyTop + 6); ctx.lineTo(px, pyBot); ctx.stroke(); // Fixed height
-        // Pier base widening
-        ctx.strokeStyle = "rgba(99,163,255,0.4)"; ctx.lineWidth = 8; // Fixed width
+        ctx.beginPath(); ctx.moveTo(px, pyTop + 6); ctx.lineTo(px, pyBot); ctx.stroke();
+        ctx.strokeStyle = "rgba(99,163,255,0.4)"; ctx.lineWidth = 8;
         ctx.beginPath(); ctx.moveTo(px, pyBot - 3); ctx.lineTo(px, pyBot); ctx.stroke();
-        ctx.strokeStyle = "rgba(99,163,255,0.6)"; ctx.lineWidth = 3; // Fixed width
+        ctx.strokeStyle = "rgba(99,163,255,0.6)"; ctx.lineWidth = 3;
       }
 
-      // Abutment walls at each end
-      ctx.strokeStyle = "rgba(99,163,255,0.55)"; ctx.lineWidth = 4; // Fixed width
-      ctx.beginPath(); ctx.moveTo(bx1, by1 - 10); ctx.lineTo(bx1, gy1); ctx.stroke(); // Fixed height
-      ctx.beginPath(); ctx.moveTo(bx2, by2 - 10); ctx.lineTo(bx2, gy2); ctx.stroke(); // Fixed height
+      ctx.strokeStyle = "rgba(99,163,255,0.55)"; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(bx1, by1 - 10); ctx.lineTo(bx1, gy1); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(bx2, by2 - 10); ctx.lineTo(bx2, gy2); ctx.stroke();
 
-      // Label above
-      ctx.fillStyle = "#93c5fd"; ctx.font = `bold 10px Outfit,sans-serif`;
-      ctx.textAlign = "center";
-      const labY = Math.min(by1, by2) - 12;
-      ctx.fillText(b.bridgeNo + (b.bridgeCategory ? ` (${b.bridgeCategory})` : ""), (bx1 + bx2) / 2, labY);
+      // Collect bridge label for de-overlap
+      allLabels.push({
+        x: (bx1 + bx2) / 2,
+        baseY: Math.min(by1, by2) - 14,
+        text: b.bridgeNo + (b.bridgeCategory ? ` (${b.bridgeCategory})` : ""),
+        color: "#93c5fd",
+        font: "bold 10px Outfit,sans-serif",
+        type: "bridge"
+      });
     }
   }
 
   // ── Station / Loop markers (vertical dashed) ──────────────────────────────
   if (state.loopPlatformRows) {
     for (const lp of state.loopPlatformRows) {
-      // Use midpoint of loop chainage range for station marker
       const midCh = Number.isFinite(lp.loopStartCh) && Number.isFinite(lp.loopEndCh)
         ? (lp.loopStartCh + lp.loopEndCh) / 2
         : null;
@@ -2520,26 +2521,101 @@ function renderSideView() {
       ctx.strokeStyle = "rgba(34,211,238,0.5)"; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(sx, PAD_T); ctx.lineTo(sx, PAD_T + bodyH); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = "#67e8f9"; ctx.font = `bold 9px Outfit,sans-serif`;
-      ctx.textAlign = "center";
-      ctx.fillText("◉ " + (lp.station || "Stn"), sx, PAD_T + 12);
+
+      // Collect station label for de-overlap
+      allLabels.push({
+        x: sx,
+        baseY: PAD_T + 12,
+        text: "◉ " + (lp.station || "Stn"),
+        color: "#67e8f9",
+        font: "bold 9px Outfit,sans-serif",
+        type: "station"
+      });
     }
   }
 
   // ── Curve markers (arc labels at top) ────────────────────────────────────
   if (state.curveRows) {
-    state.curveRows.forEach((c, ci) => {
+    state.curveRows.forEach((c) => {
       if (!Number.isFinite(c.chainage)) return;
       const cx = getX(c.chainage);
       if (cx == null) return;
       ctx.strokeStyle = "rgba(252,211,77,0.5)"; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
       ctx.beginPath(); ctx.moveTo(cx, PAD_T + 20); ctx.lineTo(cx, PAD_T + bodyH); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = "#fde68a"; ctx.font = `9px Outfit,sans-serif`;
-      ctx.textAlign = "center";
+
       const rad = safeNum(c.radius);
-      ctx.fillText((c.curve || "C") + (rad > 0 ? ` R=${r3(rad)}` : ""), cx, PAD_T + 8 + (ci % 3) * 10);
+      allLabels.push({
+        x: cx,
+        baseY: PAD_T + 8,
+        text: (c.curve || "C") + (rad > 0 ? ` R=${r3(rad)}` : ""),
+        color: "#fde68a",
+        font: "9px Outfit,sans-serif",
+        type: "curve"
+      });
     });
+  }
+
+  // ── De-overlap and draw all labels ────────────────────────────────────────
+  // Sort by X position so we can compare nearest neighbors
+  allLabels.sort((a, b) => a.x - b.x);
+
+  // Measure widths for collision detection
+  ctx.font = "bold 10px Outfit,sans-serif";
+  for (const lb of allLabels) {
+    ctx.font = lb.font;
+    lb.width = ctx.measureText(lb.text).width;
+    lb.finalY = lb.baseY;
+  }
+
+  // Push labels apart if they overlap (left-to-right sweep)
+  const LABEL_H = 12; // approximate label height
+  const MIN_GAP_X = 4; // minimum horizontal gap before treating as overlap
+  for (let i = 1; i < allLabels.length; i++) {
+    for (let j = i - 1; j >= Math.max(0, i - 8); j--) {
+      const a = allLabels[j], b = allLabels[i];
+      // Check horizontal overlap: do the label extents intersect?
+      const aLeft = a.x - a.width / 2 - MIN_GAP_X;
+      const aRight = a.x + a.width / 2 + MIN_GAP_X;
+      const bLeft = b.x - b.width / 2;
+      const bRight = b.x + b.width / 2;
+      const hOverlap = aRight > bLeft && bRight > aLeft;
+      if (!hOverlap) continue;
+
+      // Check vertical overlap
+      const vOverlap = Math.abs(b.finalY - a.finalY) < LABEL_H;
+      if (vOverlap) {
+        // Nudge the current label down (or up if already near bottom)
+        b.finalY = a.finalY + LABEL_H;
+        // Clamp to not exceed the chart body area
+        if (b.finalY > PAD_T + bodyH - 10) {
+          b.finalY = a.finalY - LABEL_H;
+        }
+      }
+    }
+  }
+
+  // Now draw all labels at their de-overlapped positions
+  for (const lb of allLabels) {
+    ctx.fillStyle = lb.color;
+    ctx.font = lb.font;
+    ctx.textAlign = "center";
+
+    // Draw a subtle connector line if label was pushed away from its base
+    if (Math.abs(lb.finalY - lb.baseY) > 2) {
+      ctx.strokeStyle = lb.color;
+      ctx.globalAlpha = 0.25;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 2]);
+      ctx.beginPath();
+      ctx.moveTo(lb.x, lb.baseY);
+      ctx.lineTo(lb.x, lb.finalY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1.0;
+    }
+
+    ctx.fillText(lb.text, lb.x, lb.finalY);
   }
 
   // ── Y-axis border ────────────────────────────────────────────────────────
