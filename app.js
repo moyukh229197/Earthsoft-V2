@@ -1,4 +1,13 @@
 const r3 = (v) => (Number.isFinite(v) ? Number(v).toFixed(3) : "0.000");
+function formatVolume(v) {
+  if (!Number.isFinite(v)) return "0.000 m³";
+  if (v >= 10000000) {
+    return `${(v / 10000000).toFixed(3)} Cr m³`;
+  } else if (v >= 100000) {
+    return `${(v / 100000).toFixed(3)} Lk m³`;
+  }
+  return `${Number(v).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³`;
+}
 const CROSS_SVG_W = 1700;
 const CROSS_SVG_H = 980;
 
@@ -1172,8 +1181,8 @@ function renderSummary() {
   const fillLen = state.calcRows.reduce((s, r) => s + ((r.bank > 0 ? safeNum(r.ewDiff) : 0)), 0) / 1000;
   const cutLen = state.calcRows.reduce((s, r) => s + ((r.type === "CUTTING" ? safeNum(r.ewDiff) : 0)), 0) / 1000;
 
-  els.totalFilling.textContent = `${r3(fillTotal)} m³`;
-  els.totalCutting.textContent = `${r3(cutTotal)} m³`;
+  els.totalFilling.textContent = formatVolume(fillTotal);
+  els.totalCutting.textContent = formatVolume(cutTotal);
   els.fillLength.textContent = `Length: ${r3(fillLen)} km`;
   els.cutLength.textContent = `Length: ${r3(cutLen)} km`;
 
