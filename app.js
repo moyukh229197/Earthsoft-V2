@@ -44,6 +44,11 @@ const state = {
   crossPan: { active: false, lastX: 0, lastY: 0 },
 };
 
+// Expose state and key functions globally so onclick="..." handlers in HTML can find them
+window.state = state;
+window.recalculate = () => recalculate(); // Wrapper function to allow global access after definition
+window.renderBridgeInputs = () => renderBridgeInputs();
+
 const els = {
   projectMeta: document.getElementById("projectMeta"),
   rollDiagramCanvas: document.getElementById("rollDiagramCanvas"),
@@ -4001,24 +4006,39 @@ function bindEvents() {
   }
 
   const clearBridges = () => {
-    if (confirm("Are you sure you want to delete ALL bridge entries? This cannot be undone.")) {
+    console.log("Delete All Bridges triggered");
+    if (window.confirm("Are you sure you want to delete ALL bridge entries? This cannot be undone.")) {
+      console.log("Deletion confirmed by user");
       state.bridgeRows = [];
       state.project.uploads.bridges = false;
       state.project.verified = false;
+
+      // Safety checks for UI updates
       if (typeof updateWizardUI === "function") updateWizardUI();
       if (typeof applyProjectGate === "function") applyProjectGate();
+
       renderBridgeInputs();
       recalculate();
-      alert("All bridge entries have been deleted.");
+
+      alert("Success: All bridge entries have been deleted.");
     }
   };
 
+  // Expose to window for absolute reliability
+  window.clearAllBridges = clearBridges;
+
+  // Global delegation for maximum resilience
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("#bridgeClearBtn");
+    if (btn) {
+      console.log("Bridge Clear button clicked via delegation");
+      clearBridges();
+    }
+  });
+
+  // Keep direct listeners as secondary support
   if (els.bridgeClearBtn) {
-    els.bridgeClearBtn.addEventListener("click", clearBridges);
-  } else {
-    // Redundant check in case els assignment failed
-    const btn = document.getElementById("bridgeClearBtn");
-    if (btn) btn.addEventListener("click", clearBridges);
+    els.bridgeClearBtn.onclick = clearBridges;
   }
 
   if (els.bridgeApplyBtn) {
