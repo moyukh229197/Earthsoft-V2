@@ -3428,6 +3428,19 @@ function loadStoredState() {
 
 async function init() {
   const visualLayerDefaults = {
+    // --- Core Earthwork Calculation Parameters ---
+    formationWidthFill: 7.85,         // Formation width for filling (meters)
+    blanketThickness: 0.3,            // Blanket layer thickness (meters)
+    preparedSubgradeThickness: 0.0,   // Prepared subgrade thickness (meters)
+    bermWidth: 3.0,                   // Berm width (meters)
+    cuttingWidth: 12.05,              // Formation width for cutting (meters)
+    sideSlopeFactor: 2.236,           // Side slope factor (1:2 slope = 2.236 hypotenuse factor)
+    // --- Visual Layer Thicknesses ---
+    sq3Thickness: 0.2,
+    sq2Thickness: 0.15,
+    aboveBallastThickness: 0.3,
+    sleeperThickness: 0.25,
+    railHeight: 0.18,
     ballastCushionThickness: 0.35,
     topLayerThickness: 0.5,
     activeSqCategory: 3,
