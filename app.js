@@ -1741,22 +1741,22 @@ function renderTable() {
       <tr class="${rowClass}">
         <td>${structureNo}</td>
         <td>${station}</td>
-        <td><button class="chainage-link" data-cross-index="${idx}" title="Open cross-section">${r3(r.chainage)}</button></td>
-        <td>${r3(r.diff)}</td>
+        <td><button class="chainage-link theme-ch" data-cross-index="${idx}" title="Open cross-section">${(r.chainage < 0 ? "-" : "") + Math.floor(Math.abs(r.chainage) / 1000) + "+" + (Math.abs(r.chainage) % 1000).toFixed(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1").padStart(3, "0")}</button></td>
+        <td>${r.diff ? r3(r.diff) : "—"}</td>
         <td>${r3(r.groundLevel)}</td>
-        <td>${r3(r.proposedLevel)}</td>
-        <td>${r3(r.loopTc)}</td>
-        <td>${r3(r.platformWidth)}</td>
+        <td class="t-pro">${r3(r.proposedLevel)}</td>
+        <td>${r.loopTc ? r3(r.loopTc) : "—"}</td>
+        <td>${r.platformWidth ? r3(r.platformWidth) : "—"}</td>
         <td>${bridgeRefs}</td>
-        <td>${r3(r.bridgeDeductLen)}</td>
-        <td>${r3(r.ewDiff)}</td>
-        <td>${r3(r.rlDiff)}</td>
-        <td>${r3(r.bank)}</td>
-        <td>${r3(r.cut)}</td>
-        <td>${r3(r.fillArea)}</td>
-        <td>${r3(r.cutArea)}</td>
-        <td>${volumeCapsule(r.fillVol, "fill", r.type === "FILLING" || r.fillVol > 0)}</td>
-        <td>${volumeCapsule(r.cutVol, "cut", r.type === "CUTTING" || r.cutVol > 0)}</td>
+        <td>${r.bridgeDeductLen ? r3(r.bridgeDeductLen) : "—"}</td>
+        <td>${r.ewDiff ? r3(r.ewDiff) : "—"}</td>
+        <td>${r.rlDiff ? r3(r.rlDiff) : "—"}</td>
+        <td>${r.bank > 0.0001 ? r3(r.bank) : "—"}</td>
+        <td>${r.cut > 0.0001 ? r3(r.cut) : "—"}</td>
+        <td class="t-fill">${r.fillArea > 0.0001 ? r3(r.fillArea) : "—"}</td>
+        <td class="t-cut">${r.cutArea > 0.0001 ? r3(r.cutArea) : "—"}</td>
+        <td class="t-fill">${r.fillVol > 0.0001 ? r3(r.fillVol) : "—"}</td>
+        <td class="t-cut">${r.cutVol > 0.0001 ? r3(r.cutVol) : "—"}</td>
       </tr>
     `;
   }).join("");

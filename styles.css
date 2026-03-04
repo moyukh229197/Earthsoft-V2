@@ -1705,4 +1705,71 @@ td:first-child {
 
 .stat .fluid-wave-back {
   background: rgba(46, 204, 113, 0.2);
+
+  /* ── Calculation Table Custom Theme ───────────────────────────────────── */
+  .work-page[data-work-page="table"] .table-wrap {
+    background: #0b0f19;
+    border: 1px solid #1e293b;
+    box-shadow: none;
+  }
+
+  .work-page[data-work-page="table"] table {
+    background: transparent;
+    border-collapse: collapse;
+  }
+
+  .work-page[data-work-page="table"] thead th {
+    background: #0d1117;
+    color: #64748b;
+    font-family: 'Outfit', sans-serif;
+    border-bottom: 1px solid #1e293b;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    padding: 16px 12px;
+  }
+
+  .work-page[data-work-page="table"] tbody tr {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  }
+
+  .work-page[data-work-page="table"] tbody tr:hover {
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .work-page[data-work-page="table"] th,
+  .work-page[data-work-page="table"] td {
+    border-bottom: none;
+    font-family: 'Outfit', sans-serif;
+    font-variant-numeric: tabular-nums;
+    padding: 14px 12px;
+    color: #94a3b8;
+    /* base gray for simple values */
+  }
+
+  .work-page[data-work-page="table"] .chainage-link.theme-ch {
+    color: #e2e8f0;
+    text-decoration: none;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+
+  .work-page[data-work-page="table"] .chainage-link.theme-ch:hover {
+    color: #fff;
+  }
+
+  /* Specific highlight colors from the user's theme */
+  .work-page[data-work-page="table"] td.t-pro {
+    color: #3b82f6;
+    font-weight: 500;
+  }
+
+  .work-page[data-work-page="table"] td.t-fill {
+    color: #10b981;
+    font-weight: 500;
+  }
+
+  .work-page[data-work-page="table"] td.t-cut {
+    color: #ef4444;
+    font-weight: 500;
+  }
 }
