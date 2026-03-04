@@ -281,6 +281,40 @@ function detectImportHeaderRow(aoa) {
   return best;
 }
 
+function updateDashboard() {
+  const dashChRange = document.getElementById("dashChRange");
+  const dashLength = document.getElementById("dashLength");
+  const dashPoints = document.getElementById("dashPoints");
+  const dashStructures = document.getElementById("dashStructures");
+
+  if (!state.calcRows || state.calcRows.length === 0) {
+    if (dashChRange) dashChRange.textContent = "0.000 to 0.000";
+    if (dashLength) dashLength.textContent = "0.000 km";
+    if (dashPoints) dashPoints.textContent = "0 Cross-Sections";
+    if (dashStructures) dashStructures.textContent = "0 Bridges, 0 Curves";
+    return;
+  }
+
+  const minCh = state.calcRows[0].chainage;
+  const maxCh = state.calcRows[state.calcRows.length - 1].chainage;
+  const totalL = Math.max(maxCh - minCh, 0);
+
+  if (dashChRange) {
+    dashChRange.textContent = `${r3(minCh >= 1000 ? minCh / 1000 : minCh)}${minCh >= 1000 ? 'km' : 'm'} to ${r3(maxCh >= 1000 ? maxCh / 1000 : maxCh)}${maxCh >= 1000 ? 'km' : 'm'}`;
+  }
+  if (dashLength) {
+    dashLength.textContent = `${r3(totalL / 1000)} km`;
+  }
+  if (dashPoints) {
+    dashPoints.textContent = `${state.calcRows.length.toLocaleString()} Cross-Sections`;
+  }
+  if (dashStructures) {
+    const validBridges = (state.bridgeRows || []).length;
+    const validCurves = (state.curveRows || []).length;
+    dashStructures.textContent = `${validBridges} Bridges, ${validCurves} Curves`;
+  }
+}
+
 function parseImportedRows(aoa, startCh, interval) {
   const header = detectImportHeaderRow(aoa);
   if (!header) {
@@ -1288,6 +1322,7 @@ function recalculate() {
   renderRollDiagram();
   renderSideView();
   updateEstimates();
+  updateDashboard();
 }
 
 function renderSummary() {

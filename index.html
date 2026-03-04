@@ -182,6 +182,39 @@
       </header>
 
       <section class="work-page active" data-work-page="overview">
+        <section id="projectDashboard"
+          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;">
+          <div class="glass-card"
+            style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <div
+              style="color: var(--muted); font-size: 0.8rem; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+              <i class="ri-ruler-line"></i> Chainage Range</div>
+            <div id="dashChRange" style="font-size: 1.25rem; font-weight: 700; color: white;">0.000 to 0.000</div>
+          </div>
+          <div class="glass-card"
+            style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <div
+              style="color: var(--muted); font-size: 0.8rem; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+              <i class="ri-route-line"></i> Total Length</div>
+            <div id="dashLength" style="font-size: 1.25rem; font-weight: 700; color: white;">0.000 km</div>
+          </div>
+          <div class="glass-card"
+            style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <div
+              style="color: var(--muted); font-size: 0.8rem; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+              <i class="ri-shape-line"></i> Data Points</div>
+            <div id="dashPoints" style="font-size: 1.25rem; font-weight: 700; color: white;">0 Cross-Sections</div>
+          </div>
+          <div class="glass-card"
+            style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <div
+              style="color: var(--muted); font-size: 0.8rem; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+              <i class="ri-building-line"></i> Structures</div>
+            <div id="dashStructures" style="font-size: 1.25rem; font-weight: 700; color: white;">0 Bridges, 0 Curves
+            </div>
+          </div>
+        </section>
+
         <section class="summary-strip">
           <article class="glass formula-panel">
             <h3>Earthwork Result Summary</h3>
