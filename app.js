@@ -2349,6 +2349,43 @@ function bindEvents() {
     dateEl.textContent = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
   }
 
+  // --- Strict Verification Engine ---
+  function validateProjectData() {
+    const errors = [];
+    if (!state.project.name) errors.push("- Project Name is missing.");
+    if (!state.rawRows || state.rawRows.length === 0) errors.push("- No Earthwork Levels data uploaded.");
+
+    // Check for calculation errors
+    let nanFound = false;
+    let logicError = null;
+    let invalidChainage = null;
+
+    if (state.calcRows && state.calcRows.length > 0) {
+      for (let i = 0; i < state.calcRows.length; i++) {
+        const row = state.calcRows[i];
+
+        // Check essential numbers
+        if (!Number.isFinite(row.chainage)) {
+          invalidChainage = `Row ${i + 1}`;
+        }
+
+        // If cutVol or fillVol area/vol resulted in NaN
+        if (Number.isNaN(row.cutVol) || Number.isNaN(row.fillVol) || Number.isNaN(row.bank) || Number.isNaN(row.ewArea) || Number.isNaN(row.areaDiff)) {
+          nanFound = true;
+          logicError = `Calculation Error at Chainage ${row.chainage}`;
+          break;
+        }
+      }
+    } else {
+      errors.push("- No calculations generated. Please recalculate first.");
+    }
+
+    if (invalidChainage) errors.push(`- Invalid Chainage found near calculation ${invalidChainage}. Check input data.`);
+    if (nanFound && logicError) errors.push(`- Engine encountered severe NaN/Logic calculation errors. ${logicError}. Check cross-sectional parameters or unit rates.`);
+
+    return errors;
+  }
+
   // Verify Calculations button
   const verifyBtn = document.getElementById("verifyCalcBtn");
   if (verifyBtn) {
@@ -2356,14 +2393,22 @@ function bindEvents() {
       verifyBtn.classList.add("verifying");
       verifyBtn.disabled = true;
       recalculate();
+
       setTimeout(() => {
+        const errors = validateProjectData();
         verifyBtn.classList.remove("verifying");
-        verifyBtn.classList.add("verified");
-        setTimeout(() => {
-          verifyBtn.classList.remove("verified");
+
+        if (errors.length === 0) {
+          verifyBtn.classList.add("verified");
+          setTimeout(() => {
+            verifyBtn.classList.remove("verified");
+            verifyBtn.disabled = false;
+          }, 2000);
+        } else {
           verifyBtn.disabled = false;
-        }, 2000);
-      }, 1200);
+          alert(`Verification Failed!\n\nPlease fix the following errors before proceeding:\n\n${errors.join("\n")}`);
+        }
+      }, 800);
     });
   }
 
@@ -2723,13 +2768,19 @@ function bindEvents() {
     const aoaLevels = XLSX.utils.sheet_to_json(wsLevels, { header: 1, defval: "", raw: false, blankrows: false });
     if (!aoaLevels.length) throw new Error("File has no data rows.");
 
+    // Strict validation
+    const headerStr = aoaLevels.slice(0, 5).map(row => row.join(" ").toLowerCase()).join(" ");
+    if (!(headerStr.includes("chainage") || headerStr.includes("station") || headerStr.includes("level"))) {
+      throw new Error("Invalid File: The selected file does not appear to be an Earthwork Levels file. Check your column headers and ensure you are uploading to the correct field.");
+    }
+
     // ---- AI MAPPER LOGIC FOR LEVELS ----
     // Send the first 50 rows to the AI to figure out the column index mapping
     const previewAoa = aoaLevels.slice(0, 50);
     const previewCsv = previewAoa.map(r => r.join(',')).join('\n');
     let mapResult;
 
-    document.body.style.cursor = "wait";
+    showAILoading("Mapping millions of topographical Levels...");
     try {
       const response = await fetch("/api/extract-data", {
         method: "POST",
@@ -2740,10 +2791,10 @@ function bindEvents() {
       const resData = await response.json();
       mapResult = resData.data; // { chainageIndex, groundLevelIndex, proposedLevelIndex, dataStartRowIndex }
     } catch (e) {
-      document.body.style.cursor = "default";
+      hideAILoading();
       throw new Error("AI Mapping failed for Levels file: " + e.message);
     }
-    document.body.style.cursor = "default";
+    hideAILoading();
 
     if (!mapResult || mapResult.chainageIndex < 0 || mapResult.groundLevelIndex < 0 || mapResult.proposedLevelIndex < 0) {
       throw new Error("The AI could not confidently identify Chainage, Ground Level, and Proposed Level columns in your file.");
@@ -2838,17 +2889,48 @@ function bindEvents() {
     recalculate();
   };
 
+  // --- Universal AI File Processor Helpers ---
+  const showAILoading = (text) => {
+    const overlay = document.getElementById("aiLoadingOverlay");
+    const textEl = document.getElementById("aiLoadingText");
+    if (overlay && textEl) {
+      textEl.textContent = text || "Extracting and formatting data structures.";
+      overlay.classList.remove("hidden");
+    }
+    document.body.style.cursor = "wait";
+  };
+
+  const hideAILoading = () => {
+    const overlay = document.getElementById("aiLoadingOverlay");
+    if (overlay) overlay.classList.add("hidden");
+    document.body.style.cursor = "default";
+  };
+
   // --- Universal AI File Processor ---
   const processFileWithAI = async (file, dataType) => {
     // 1. Read file as an array of arrays
     const aoa = await readSheetAoaFromFile(file);
     if (!aoa || !aoa.length) throw new Error("File appears empty or unreadable.");
 
+    // Strict validation: Verify the user uploaded the 'correct' file into the 'correct' field
+    // Get headers (first 5 rows just in case they are shifted)
+    const headerStr = aoa.slice(0, 5).map(row => row.join(" ").toLowerCase()).join(" ");
+
+    if (dataType === "curves" && !(headerStr.includes("radius") && headerStr.includes("length") && (headerStr.includes("curve") || headerStr.includes("chainage")))) {
+      throw new Error("Invalid File: The selected file does not appear to be a Curve list. Check your column headers and ensure you are uploading to the correct field.");
+    }
+    if (dataType === "bridges" && !(headerStr.includes("bridge") || (headerStr.includes("start") && headerStr.includes("end")) || (headerStr.includes("span") && headerStr.includes("length")))) {
+      throw new Error("Invalid File: The selected file does not appear to be a Bridge list. Check your column headers and ensure you are uploading to the correct field.");
+    }
+    if (dataType === "loops" && !(headerStr.includes("code") || headerStr.includes("station") || headerStr.includes("platform") || headerStr.includes("loop") || headerStr.includes("width"))) {
+      throw new Error("Invalid File: The selected file does not appear to be a Loops & Platforms list. Check your column headers and ensure you are uploading to the correct field.");
+    }
+
     // 2. Convert to raw CSV string (to save tokens)
     const csvContent = aoa.map(row => row.join(',')).join('\n');
 
     // 3. Optional: display loading state inside the app (e.g., changing cursor)
-    document.body.style.cursor = "wait";
+    showAILoading(`Extracting ${dataType} details via AI...`);
 
     try {
       // 4. Send to Vercel API
@@ -2867,7 +2949,7 @@ function bindEvents() {
       return resData;
 
     } finally {
-      document.body.style.cursor = "default";
+      hideAILoading();
     }
   };
 
