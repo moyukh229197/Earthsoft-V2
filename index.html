@@ -234,9 +234,14 @@
               </div>
               <div style="position:relative; z-index:10;">
                 <p>Total Filling</p>
-                <div style="display:flex; align-items:baseline; gap:6px;">
-                  <h2 id="totalFilling" style="font-size:1.8rem;">0.000</h2>
-                  <span style="color:var(--muted); font-size:0.85rem;">m³</span>
+                <div style="display:flex; flex-direction:column;">
+                  <div style="display:flex; align-items:baseline; gap:6px;">
+                    <h2 id="totalFilling" style="font-size:1.8rem;">0.000</h2>
+                    <span style="color:var(--muted); font-size:0.85rem;">m³</span>
+                  </div>
+                  <p id="actualFilling"
+                    style="font-size:0.7rem; font-weight:400; color:var(--muted); margin:-4px 0 0 0; opacity:0; transition:opacity 0.3s ease;">
+                  </p>
                 </div>
               </div>
               <div
@@ -277,9 +282,14 @@
               </div>
               <div style="position:relative; z-index:10;">
                 <p>Total Cutting</p>
-                <div style="display:flex; align-items:baseline; gap:6px;">
-                  <h2 id="totalCutting" style="font-size:1.8rem;">0.000</h2>
-                  <span style="color:var(--muted); font-size:0.85rem;">m³</span>
+                <div style="display:flex; flex-direction:column;">
+                  <div style="display:flex; align-items:baseline; gap:6px;">
+                    <h2 id="totalCutting" style="font-size:1.8rem;">0.000</h2>
+                    <span style="color:var(--muted); font-size:0.85rem;">m³</span>
+                  </div>
+                  <p id="actualCutting"
+                    style="font-size:0.7rem; font-weight:400; color:var(--muted); margin:-4px 0 0 0; opacity:0; transition:opacity 0.3s ease;">
+                  </p>
                 </div>
               </div>
               <div

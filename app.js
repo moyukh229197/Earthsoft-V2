@@ -146,6 +146,8 @@ const els = {
   zoomResetBtn: document.getElementById("zoomResetBtn"),
   layerTbody: document.getElementById("layerTbody"),
   dimTbody: document.getElementById("dimTbody"),
+  actualFilling: document.getElementById("actualFilling"),
+  actualCutting: document.getElementById("actualCutting"),
   crossMeta: document.getElementById("crossMeta"),
   graphModal: document.getElementById("graphModal"),
   graphModalTitle: document.getElementById("graphModalTitle"),
@@ -1183,6 +1185,16 @@ function renderSummary() {
 
   els.totalFilling.textContent = formatVolume(fillTotal);
   els.totalCutting.textContent = formatVolume(cutTotal);
+
+  if (els.actualFilling) {
+    els.actualFilling.textContent = fillTotal >= 100000 ? `${Number(fillTotal).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³` : "";
+    els.actualFilling.style.opacity = fillTotal >= 100000 ? "0.8" : "0";
+  }
+  if (els.actualCutting) {
+    els.actualCutting.textContent = cutTotal >= 100000 ? `${Number(cutTotal).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³` : "";
+    els.actualCutting.style.opacity = cutTotal >= 100000 ? "0.8" : "0";
+  }
+
   els.fillLength.textContent = `Length: ${r3(fillLen)} km`;
   els.cutLength.textContent = `Length: ${r3(cutLen)} km`;
 
