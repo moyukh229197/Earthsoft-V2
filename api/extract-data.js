@@ -56,7 +56,9 @@ Rules:
 1. Try your best to extract Start and End chainage. If you only see a single Chainage (like 'Ch: 12+500'), treat that as the center. 
 2. If only center chainage and size are given, calculate start/end mathematically (Length = spans * span_size).
 3. Chainages of '12+500' mean 12500 meters.
-4. ONLY return a beautifully formatted JSON Array of these objects. No markdown formatting, no conversational text. JUST the literal JSON array starting with '[' and ending with ']'.
+4. Bridge identifiers/names should be taken primarily from columns like 'Bridge No.', 'Bridge Number', 'Structure', or 'Sl. No.'.
+5. Tunnel identifiers/names MUST be explicitly parsed from columns titled 'Tunnel No.', 'Tunnel Name', or 'Tunnel'.
+6. ONLY return a beautifully formatted JSON Array of these objects. No markdown formatting, no conversational text. JUST the literal JSON array starting with '[' and ending with ']'.
 `;
     } else if (dataType === 'curves') {
         SYSTEM_PROMPT = `
@@ -65,14 +67,14 @@ The human will provide a raw CSV of horizontal Curve data.
 Your ONLY job is to return a beautiful JSON array of objects representing the curves.
 
 For each curve, extract:
-{
-  "chainage": "number (in meters, e.g. 15300)",
-  "curve": "string (e.g. C-1, Curve 2. etc. Generate one if missing.)",
-  "radius": "number (in meters)",
-  "length": "number (in meters)"
-}
+        {
+            "chainage": "number (in meters, e.g. 15300)",
+                "curve": "string (e.g. C-1, Curve 2. etc. Generate one if missing.)",
+                    "radius": "number (in meters)",
+                        "length": "number (in meters)"
+        }
 
-Rules: ONLY return the literal JSON Array. No markdown formatting, no conversational text.
+        Rules: ONLY return the literal JSON Array.No markdown formatting, no conversational text.
 `;
     } else if (dataType === 'loops') {
         SYSTEM_PROMPT = `
@@ -81,43 +83,43 @@ The human will provide a raw CSV of Railway Station Loops and Platforms data.
 Your ONLY job is to return a perfect JSON array representing this data.
 
 For each station row, extract:
-{
-  "station": "string (Name of station)",
-  "csb": "number (Center of station board chainage in meters, or null)",
-  "loopStartCh": "number (in meters)",
-  "loopEndCh": "number (in meters)",
-  "pfWidth": "number (platform width in meters)",
-  "pfStartCh": "number (in meters)",
-  "pfEndCh": "number (in meters)",
-  "tc": "number (Track center displacement in meters)",
-  "remarks": "string (Any extra notes)"
-}
-Rules:
-1. "12+500" means 12500.
-2. ONLY return the literal JSON Array. No markdown formatting, no conversational text.
+        {
+            "station": "string (Name of station)",
+                "csb": "number (Center of station board chainage in meters, or null)",
+                    "loopStartCh": "number (in meters)",
+                        "loopEndCh": "number (in meters)",
+                            "pfWidth": "number (platform width in meters)",
+                                "pfStartCh": "number (in meters)",
+                                    "pfEndCh": "number (in meters)",
+                                        "tc": "number (Track center displacement in meters)",
+                                            "remarks": "string (Any extra notes)"
+        }
+        Rules:
+        1. "12+500" means 12500.
+        2. ONLY return the literal JSON Array.No markdown formatting, no conversational text.
 `;
     } else if (dataType === 'levels') {
         IS_MAPPER = true;
         SYSTEM_PROMPT = `
-You are an intelligent data-mapping assistant.
+You are an intelligent data - mapping assistant.
 The human will provide the first 50 rows of a massive Topographical Levels CSV. 
 We CANNOT process all 10,000 rows right now. 
 
-Your ONLY job is to figure out WHICH array index (0-indexed) holds the critical data columns.
-Look at the headers and the sample data rows provided. The rows are comma-separated.
+Your ONLY job is to figure out WHICH array index(0 - indexed) holds the critical data columns.
+Look at the headers and the sample data rows provided.The rows are comma - separated.
 
 Return a SINGLE JSON object exactly like this:
-{
-  "chainageIndex": number (The 0-based column index containing distance/chainage, e.g. 10+500, or -1 if not found),
-  "groundLevelIndex": number (The column containing Ground RL / OGL / Ground Elevation, or -1 if not found),
-  "proposedLevelIndex": number (The column containing Proposed RL / PRL / Formation Level, or -1 if not found),
-  "stationIndex": number (The column containing Station Name, or -1 if none),
-  "structureNoIndex": number (The column containing Structure No, or -1 if none),
-  "dataStartRowIndex": number (The 0-based row index where the actual numeric data begins, skipping headers)
-}
+        {
+            "chainageIndex": number(The 0 - based column index containing distance / chainage, e.g. 10 + 500, or - 1 if not found),
+            "groundLevelIndex": number(The column containing Ground RL / OGL / Ground Elevation, or - 1 if not found),
+            "proposedLevelIndex": number(The column containing Proposed RL / PRL / Formation Level, or - 1 if not found),
+            "stationIndex": number(The column containing Station Name, or - 1 if none),
+                "structureNoIndex": number(The column containing Structure No, or - 1 if none),
+                    "dataStartRowIndex": number(The 0 - based row index where the actual numeric data begins, skipping headers)
+        }
 
-Rules:
-ONLY return the literal JSON Object. No markdown formatting, no arrays, no conversational text. JUST the JSON object starting with '{' and ending with '}'.
+        Rules:
+ONLY return the literal JSON Object.No markdown formatting, no arrays, no conversational text.JUST the JSON object starting with '{' and ending with '}'.
 `;
     } else {
         return res.status(400).json({ error: 'Unsupported dataType' });
@@ -127,7 +129,7 @@ ONLY return the literal JSON Object. No markdown formatting, no arrays, no conve
         const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${GROQ_API_KEY}`,
+                'Authorization': `Bearer ${GROQ_API_KEY} `,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
@@ -143,7 +145,7 @@ ONLY return the literal JSON Object. No markdown formatting, no arrays, no conve
 
         if (!groqResponse.ok) {
             const errData = await groqResponse.json().catch(() => ({}));
-            throw new Error(errData.error?.message || `Groq API Error: ${groqResponse.status}`);
+            throw new Error(errData.error?.message || `Groq API Error: ${groqResponse.status} `);
         }
 
         const groqData = await groqResponse.json();
