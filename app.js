@@ -725,7 +725,7 @@ function getSegmentBridgeInfo(start, end, bridges) {
     const ovEnd = Math.min(end, b.endChainage);
     if (ovEnd > ovStart) {
       if (b.shouldDeduct) overlaps.push([ovStart, ovEnd]);
-      refs.add(`${b.bridgeNo} (${b.bridgeCategory}/${b.bridgeType} | ${b.bridgeSize} x ${b.bridgeSpans})`);
+      refs.add(b.bridgeNo);
     }
   }
   if (!overlaps.length) return { deductedLen: 0, refs: [] };
@@ -750,7 +750,7 @@ function getBridgeRefsAtChainage(chainage, bridges) {
   if (!Number.isFinite(chainage) || !bridges.length) return [];
   return bridges
     .filter((b) => chainage >= b.startChainage && chainage <= b.endChainage)
-    .map((b) => `${b.bridgeNo} (${b.bridgeCategory}/${b.bridgeType} | ${b.bridgeSize} x ${b.bridgeSpans})`);
+    .map((b) => b.bridgeNo);
 }
 
 function renderBridgeInputs() {
