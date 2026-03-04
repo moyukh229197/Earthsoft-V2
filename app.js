@@ -200,7 +200,10 @@ function parseChainage(value) {
     const mm = Number((m || "0").replace(/[^\d.-]/g, ""));
     if (Number.isFinite(k) && Number.isFinite(mm)) return (k * 1000) + mm;
   }
-  return Number(t.replace(/[^\d.-]/g, ""));
+  const stripped = t.replace(/[^\d.-]/g, "");
+  if (!stripped) return NaN;
+  const n = Number(stripped);
+  return Number.isFinite(n) ? n : NaN;
 }
 
 function safeNum(v, fallback = 0) {
