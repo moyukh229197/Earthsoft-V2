@@ -1692,7 +1692,6 @@ function renderTable() {
     const rowClass = (r.bridgeRefs && r.bridgeRefs.length) ? "bridge-row" : "";
     return `
       <tr class="${rowClass}">
-        <td>${structureNo}</td>
         <td>${station}</td>
         <td><button class="chainage-link theme-ch" data-cross-index="${idx}" title="Open cross-section">${(r.chainage < 0 ? "-" : "") + Math.floor(Math.abs(r.chainage) / 1000) + "+" + (Math.abs(r.chainage) % 1000).toFixed(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1").padStart(3, "0")}</button></td>
         <td>${r.diff ? r3(r.diff) : "—"}</td>
