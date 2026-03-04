@@ -773,6 +773,15 @@ function getBridgeRefsAtChainage(chainage, bridges) {
     .map((b) => b.bridgeNo);
 }
 
+function getBridgeStyleInfo(category, type) {
+  const typeLC = (String(category || "") + " " + String(type || "")).toLowerCase();
+  if (typeLC.includes("tunnel")) return { bg: "rgba(168, 85, 247, 0.15)", col: "#d8b4fe", border: "1px solid rgba(168, 85, 247, 0.3)" };
+  if (typeLC.includes("major")) return { bg: "rgba(239, 68, 68, 0.15)", col: "#fca5a5", border: "1px solid rgba(239, 68, 68, 0.3)" };
+  if (typeLC.includes("minor")) return { bg: "rgba(16, 185, 129, 0.15)", col: "#6ee7b7", border: "1px solid rgba(16, 185, 129, 0.3)" };
+  if (typeLC.includes("rub") || typeLC.includes("rob")) return { bg: "rgba(245, 158, 11, 0.15)", col: "#fcd34d", border: "1px solid rgba(245, 158, 11, 0.3)" };
+  return { bg: "rgba(59, 130, 246, 0.15)", col: "#93c5fd", border: "1px solid rgba(59, 130, 246, 0.3)" };
+}
+
 function renderBridgeInputs() {
   if (!els.bridgeTableBody) return;
   if (!state.bridgeRows.length) {
@@ -784,9 +793,11 @@ function renderBridgeInputs() {
     if (els.bridgeMeta) els.bridgeMeta.textContent = "No bridge deduction applied.";
     return;
   }
-  els.bridgeTableBody.innerHTML = state.bridgeRows.map((b, i) => `
+  els.bridgeTableBody.innerHTML = state.bridgeRows.map((b, i) => {
+    const bColor = getBridgeStyleInfo(b.bridgeCategory, b.bridgeType);
+    return `
     <tr data-bridge-row="${i}">
-      <td><input data-bridge-field="bridgeNo" value="${String(b.bridgeNo || "")}" /></td>
+      <td><input data-bridge-field="bridgeNo" value="${String(b.bridgeNo || "")}" style="background: ${bColor.bg}; color: ${bColor.col}; border: ${bColor.border}; border-radius: 4px; font-weight: 600; padding: 4px 6px;" /></td>
       <td>
         <select data-bridge-field="bridgeCategory">
           ${BRIDGE_CATEGORIES.map(cat => `<option value="${cat}" ${b.bridgeCategory === cat ? 'selected' : ''}>${cat}</option>`).join("")}
@@ -805,7 +816,8 @@ function renderBridgeInputs() {
       <td><input data-bridge-field="length" value="${Number.isFinite(parseLooseNumber(b.length, NaN)) ? r3(parseLooseNumber(b.length, NaN)) : String(b.length ?? "")}" /></td>
       <td><button type="button" class="bridge-del" data-bridge-del="${i}">Delete</button></td>
     </tr>
-  `).join("");
+  `;
+  }).join("");
   const allValidBridges = buildBridgeIntervals();
   const deductibleBridges = allValidBridges.filter(b => b.shouldDeduct);
   const totalLength = allValidBridges.reduce((acc, b) => acc + safeNum(b.length), 0);
@@ -1726,7 +1738,16 @@ function renderTable() {
   const html = state.calcRows.map((r, idx) => {
     const structureNo = r.structureNo ? String(r.structureNo).replace(/\n/g, " ").trim() : "-";
     const station = r.station ? String(r.station).replace(/\n/g, " ") : "-";
-    const bridgeRefs = (r.bridgeRefs && r.bridgeRefs.length) ? r.bridgeRefs.join(" | ") : "-";
+
+    let bridgeRefs = "-";
+    if (r.bridgeRefs && r.bridgeRefs.length) {
+      bridgeRefs = r.bridgeRefs.map(ref => {
+        const b = state.bridgeRows.find(br => String(br.bridgeNo) === String(ref));
+        if (!b) return ref;
+        const bColor = getBridgeStyleInfo(b.bridgeCategory, b.bridgeType);
+        return `<span style="display:inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; color: ${bColor.col}; background: ${bColor.bg}; border: ${bColor.border}; white-space: nowrap; margin: 2px;">${ref}</span>`;
+      }).join(" ");
+    }
     const rowClass = (r.bridgeRefs && r.bridgeRefs.length) ? "bridge-row" : "";
     return `
       <tr class="${rowClass}">
