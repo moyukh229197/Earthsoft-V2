@@ -98,8 +98,10 @@ body {
 .app-layout {
   display: grid;
   grid-template-columns: 220px 1fr;
-  gap: 0;
+  gap: 12px;
+  padding: 12px;
   width: 100%;
+  box-sizing: border-box;
   margin: 0;
   position: relative;
   z-index: 1;
@@ -202,14 +204,15 @@ body {
 
 .sidebar {
   position: sticky;
-  top: 0;
-  height: 100vh;
+  top: 12px;
+  height: calc(100vh - 24px);
   display: flex;
   flex-direction: column;
   padding: 0 8px;
   overflow-y: auto;
   background: linear-gradient(180deg, var(--sidebar-bg-start) 0%, var(--sidebar-bg-end) 100%);
-  border-right: 1px solid var(--glass-border);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
   z-index: 50;
 }
 
