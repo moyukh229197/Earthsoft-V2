@@ -144,6 +144,8 @@ const els = {
   expandedGraphCanvas: document.getElementById("expandedGraphCanvas"),
   fillWaterNode: document.getElementById("fillWaterNode"),
   cutWaterNode: document.getElementById("cutWaterNode"),
+  sidebarToggle: document.getElementById("sidebarToggle"),
+  appLayout: document.querySelector(".app-layout"),
 };
 
 const settingSchema = [
@@ -2830,6 +2832,12 @@ function bindEvents() {
     });
     // Set initial toggle state (unchecked = dark mode default)
     els.themeToggleCheckbox.checked = document.documentElement.classList.contains("light");
+  }
+
+  if (els.sidebarToggle && els.appLayout) {
+    els.sidebarToggle.addEventListener("click", () => {
+      els.appLayout.classList.toggle("sidebar-collapsed");
+    });
   }
 
   // Populate date display

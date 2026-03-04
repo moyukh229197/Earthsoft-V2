@@ -105,6 +105,30 @@ body {
   z-index: 1;
   align-items: start;
   min-height: 100vh;
+  transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-layout.sidebar-collapsed {
+  grid-template-columns: 64px 1fr;
+}
+
+.app-layout.sidebar-collapsed .brand-text,
+.app-layout.sidebar-collapsed .nav-text {
+  display: none;
+}
+
+.app-layout.sidebar-collapsed .sidebar-brand {
+  padding: 0;
+  justify-content: center;
+}
+
+.app-layout.sidebar-collapsed .work-nav-btn {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.app-layout.sidebar-collapsed .work-nav-btn .nav-icon {
+  margin: 0;
 }
 
 .main-content {
