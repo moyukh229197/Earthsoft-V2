@@ -2766,6 +2766,39 @@
     }
   </style>
 
+  <!-- Verification Report Modal -->
+  <dialog id="verifyModal" class="modal">
+    <div class="modal-content glass-strong"
+      style="max-width: 550px; border: 1px solid rgba(255,255,255,0.1); padding: 0;">
+      <div class="modal-header"
+        style="padding: 24px 30px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div id="verifyModalIcon"
+            style="width: 38px; height: 38px; background: rgba(16, 185, 129, 0.15); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2);">
+            <i class="ri-checkbox-circle-line" style="font-size: 1.25rem;" id="verifyModalIconEl"></i>
+          </div>
+          <div style="text-align: left;">
+            <h2 id="verifyModalTitle" style="margin: 0; font-size: 1.2rem; font-weight: 700; color: white;">Verification
+              Report</h2>
+            <p id="verifyModalSub" style="margin: 2px 0 0; font-size: 0.75rem; color: rgba(255,255,255,0.45);">System
+              computation integrity check</p>
+          </div>
+        </div>
+        <button class="close-modal" onclick="this.closest('dialog').close()"
+          style="background: rgba(255,255,255,0.05); border: none; font-size: 1.2rem; cursor: pointer; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: 0.2s;">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 30px; text-align: left;">
+        <div id="verifyModalContent" style="font-size: 0.95rem; color: #e2e8f0; line-height: 1.5;"></div>
+      </div>
+
+      <div class="modal-footer"
+        style="padding: 0 30px 30px; display: flex; justify-content: flex-end; gap: 12px; border: none; background: transparent;">
+        <button class="btn btn-primary" onclick="this.closest('dialog').close()"
+          style="min-width: 100px;">Acknowledge</button>
+      </div>
+    </div>
+  </dialog>
 
   <!-- Export Report Modal -->
   <dialog id="exportModal" class="modal">

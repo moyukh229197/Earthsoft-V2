@@ -3380,15 +3380,70 @@ function bindEvents() {
         const errors = validateProjectData();
         verifyBtn.classList.remove("verifying");
 
+        const modal = document.getElementById("verifyModal");
+        const modalContent = document.getElementById("verifyModalContent");
+        const modalIcon = document.getElementById("verifyModalIcon");
+        const modalIconEl = document.getElementById("verifyModalIconEl");
+        const modalTitle = document.getElementById("verifyModalTitle");
+
         if (errors.length === 0) {
           verifyBtn.classList.add("verified");
+          if (modalTitle) modalTitle.textContent = "Verification Successful";
+          if (modalIcon) {
+            modalIcon.style.background = "rgba(16, 185, 129, 0.15)";
+            modalIcon.style.color = "#10b981";
+            modalIcon.style.border = "1px solid rgba(16, 185, 129, 0.2)";
+          }
+          if (modalIconEl) modalIconEl.className = "ri-checkbox-circle-line";
+          if (modalContent) {
+            modalContent.innerHTML = `
+               <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); padding: 16px; border-radius: 8px; margin-bottom: 12px; display: flex; align-items: flex-start; gap: 12px;">
+                 <i class="ri-shield-check-fill" style="color: #10b981; font-size: 1.5rem;"></i>
+                 <div>
+                   <div style="color: #fff; font-weight: 600; margin-bottom: 4px;">Engine Verification Passed</div>
+                   <div style="font-size: 0.85rem; color: rgba(255,255,255,0.7);">
+                     All structural calculations, chainages, and cross-section parameters have been independently validated. You are clear to export.
+                     <br><br>
+                     <strong>Checked Points:</strong> ${state.calcRows.length} Cross-Sections
+                     <br>
+                     <strong>Timestamp:</strong> ${new Date().toLocaleTimeString()}
+                   </div>
+                 </div>
+               </div>
+             `;
+          }
+
+          if (modal) modal.showModal();
+
           setTimeout(() => {
             verifyBtn.classList.remove("verified");
             verifyBtn.disabled = false;
           }, 2000);
+
         } else {
           verifyBtn.disabled = false;
-          alert(`Verification Failed!\n\nPlease fix the following errors before proceeding: \n\n${errors.join("\n")} `);
+          if (modalTitle) modalTitle.textContent = "Verification Failed";
+          if (modalIcon) {
+            modalIcon.style.background = "rgba(239, 68, 68, 0.15)";
+            modalIcon.style.color = "#ef4444";
+            modalIcon.style.border = "1px solid rgba(239, 68, 68, 0.2)";
+          }
+          if (modalIconEl) modalIconEl.className = "ri-error-warning-line";
+          if (modalContent) {
+            const errorList = errors.map(e => `<li style="margin-bottom: 8px;"><i class="ri-close-circle-fill" style="color: #ef4444; margin-right: 6px;"></i>${e}</li>`).join("");
+            modalContent.innerHTML = `
+               <div style="background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); padding: 16px; border-radius: 8px; margin-bottom: 12px;">
+                 <div style="color: #ef4444; font-weight: 600; margin-bottom: 8px;">Critical Errors Found (${errors.length})</div>
+                 <div style="font-size: 0.85rem; color: rgba(255,255,255,0.7); margin-bottom: 12px;">
+                   The system has halted processing to prevent inaccurate data from being exported. Please resolve the following structural flaws:
+                 </div>
+                 <ul style="list-style: none; padding: 0; margin: 0; font-family: monospace; font-size: 13px; color: #f87171; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 6px;">
+                   ${errorList}
+                 </ul>
+               </div>
+             `;
+          }
+          if (modal) modal.showModal();
         }
       }, 800);
     });
