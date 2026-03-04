@@ -74,6 +74,8 @@ const els = {
   wizardCalculateBtn: document.getElementById("wizardCalculateBtn"),
   wizardUploadButtons: Array.from(document.querySelectorAll("[data-wizard-upload]")),
   bridgeAddBtn: document.getElementById("bridgeAddBtn"),
+  bridgeRefreshBtn: document.getElementById("bridgeRefreshBtn"),
+  bridgeClearBtn: document.getElementById("bridgeClearBtn"),
   bridgeApplyBtn: document.getElementById("bridgeApplyBtn"),
   bridgeTableBody: document.getElementById("bridgeTableBody"),
   bridgeMeta: document.getElementById("bridgeMeta"),
@@ -3967,6 +3969,7 @@ function bindEvents() {
 
   if (els.bridgeAddBtn) {
     els.bridgeAddBtn.addEventListener("click", () => {
+      syncBridgeStateFromTable(); // Sync current inputs first
       const base = inferImportStartChainage();
       const nextNo = state.bridgeRows.length + 1;
       state.bridgeRows.push({
@@ -3984,6 +3987,30 @@ function bindEvents() {
       updateWizardUI();
       applyProjectGate();
       renderBridgeInputs();
+    });
+  }
+
+  if (els.bridgeRefreshBtn) {
+    els.bridgeRefreshBtn.addEventListener("click", () => {
+      syncBridgeStateFromTable(); // First capture current input values
+      state.bridgeRows.sort((a, b) => (safeNum(a.startChainage) - safeNum(b.startChainage)));
+      renderBridgeInputs();
+      recalculate();
+      alert("Bridge list refreshed and re-sorted by chainage.");
+    });
+  }
+
+  if (els.bridgeClearBtn) {
+    els.bridgeClearBtn.addEventListener("click", () => {
+      if (confirm("Are you sure you want to delete ALL bridge entries? This cannot be undone.")) {
+        state.bridgeRows = [];
+        state.project.uploads.bridges = false;
+        state.project.verified = false;
+        updateWizardUI();
+        applyProjectGate();
+        renderBridgeInputs();
+        recalculate();
+      }
     });
   }
 
@@ -4005,6 +4032,7 @@ function bindEvents() {
       if (!delBtn) return;
       const i = Number(delBtn.dataset.bridgeDel);
       if (!Number.isFinite(i)) return;
+      syncBridgeStateFromTable(); // Capture all current inputs first
       state.bridgeRows = state.bridgeRows.filter((_, idx) => idx !== i);
       state.project.uploads.bridges = state.bridgeRows.length > 0;
       state.project.verified = false;
