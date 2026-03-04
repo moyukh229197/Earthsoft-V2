@@ -40,6 +40,8 @@ const els = {
   rollDiagramCanvas: document.getElementById("rollDiagramCanvas"),
   rollDiagramWrap: document.getElementById("rollDiagramWrap"),
   rollDiagramEmpty: document.getElementById("rollDiagramEmpty"),
+  sideViewCanvas: document.getElementById("sideViewCanvas"),
+  sideViewWrap: document.getElementById("sideViewWrap"),
   tableBody: document.getElementById("tableBody"),
   totalFilling: document.getElementById("totalFilling"),
   totalCutting: document.getElementById("totalCutting"),
@@ -1162,6 +1164,7 @@ function recalculate() {
   renderTable();
   renderCharts();
   renderRollDiagram();
+  renderSideView();
   updateEstimates();
 }
 
@@ -1223,7 +1226,7 @@ function setWorkPage(pageName) {
     page.classList.toggle("active", page.dataset.workPage === selected);
   });
   if (selected === "roll-diagram" && state.calcRows.length) {
-    requestAnimationFrame(() => renderRollDiagram());
+    requestAnimationFrame(() => { renderRollDiagram(); renderSideView(); });
   }
   if (selected === "graphs" && state.calcRows.length) {
     requestAnimationFrame(() => renderCharts());
@@ -2198,6 +2201,349 @@ function renderRollDiagram() {
     ctx.fillText(item.lbl, lx + 15, 21);
     lx += 15 + ctx.measureText(item.lbl).width + 14;
     if (lx > canvasW - 100) break;
+  }
+}
+
+function renderSideView() {
+  const canvas = els.sideViewCanvas;
+  if (!canvas) return;
+  if (!state.calcRows || state.calcRows.length === 0) {
+    canvas.width = 0; canvas.height = 0; return;
+  }
+
+  const rows = state.calcRows;
+  const minCh = rows[0].chainage;
+  const maxCh = rows[rows.length - 1].chainage;
+  const totalL = Math.max(maxCh - minCh, 1);
+
+  const baseScale = Math.max(0.3, Math.min(4, window._rollScale || 1));
+  const PX_PER_M_X = 0.4 * baseScale;
+
+  const PAD_L = 72;   // room for Y-axis labels
+  const PAD_R = 30;
+  const PAD_T = 60;   // legend + title
+  const PAD_B = 50;   // chainage labels
+
+  // Elevation range from calcRows
+  const allGLs = rows.map(r => safeNum(r.groundLevel));
+  const allFLs = rows.map(r => safeNum(r.proposedLevel));
+  const minElev = Math.min(...allGLs, ...allFLs) - 3;
+  const maxElev = Math.max(...allGLs, ...allFLs) + 6;
+  const elevRange = Math.max(maxElev - minElev, 1);
+
+  const canvasW = Math.ceil(PAD_L + totalL * PX_PER_M_X + PAD_R);
+  const bodyH = Math.max(300, Math.min(500, elevRange * 4 * baseScale));
+  const canvasH = PAD_T + bodyH + PAD_B;
+
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvasW, canvasH);
+
+  // map chainage → canvas X
+  function getX(ch) {
+    return Number.isFinite(ch) ? PAD_L + (ch - minCh) * PX_PER_M_X : null;
+  }
+  // map elevation → canvas Y  (high RL = small Y)
+  function getY(elev) {
+    return PAD_T + bodyH - ((safeNum(elev) - minElev) / elevRange) * bodyH;
+  }
+
+  // ── Background ────────────────────────────────────────────────────────────
+  const bg = ctx.createLinearGradient(0, 0, 0, canvasH);
+  bg.addColorStop(0, "#0d1117");
+  bg.addColorStop(1, "#141d2e");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  // ── Horizontal elevation grid ─────────────────────────────────────────────
+  ctx.strokeStyle = "rgba(255,255,255,0.06)";
+  ctx.lineWidth = 1;
+  const elevStep = elevRange > 200 ? 50 : elevRange > 50 ? 10 : elevRange > 20 ? 5 : 2;
+  const startElev = Math.ceil(minElev / elevStep) * elevStep;
+  for (let el = startElev; el <= maxElev; el += elevStep) {
+    const gy = getY(el);
+    ctx.beginPath(); ctx.moveTo(PAD_L, gy); ctx.lineTo(canvasW - PAD_R, gy); ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.font = `${Math.max(9, 9 * baseScale)}px Outfit,sans-serif`;
+    ctx.textAlign = "right";
+    ctx.fillText(r3(el) + " m", PAD_L - 5, gy + 4);
+  }
+
+  // ── Vertical km grid ─────────────────────────────────────────────────────
+  ctx.strokeStyle = "rgba(255,255,255,0.05)";
+  const gridKm = totalL >= 50000 ? 10000 : totalL >= 10000 ? 2000 : 1000;
+  const startGrid = Math.ceil(minCh / gridKm) * gridKm;
+  for (let ch = startGrid; ch <= maxCh; ch += gridKm) {
+    const gx = getX(ch);
+    if (gx == null) continue;
+    ctx.beginPath(); ctx.moveTo(gx, PAD_T); ctx.lineTo(gx, PAD_T + bodyH); ctx.stroke();
+  }
+
+  // ── Build bridge intervals map for quick lookup ───────────────────────────
+  const bridges = buildBridgeIntervals();
+  // For each row, check if it's on a bridge
+  function isOnBridge(ch) {
+    return bridges.some(b => ch >= b.startChainage && ch <= b.endChainage);
+  }
+  function isTunnel(b) {
+    return /tunnel/i.test(b.bridgeCategory || "") || /tunnel/i.test(b.bridgeType || "");
+  }
+
+  // ── Fill / Cut areas ─────────────────────────────────────────────────────
+  // Draw fill (green) from formation down to ground
+  for (let i = 1; i < rows.length; i++) {
+    const r0 = rows[i - 1], r1 = rows[i];
+    if (r1.bank <= 0.001) continue;
+    const x0 = getX(r0.chainage), x1 = getX(r1.chainage);
+    if (x0 == null || x1 == null) continue;
+    ctx.beginPath();
+    ctx.moveTo(x0, getY(r0.proposedLevel));
+    ctx.lineTo(x1, getY(r1.proposedLevel));
+    ctx.lineTo(x1, getY(r1.groundLevel));
+    ctx.lineTo(x0, getY(r0.groundLevel));
+    ctx.closePath();
+    ctx.fillStyle = "rgba(34,139,69,0.28)";
+    ctx.fill();
+  }
+  // Draw cut (red) from ground down to cut-bottom
+  for (let i = 1; i < rows.length; i++) {
+    const r0 = rows[i - 1], r1 = rows[i];
+    if (r1.cut <= 0.001) continue;
+    const x0 = getX(r0.chainage), x1 = getX(r1.chainage);
+    if (x0 == null || x1 == null) continue;
+    ctx.beginPath();
+    ctx.moveTo(x0, getY(r0.groundLevel));
+    ctx.lineTo(x1, getY(r1.groundLevel));
+    ctx.lineTo(x1, getY(r1.groundLevel - r1.cut));
+    ctx.lineTo(x0, getY(r0.groundLevel - r0.cut));
+    ctx.closePath();
+    ctx.fillStyle = "rgba(180,44,50,0.22)";
+    ctx.fill();
+  }
+
+  // ── Ground level line ────────────────────────────────────────────────────
+  ctx.beginPath();
+  ctx.strokeStyle = "rgba(180,120,60,0.85)";
+  ctx.lineWidth = 2;
+  let moved = false;
+  for (const r of rows) {
+    const x = getX(r.chainage), y = getY(r.groundLevel);
+    if (x == null) { moved = false; continue; }
+    if (!moved) { ctx.moveTo(x, y); moved = true; } else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // ── Formation (proposed) RL line ─────────────────────────────────────────
+  // Draw in segments — skip where bridge covers (will draw viaduct separately)
+  ctx.lineWidth = 2.5;
+  moved = false;
+  let prevWasBridge = false;
+  for (const r of rows) {
+    const x = getX(r.chainage);
+    const y = getY(r.proposedLevel);
+    if (x == null) { moved = false; continue; }
+    const onBr = isOnBridge(r.chainage);
+    if (onBr) { moved = false; prevWasBridge = true; continue; }  // skip — drawn as viaduct
+    ctx.strokeStyle = "hsl(233,100%,65%)";
+    if (!moved) { ctx.beginPath(); ctx.moveTo(x, y); moved = true; }
+    else ctx.lineTo(x, y);
+    if (prevWasBridge) { ctx.stroke(); ctx.beginPath(); ctx.moveTo(x, y); }
+    prevWasBridge = false;
+  }
+  ctx.stroke();
+
+  // ── Bridges / Viaducts / Tunnels ─────────────────────────────────────────
+  for (const b of bridges) {
+    const bx1 = getX(b.startChainage), bx2 = getX(b.endChainage);
+    if (bx1 == null || bx2 == null) continue;
+
+    // Find formation RL at start and end (interpolate from calcRows)
+    const flAt = (ch) => {
+      const sorted = rows;
+      for (let i = 0; i < sorted.length - 1; i++) {
+        if (ch >= sorted[i].chainage && ch <= sorted[i + 1].chainage) {
+          const t = (ch - sorted[i].chainage) / (sorted[i + 1].chainage - sorted[i].chainage);
+          return sorted[i].proposedLevel + t * (sorted[i + 1].proposedLevel - sorted[i].proposedLevel);
+        }
+      }
+      return rows[rows.length - 1].proposedLevel;
+    };
+    const glAt = (ch) => {
+      const sorted = rows;
+      for (let i = 0; i < sorted.length - 1; i++) {
+        if (ch >= sorted[i].chainage && ch <= sorted[i + 1].chainage) {
+          const t = (ch - sorted[i].chainage) / (sorted[i + 1].chainage - sorted[i].chainage);
+          return sorted[i].groundLevel + t * (sorted[i + 1].groundLevel - sorted[i].groundLevel);
+        }
+      }
+      return rows[rows.length - 1].groundLevel;
+    };
+
+    const fl1 = flAt(b.startChainage), fl2 = flAt(b.endChainage);
+    const gl1 = glAt(b.startChainage), gl2 = glAt(b.endChainage);
+    const by1 = getY(fl1), by2 = getY(fl2);               // formation at bridge ends
+    const gy1 = getY(gl1), gy2 = getY(gl2);               // ground at bridge ends
+    const bW = Math.max(bx2 - bx1, 4);
+    const tunnel = isTunnel(b);
+
+    if (tunnel) {
+      // ── TUNNEL ── dark filled arch with hatching
+      const archH = 18 * baseScale;
+      const midBy = (by1 + by2) / 2;
+      ctx.fillStyle = "rgba(60,40,20,0.65)";
+      ctx.strokeStyle = "rgba(180,130,60,0.8)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(bx1, midBy + archH);
+      ctx.lineTo(bx1, midBy);
+      ctx.quadraticCurveTo((bx1 + bx2) / 2, midBy - archH * 1.5, bx2, midBy);
+      ctx.lineTo(bx2, midBy + archH);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+
+      // Hatching inside tunnel
+      ctx.strokeStyle = "rgba(180,130,60,0.25)"; ctx.lineWidth = 1;
+      for (let hx = bx1; hx < bx2; hx += 10 * baseScale) {
+        ctx.beginPath(); ctx.moveTo(hx, midBy + archH); ctx.lineTo(hx + 6 * baseScale, midBy); ctx.stroke();
+      }
+
+      // Label
+      ctx.fillStyle = "#d97706"; ctx.font = `bold ${Math.max(9, 10 * baseScale)}px Outfit,sans-serif`;
+      ctx.textAlign = "center";
+      ctx.fillText("⬛ TUNNEL: " + b.bridgeNo, (bx1 + bx2) / 2, midBy - archH * 1.5 - 8);
+
+    } else {
+      // ── BRIDGE / VIADUCT ── blue deck, piers down to ground, span line
+      // Shaded bridge deck rectangle
+      ctx.fillStyle = "rgba(37,99,235,0.18)";
+      ctx.strokeStyle = "rgba(99,163,255,0.8)";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(bx1, by1 - 6 * baseScale);
+      ctx.lineTo(bx2, by2 - 6 * baseScale);
+      ctx.lineTo(bx2, by2 + 6 * baseScale);
+      ctx.lineTo(bx1, by1 + 6 * baseScale);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+
+      // Formation RL line across bridge in blue
+      ctx.strokeStyle = "hsl(215,100%,65%)";
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(bx1, by1); ctx.lineTo(bx2, by2); ctx.stroke();
+
+      // Pier marks (every ~60px)
+      const pierSpacing = 60 * baseScale;
+      const numPiers = Math.max(0, Math.floor(bW / pierSpacing) - 1);
+      ctx.strokeStyle = "rgba(99,163,255,0.6)"; ctx.lineWidth = 3 * baseScale;
+      for (let p = 1; p <= numPiers; p++) {
+        const t = p / (numPiers + 1);
+        const px = bx1 + t * bW;
+        const pyTop = by1 + t * (by2 - by1);
+        // Interpolate ground Y at this pier
+        const pierCh = b.startChainage + t * (b.endChainage - b.startChainage);
+        const pierGl = glAt(pierCh);
+        const pyBot = getY(pierGl);
+        ctx.beginPath(); ctx.moveTo(px, pyTop + 6 * baseScale); ctx.lineTo(px, pyBot); ctx.stroke();
+        // Pier base widening
+        ctx.strokeStyle = "rgba(99,163,255,0.4)"; ctx.lineWidth = 8 * baseScale;
+        ctx.beginPath(); ctx.moveTo(px, pyBot - 3); ctx.lineTo(px, pyBot); ctx.stroke();
+        ctx.strokeStyle = "rgba(99,163,255,0.6)"; ctx.lineWidth = 3 * baseScale;
+      }
+
+      // Abutment walls at each end
+      ctx.strokeStyle = "rgba(99,163,255,0.55)"; ctx.lineWidth = 4 * baseScale;
+      ctx.beginPath(); ctx.moveTo(bx1, by1 - 10 * baseScale); ctx.lineTo(bx1, gy1); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(bx2, by2 - 10 * baseScale); ctx.lineTo(bx2, gy2); ctx.stroke();
+
+      // Label above
+      ctx.fillStyle = "#93c5fd"; ctx.font = `bold ${Math.max(9, 10 * baseScale)}px Outfit,sans-serif`;
+      ctx.textAlign = "center";
+      const labY = Math.min(by1, by2) - 12;
+      ctx.fillText(b.bridgeNo + (b.bridgeCategory ? ` (${b.bridgeCategory})` : ""), (bx1 + bx2) / 2, labY);
+    }
+  }
+
+  // ── Station / Loop markers (vertical dashed) ──────────────────────────────
+  if (state.loopPlatformRows) {
+    for (const lp of state.loopPlatformRows) {
+      // Use midpoint of loop chainage range for station marker
+      const midCh = Number.isFinite(lp.loopStartCh) && Number.isFinite(lp.loopEndCh)
+        ? (lp.loopStartCh + lp.loopEndCh) / 2
+        : null;
+      if (midCh == null) continue;
+      const sx = getX(midCh);
+      if (sx == null) continue;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = "rgba(34,211,238,0.5)"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(sx, PAD_T); ctx.lineTo(sx, PAD_T + bodyH); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#67e8f9"; ctx.font = `bold ${Math.max(8, 9 * baseScale)}px Outfit,sans-serif`;
+      ctx.textAlign = "center";
+      ctx.fillText("◉ " + (lp.station || "Stn"), sx, PAD_T + 12);
+    }
+  }
+
+  // ── Curve markers (arc labels at top) ────────────────────────────────────
+  if (state.curveRows) {
+    state.curveRows.forEach((c, ci) => {
+      if (!Number.isFinite(c.chainage)) return;
+      const cx = getX(c.chainage);
+      if (cx == null) return;
+      ctx.strokeStyle = "rgba(252,211,77,0.5)"; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
+      ctx.beginPath(); ctx.moveTo(cx, PAD_T + 20); ctx.lineTo(cx, PAD_T + bodyH); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#fde68a"; ctx.font = `${Math.max(8, 9 * baseScale)}px Outfit,sans-serif`;
+      ctx.textAlign = "center";
+      const rad = safeNum(c.radius);
+      ctx.fillText((c.curve || "C") + (rad > 0 ? ` R=${r3(rad)}` : ""), cx, PAD_T + 8 + (ci % 3) * 10);
+    });
+  }
+
+  // ── Y-axis border ────────────────────────────────────────────────────────
+  ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(PAD_L, PAD_T); ctx.lineTo(PAD_L, PAD_T + bodyH); ctx.stroke();
+  // Y-axis label (rotated)
+  ctx.save();
+  ctx.translate(14, PAD_T + bodyH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.font = "11px Outfit,sans-serif"; ctx.textAlign = "center";
+  ctx.fillText("Elevation (m RL)", 0, 0);
+  ctx.restore();
+
+  // ── Scale ruler (X-axis) ─────────────────────────────────────────────────
+  const rulerY = PAD_T + bodyH + 12;
+  const tkInt = totalL >= 50000 ? 5000 : totalL >= 20000 ? 2000 : totalL >= 5000 ? 1000 : 500;
+  const startTk = Math.ceil(minCh / tkInt) * tkInt;
+  ctx.strokeStyle = "rgba(255,255,255,0.3)"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(PAD_L, rulerY); ctx.lineTo(canvasW - PAD_R, rulerY); ctx.stroke();
+  ctx.fillStyle = "rgba(255,255,255,0.55)"; ctx.font = `${Math.max(9, 10 * baseScale)}px Outfit,sans-serif`;
+  ctx.textAlign = "center";
+  for (let ch = startTk; ch <= maxCh; ch += tkInt) {
+    const tx = getX(ch);
+    if (tx == null) continue;
+    ctx.beginPath(); ctx.moveTo(tx, rulerY - 4); ctx.lineTo(tx, rulerY + 4); ctx.stroke();
+    ctx.fillText(ch >= 1000 ? `${r3(ch / 1000)} km` : `${ch} m`, tx, rulerY + 16);
+  }
+
+  // ── Legend ────────────────────────────────────────────────────────────────
+  const legend = [
+    { col: "rgba(180,120,60,0.85)", lbl: "Ground RL" },
+    { col: "hsl(233,100%,65%)", lbl: "Formation RL" },
+    { col: "rgba(34,139,69,0.5)", lbl: "Embankment (Fill)" },
+    { col: "rgba(180,44,50,0.5)", lbl: "Cut Section" },
+    { col: "rgba(99,163,255,0.8)", lbl: "Bridge / Viaduct" },
+    { col: "rgba(180,130,60,0.8)", lbl: "Tunnel" },
+    { col: "rgba(34,211,238,0.7)", lbl: "Station" },
+  ];
+  ctx.font = "10px Outfit,sans-serif"; let lx = PAD_L;
+  for (const item of legend) {
+    ctx.fillStyle = item.col; ctx.fillRect(lx, 8, 12, 12);
+    ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.textAlign = "left";
+    ctx.fillText(item.lbl, lx + 15, 19);
+    lx += 15 + ctx.measureText(item.lbl).width + 14;
+    if (lx > canvasW - 80) break;
   }
 }
 
