@@ -4601,9 +4601,39 @@ async function generateProjectReport(options) {
         const chunkPage = document.createElement("div");
         chunkPage.style.padding = "40px";
         if (i === 0) {
-          chunkPage.innerHTML = `<h2 style="margin-top: 0; color: #0f172a; border-bottom: 3px solid #3b82f6; padding-bottom: 12px; margin-bottom: 30px;">Calculation Sheet (Summary)</h2>`;
+
+          let qtyRowsHtml = '';
+          const qtyRows = Array.from(document.querySelectorAll('#resultQtyBody tr'));
+          if (qtyRows.length) {
+            qtyRowsHtml = qtyRows.map(tr => {
+              const tds = Array.from(tr.querySelectorAll('td'));
+              return `<tr>${tds.map(td => `<td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">${td.textContent}</td>`).join('')}</tr>`;
+            }).join('');
+          } else {
+            qtyRowsHtml = `<tr><td colspan="5" style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">No calculations available</td></tr>`;
+          }
+
+          chunkPage.innerHTML = `
+            <div style="margin-bottom: 30px;">
+              <h2 style="margin-top: 0; color: #000; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px;">Project: ${state.project.name || "Untitled"}</h2>
+              <h3 style="color: #333; margin-bottom: 10px; font-size: 14px;">Quantities Overview</h3>
+              <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 20px;">
+                <thead>
+                  <tr style="background: #f1f5f9;">
+                    <th style="border: 1px solid #cbd5e1; padding: 6px;">Range</th>
+                    <th style="border: 1px solid #cbd5e1; padding: 6px;">Prepared</th>
+                    <th style="border: 1px solid #cbd5e1; padding: 6px;">Blanket</th>
+                    <th style="border: 1px solid #cbd5e1; padding: 6px;">Fill (m³)</th>
+                    <th style="border: 1px solid #cbd5e1; padding: 6px;">Cut (m³)</th>
+                  </tr>
+                </thead>
+                <tbody>${qtyRowsHtml}</tbody>
+              </table>
+            </div>
+            <h2 style="margin-top: 0; color: #000; border-bottom: 3px solid #000; padding-bottom: 12px; margin-bottom: 30px;">Calculation Sheet (Summary)</h2>
+          `;
         } else {
-          chunkPage.innerHTML = `<h2 style="margin-top: 0; color: #0f172a; border-bottom: 3px solid #3b82f6; padding-bottom: 12px; margin-bottom: 30px;">Calculation Sheet (Summary) - Continued</h2>`;
+          chunkPage.innerHTML = `<h2 style="margin-top: 0; color: #000; border-bottom: 3px solid #000; padding-bottom: 12px; margin-bottom: 30px;">Calculation Sheet (Summary) - Continued</h2>`;
         }
 
         const table = document.createElement("table");
@@ -4613,11 +4643,11 @@ async function generateProjectReport(options) {
 
         if (originalHeader) {
           const thead = originalHeader.cloneNode(true);
-          thead.style.backgroundColor = "#f8fafc";
+          thead.style.backgroundColor = "#fff";
           thead.querySelectorAll("th").forEach(th => {
-            th.style.border = "1px solid #cbd5e1";
+            th.style.border = "1px solid #000";
             th.style.padding = "8px 4px";
-            th.style.color = "#334155";
+            th.style.color = "#000";
             th.style.textAlign = "center";
             th.style.fontSize = "10.5px";
           });
@@ -4659,13 +4689,14 @@ async function generateProjectReport(options) {
           tr.innerHTML = cellsHtml;
 
           tr.querySelectorAll("td").forEach(td => {
-            td.style.border = "1px solid #e2e8f0";
+            td.style.border = "1px solid #000";
             td.style.padding = "6px 4px";
             td.style.textAlign = "center";
-            td.style.color = "#1e293b";
+            td.style.color = "#000";
           });
-          tr.querySelectorAll(".t-fill").forEach(el => { el.style.color = "#166534"; el.style.fontWeight = "600"; });
-          tr.querySelectorAll(".t-cut").forEach(el => { el.style.color = "#991b1b"; el.style.fontWeight = "600"; });
+          tr.querySelectorAll(".t-fill").forEach(el => { el.style.color = "#000"; el.style.fontWeight = "600"; });
+          tr.querySelectorAll(".t-cut").forEach(el => { el.style.color = "#000"; el.style.fontWeight = "600"; });
+          tr.querySelectorAll(".t-pro").forEach(el => { el.style.color = "#000"; el.style.fontWeight = "600"; });
           tbody.appendChild(tr);
         });
 
@@ -4681,32 +4712,64 @@ async function generateProjectReport(options) {
     if (options.rollDiagram) {
       if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
       if (loadingText) loadingText.textContent = "Exporting Roll Diagram...";
-      const rollPage = document.createElement("div");
-      rollPage.style.padding = "40px";
-      rollPage.innerHTML = `<h2 style="margin-top: 0; color: #0f172a; margin-bottom: 20px;">L-Section Roll Diagram</h2>`;
 
-      const canvas = els.rollDiagramCanvas;
-      if (canvas) {
-        const img = document.createElement("img");
-        img.src = canvas.toDataURL("image/png");
-        img.style.width = "100%";
-        img.style.border = "1px solid #e2e8f0";
-        img.style.borderRadius = "8px";
-        rollPage.appendChild(img);
+      const originalRollCanvas = els.rollDiagramCanvas;
+      const originalSideCanvas = els.sideViewCanvas;
+      const originalRows = state.calcRows;
+
+      const CHUNK_LEN = 1000;
+      const minOverallCh = exportCalcRows[0].chainage;
+      const maxOverallCh = exportCalcRows[exportCalcRows.length - 1].chainage;
+
+      for (let chStart = minOverallCh; chStart <= maxOverallCh; chStart += CHUNK_LEN) {
+        if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+        const chunkRollRows = exportCalcRows.filter(r => r.chainage >= chStart && r.chainage <= chStart + CHUNK_LEN);
+        if (chunkRollRows.length < 2) continue;
+
+        const rollPage = document.createElement("div");
+        rollPage.style.padding = "20px 40px";
+        rollPage.innerHTML = `<h2 style="margin-top: 0; color: #000; margin-bottom: 10px; font-size: 16px;">L-Section Roll Diagram (Ch ${r3(chStart)}m to ${r3(chStart + CHUNK_LEN)}m)</h2>`;
+
+        const tempRollCanvas = document.createElement("canvas");
+        els.rollDiagramCanvas = tempRollCanvas;
+        state.calcRows = chunkRollRows;
+
+        window._printModeLight = true; // Use globally defined print flag for light mode render
+        renderRollDiagram();
+        if (tempRollCanvas.width > 0 && tempRollCanvas.height > 0) {
+          const img = document.createElement("img");
+          img.src = tempRollCanvas.toDataURL("image/png");
+          img.style.width = "100%";
+          img.style.border = "1px solid #e2e8f0";
+          img.style.borderRadius = "4px";
+          img.style.marginBottom = "20px";
+          img.style.filter = "invert(1) hue-rotate(180deg) contrast(1.1)"; // Force white background while preserving semantic colors (green/red) approximately
+          rollPage.appendChild(img);
+        }
+
+        rollPage.innerHTML += `<h2 style="margin-top: 20px; color: #000; margin-bottom: 10px; font-size: 16px;">Cross-Sectional Toe Width Diagram</h2>`;
+        const tempSideCanvas = document.createElement("canvas");
+        els.sideViewCanvas = tempSideCanvas;
+        renderSideView();
+        window._printModeLight = false;
+
+        if (tempSideCanvas.width > 0 && tempSideCanvas.height > 0) {
+          const sImg = document.createElement("img");
+          sImg.src = tempSideCanvas.toDataURL("image/png");
+          sImg.style.width = "100%";
+          sImg.style.border = "1px solid #e2e8f0";
+          sImg.style.borderRadius = "4px";
+          sImg.style.filter = "invert(1) hue-rotate(180deg) contrast(1.1)";
+          rollPage.appendChild(sImg);
+        }
+
+        container.appendChild(rollPage);
       }
 
-      const sideCanvas = els.sideViewCanvas;
-      if (sideCanvas) {
-        rollPage.innerHTML += `<h2 style="margin-top: 40px; color: #0f172a; margin-bottom: 20px;">Cross-Sectional Toe Width Diagram</h2>`;
-        const sideImg = document.createElement("img");
-        sideImg.src = sideCanvas.toDataURL("image/png");
-        sideImg.style.width = "100%";
-        sideImg.style.border = "1px solid #e2e8f0";
-        sideImg.style.borderRadius = "8px";
-        rollPage.appendChild(sideImg);
-      }
+      els.rollDiagramCanvas = originalRollCanvas;
+      els.sideViewCanvas = originalSideCanvas;
+      state.calcRows = originalRows;
 
-      container.appendChild(rollPage);
       if (progressBar) progressBar.style.width = "30%";
     }
 
