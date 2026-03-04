@@ -2960,14 +2960,140 @@ function bindEvents() {
     return errors;
   }
 
-  // Roll Diagram zoom buttons
-  const rollZoomIn = document.getElementById("rollZoomIn");
-  const rollZoomOut = document.getElementById("rollZoomOut");
-  const rollZoomReset = document.getElementById("rollZoomReset");
-  function _rollRedraw() { if (state.calcRows.length) renderRollDiagram(); }
-  if (rollZoomIn) rollZoomIn.addEventListener("click", () => { window._rollScale = Math.min(4, (window._rollScale || 1) * 1.4); _rollRedraw(); });
-  if (rollZoomOut) rollZoomOut.addEventListener("click", () => { window._rollScale = Math.max(0.2, (window._rollScale || 1) / 1.4); _rollRedraw(); });
-  if (rollZoomReset) rollZoomReset.addEventListener("click", () => { window._rollScale = 1; _rollRedraw(); });
+  // ── Roll Diagram pan / zoom / sync interaction ──────────────────────────
+  (function setupRollInteractions() {
+    const planWrap = document.getElementById("rollDiagramWrap");
+    const sideWrap = document.getElementById("sideViewWrap");
+    const syncBtn = document.getElementById("rollSyncBtn");
+    const zoomIn = document.getElementById("rollZoomIn");
+    const zoomOut = document.getElementById("rollZoomOut");
+    const zoomReset = document.getElementById("rollZoomReset");
+
+    let synced = false;
+    let syncLock = false;
+
+    // ── Sync button ─────────────────────────────────────────────────────────
+    if (syncBtn) {
+      syncBtn.addEventListener("click", () => {
+        synced = !synced;
+        syncBtn.style.background = synced ? "rgba(34,211,238,0.18)" : "rgba(255,255,255,0.06)";
+        syncBtn.style.borderColor = synced ? "rgba(34,211,238,0.6)" : "rgba(255,255,255,0.15)";
+        syncBtn.style.color = synced ? "#67e8f9" : "rgba(255,255,255,0.7)";
+        syncBtn.querySelector("span") && (syncBtn.querySelector("span").textContent = synced ? "Synced ✓" : "Sync Scrolling");
+        if (synced && planWrap && sideWrap) sideWrap.scrollLeft = planWrap.scrollLeft;
+      });
+    }
+
+    function syncScrollLeft(from, to) {
+      if (!synced || syncLock || !from || !to) return;
+      syncLock = true;
+      to.scrollLeft = from.scrollLeft;
+      syncLock = false;
+    }
+
+    // ── Drag-to-pan ─────────────────────────────────────────────────────────
+    function addDragPan(wrap) {
+      if (!wrap) return;
+      let dragging = false, lx = 0, ly = 0;
+      wrap.addEventListener("mousedown", (e) => {
+        if (e.button !== 0) return;
+        dragging = true; lx = e.clientX; ly = e.clientY;
+        wrap.style.cursor = "grabbing"; wrap.style.userSelect = "none";
+        e.preventDefault();
+      });
+      wrap.addEventListener("mousemove", (e) => {
+        if (!dragging) return;
+        const dx = e.clientX - lx, dy = e.clientY - ly;
+        wrap.scrollLeft -= dx; wrap.scrollTop -= dy;
+        lx = e.clientX; ly = e.clientY;
+        // Sync horizontally
+        if (synced) {
+          const other = wrap === planWrap ? sideWrap : planWrap;
+          syncScrollLeft(wrap, other);
+        }
+      });
+      ["mouseup", "mouseleave"].forEach(ev => {
+        wrap.addEventListener(ev, () => { dragging = false; wrap.style.cursor = "grab"; wrap.style.userSelect = ""; });
+      });
+      // Touch support
+      let tlx = 0, tly = 0;
+      wrap.addEventListener("touchstart", (e) => { tlx = e.touches[0].clientX; tly = e.touches[0].clientY; }, { passive: true });
+      wrap.addEventListener("touchmove", (e) => {
+        const dx = e.touches[0].clientX - tlx, dy = e.touches[0].clientY - tly;
+        wrap.scrollLeft -= dx; wrap.scrollTop -= dy;
+        tlx = e.touches[0].clientX; tly = e.touches[0].clientY;
+        if (synced) { const other = wrap === planWrap ? sideWrap : planWrap; syncScrollLeft(wrap, other); }
+        e.preventDefault();
+      }, { passive: false });
+    }
+
+    addDragPan(planWrap);
+    addDragPan(sideWrap);
+
+    // ── Scroll-based sync (for native scrollbar use) ─────────────────────────
+    if (planWrap) planWrap.addEventListener("scroll", () => { if (!syncLock) syncScrollLeft(planWrap, sideWrap); });
+    if (sideWrap) sideWrap.addEventListener("scroll", () => { if (!syncLock) syncScrollLeft(sideWrap, planWrap); });
+
+    // ── Scroll-wheel zoom toward cursor (AutoCAD style) ───────────────────────
+    function addWheelZoom(wrap) {
+      if (!wrap) return;
+      wrap.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const ZOOM_STEP = 1.12;
+        const factor = e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;   // scroll up = zoom in
+        const oldScale = window._rollScale || 1;
+        const newScale = Math.max(0.12, Math.min(8, oldScale * factor));
+        if (newScale === oldScale) return;
+
+        // Remember which chainage is under the cursor so we can restore it after re-render
+        const rect = wrap.getBoundingClientRect();
+        const cursorXpx = e.clientX - rect.left + wrap.scrollLeft;  // pixel in canvas coords
+        const cursorYpx = e.clientY - rect.top + wrap.scrollTop;
+        const ratio = newScale / oldScale;
+
+        window._rollScale = newScale;
+
+        // Re-render both at new scale
+        if (state.calcRows.length) {
+          renderRollDiagram();
+          renderSideView();
+        }
+
+        // Restore cursor focal point
+        requestAnimationFrame(() => {
+          wrap.scrollLeft = cursorXpx * ratio - (e.clientX - rect.left);
+          wrap.scrollTop = cursorYpx * ratio - (e.clientY - rect.top);
+          // Sync horizontal scroll to other panel
+          const other = wrap === planWrap ? sideWrap : planWrap;
+          if (synced && other) other.scrollLeft = wrap.scrollLeft;
+        });
+      }, { passive: false });
+    }
+
+    addWheelZoom(planWrap);
+    addWheelZoom(sideWrap);
+
+    // ── +/−/Reset zoom buttons ───────────────────────────────────────────────
+    function zoomButtons(scale) {
+      const ref = planWrap;
+      const oldScale = window._rollScale || 1;
+      window._rollScale = Math.max(0.12, Math.min(8, scale));
+      if (!state.calcRows.length) return;
+      const ratio = window._rollScale / oldScale;
+      const cx = ref ? ref.scrollLeft + ref.clientWidth / 2 : 0;
+      const cy = ref ? ref.scrollTop + ref.clientHeight / 2 : 0;
+      renderRollDiagram();
+      renderSideView();
+      requestAnimationFrame(() => {
+        if (ref) { ref.scrollLeft = cx * ratio - ref.clientWidth / 2; ref.scrollTop = cy * ratio - ref.clientHeight / 2; }
+        if (synced && sideWrap && ref) sideWrap.scrollLeft = ref.scrollLeft;
+      });
+    }
+
+    if (zoomIn) zoomIn.addEventListener("click", () => zoomButtons((window._rollScale || 1) * 1.4));
+    if (zoomOut) zoomOut.addEventListener("click", () => zoomButtons((window._rollScale || 1) / 1.4));
+    if (zoomReset) zoomReset.addEventListener("click", () => { zoomButtons(1); if (planWrap) { planWrap.scrollLeft = 0; planWrap.scrollTop = 0; } if (sideWrap) { sideWrap.scrollLeft = 0; sideWrap.scrollTop = 0; } });
+  })();
 
   // Verify Calculations button
   const verifyBtn = document.getElementById("verifyCalcBtn");
