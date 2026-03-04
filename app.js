@@ -74,8 +74,6 @@ const els = {
   wizardCalculateBtn: document.getElementById("wizardCalculateBtn"),
   wizardUploadButtons: Array.from(document.querySelectorAll("[data-wizard-upload]")),
   bridgeAddBtn: document.getElementById("bridgeAddBtn"),
-  bridgeRefreshBtn: document.getElementById("bridgeRefreshBtn"),
-  bridgeClearBtn: document.getElementById("bridgeClearBtn"),
   bridgeApplyBtn: document.getElementById("bridgeApplyBtn"),
   bridgeTableBody: document.getElementById("bridgeTableBody"),
   bridgeMeta: document.getElementById("bridgeMeta"),
@@ -3990,37 +3988,6 @@ function bindEvents() {
       applyProjectGate();
       renderBridgeInputs();
     });
-  }
-
-  if (els.bridgeRefreshBtn) {
-    els.bridgeRefreshBtn.addEventListener("click", () => {
-      syncBridgeStateFromTable(); // First capture current input values
-      state.bridgeRows.sort((a, b) => (safeNum(a.startChainage) - safeNum(b.startChainage)));
-      renderBridgeInputs();
-      recalculate();
-      alert("Bridge list refreshed and re-sorted by chainage.");
-    });
-  }
-
-  const clearBridges = () => {
-    if (confirm("Are you sure you want to delete ALL bridge entries? This cannot be undone.")) {
-      state.bridgeRows = [];
-      state.project.uploads.bridges = false;
-      state.project.verified = false;
-      if (typeof updateWizardUI === "function") updateWizardUI();
-      if (typeof applyProjectGate === "function") applyProjectGate();
-      renderBridgeInputs();
-      recalculate();
-      alert("All bridge entries have been deleted.");
-    }
-  };
-
-  if (els.bridgeClearBtn) {
-    els.bridgeClearBtn.addEventListener("click", clearBridges);
-  } else {
-    // Redundant check in case els assignment failed
-    const btn = document.getElementById("bridgeClearBtn");
-    if (btn) btn.addEventListener("click", clearBridges);
   }
 
   if (els.bridgeApplyBtn) {
