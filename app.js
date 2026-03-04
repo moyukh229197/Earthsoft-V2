@@ -4237,6 +4237,11 @@ async function init() {
 init();
 
 async function generateProjectReport(options) {
+  if (typeof html2pdf === "undefined") {
+    alert("PDF library (html2pdf) failed to load. Please check your internet connection.");
+    return;
+  }
+
   const loading = document.getElementById("aiLoadingOverlay");
   const loadingText = document.getElementById("aiLoadingText");
   if (loading) {
@@ -4246,127 +4251,170 @@ async function generateProjectReport(options) {
 
   try {
     const container = document.createElement("div");
-    container.style.width = "1122px";
+    container.id = "pdf-report-container";
+    container.style.position = "fixed";
+    container.style.left = "-9999px";
+    container.style.top = "0";
+    container.style.width = "1122px"; // Standard landscape width
     container.style.backgroundColor = "#ffffff";
     container.style.color = "#000000";
     container.style.fontFamily = "'Outfit', sans-serif";
     container.style.padding = "0";
+    document.body.appendChild(container);
 
     const addPageBreak = (el) => {
       const br = document.createElement("div");
+      br.className = "html2pdf__page-break";
       br.style.pageBreakAfter = "always";
       br.style.height = "1px";
       el.appendChild(br);
     };
 
+    // 1. Title Page
     const titlePage = document.createElement("div");
-    titlePage.style.padding = "60px";
+    titlePage.style.padding = "100px 60px";
     titlePage.style.textAlign = "center";
     titlePage.style.height = "750px";
     titlePage.style.display = "flex";
     titlePage.style.flexDirection = "column";
     titlePage.style.justifyContent = "center";
     titlePage.innerHTML = `
-      <h1 style="font-size: 32px; margin-bottom: 20px; color: #1e293b;">Project Earthwork Report</h1>
-      <h2 style="font-size: 24px; color: #334155; margin-bottom: 40px;">${state.project.name || "Untitled Project"}</h2>
-      <p style="font-size: 16px; color: #64748b;">Generated on: ${new Date().toLocaleDateString()}</p>
-      <div style="margin-top: 80px; text-align: left; max-width: 600px; margin-left: auto; margin-right: auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc;">
-        <h3 style="margin-top: 0; color: #1e293b;">Project Statistics</h3>
-        <table style="width: 100%; border-collapse: collapse;">
-          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 8px 0; color: #64748b;">Total Length:</td><td style="text-align: right; font-weight: 600;">${r3(state.calcRows[state.calcRows.length - 1].chainage - state.calcRows[0].chainage)} m</td></tr>
-          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 8px 0; color: #64748b;">Total Filling:</td><td style="text-align: right; font-weight: 600; color: #166534;">${formatVolume(state.calcRows.reduce((a, b) => a + (b.fillVol || 0), 0))}</td></tr>
-          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 8px 0; color: #64748b;">Total Cutting:</td><td style="text-align: right; font-weight: 600; color: #991b1b;">${formatVolume(state.calcRows.reduce((a, b) => a + (b.cutVol || 0), 0))}</td></tr>
-          <tr><td style="padding: 8px 0; color: #64748b;">Cross Sections:</td><td style="text-align: right; font-weight: 600;">${state.calcRows.length}</td></tr>
+      <h1 style="font-size: 42px; margin-bottom: 20px; color: #0f172a;">Project Earthwork Report</h1>
+      <h2 style="font-size: 28px; color: #334155; margin-bottom: 40px;">${state.project.name || "Untitled Project"}</h2>
+      <p style="font-size: 18px; color: #64748b; margin-bottom: 60px;">Generated on: ${new Date().toLocaleDateString()}</p>
+      
+      <div style="text-align: left; max-width: 650px; margin: 0 auto; padding: 40px; border: 2px solid #f1f5f9; border-radius: 20px; background: #f8fafc; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);">
+        <h3 style="margin-top: 0; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 20px;">Project Summary</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 16px;">
+          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #64748b;">Total Chainage:</td><td style="text-align: right; font-weight: 600;">${r3(state.calcRows[0].chainage)} m to ${r3(state.calcRows[state.calcRows.length - 1].chainage)} m</td></tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #64748b;">Total Length:</td><td style="text-align: right; font-weight: 600;">${r3(state.calcRows[state.calcRows.length - 1].chainage - state.calcRows[0].chainage)} m</td></tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #166534; font-weight: 600;">Total Filling (Bank):</td><td style="text-align: right; font-weight: 700; color: #166534;">${formatVolume(state.calcRows.reduce((a, b) => a + (b.fillVol || 0), 0))}</td></tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #991b1b; font-weight: 600;">Total Cutting (Cut):</td><td style="text-align: right; font-weight: 700; color: #991b1b;">${formatVolume(state.calcRows.reduce((a, b) => a + (b.cutVol || 0), 0))}</td></tr>
+          <tr><td style="padding: 12px 0; color: #64748b;">Total Data Points:</td><td style="text-align: right; font-weight: 600;">${state.calcRows.length} Cross-Sections</td></tr>
         </table>
       </div>
     `;
     container.appendChild(titlePage);
     addPageBreak(container);
 
+    // 2. Calculation Sheet
     if (options.calcSheet) {
       if (loadingText) loadingText.textContent = "Exporting Calculation Sheet...";
       const calcPage = document.createElement("div");
       calcPage.style.padding = "40px";
-      calcPage.innerHTML = `<h2 style="margin-top: 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">Calculation Sheet</h2>`;
+      calcPage.innerHTML = `<h2 style="margin-top: 0; color: #0f172a; border-bottom: 3px solid #3b82f6; padding-bottom: 12px; margin-bottom: 30px;">Calculation Sheet (Summary)</h2>`;
+
       const table = document.createElement("table");
       table.style.width = "100%";
       table.style.borderCollapse = "collapse";
-      table.style.fontSize = "9px";
+      table.style.fontSize = "10px"; // Increased slightly
+
+      // Clone the existing table head
       const originalHeader = els.tableBody.closest("table").querySelector("thead");
       if (originalHeader) {
         const thead = originalHeader.cloneNode(true);
-        thead.style.backgroundColor = "#f1f5f9";
+        thead.style.backgroundColor = "#f8fafc";
         thead.querySelectorAll("th").forEach(th => {
           th.style.border = "1px solid #cbd5e1";
-          th.style.padding = "4px";
-          th.style.textAlign = "left";
+          th.style.padding = "8px 4px";
+          th.style.color = "#334155";
+          th.style.textAlign = "center";
+          th.style.fontSize = "10px";
         });
         table.appendChild(thead);
       }
+
+      // Clone table body and apply styles
       const tbody = els.tableBody.cloneNode(true);
+      tbody.querySelectorAll("tr").forEach((tr, idx) => {
+        if (idx % 2 === 0) tr.style.backgroundColor = "#ffffff";
+        else tr.style.backgroundColor = "#fdfdfd";
+      });
       tbody.querySelectorAll("td").forEach(td => {
-        td.style.border = "1px solid #cbd5e1";
-        td.style.padding = "4px";
+        td.style.border = "1px solid #e2e8f0";
+        td.style.padding = "6px 4px";
+        td.style.textAlign = "center";
+        // Remove interactive elements
         const btn = td.querySelector("button");
         if (btn) td.textContent = btn.textContent;
       });
-      tbody.querySelectorAll(".t-fill").forEach(el => el.style.color = "#166534");
-      tbody.querySelectorAll(".t-cut").forEach(el => el.style.color = "#991b1b");
+      // Explicit colors for export
+      tbody.querySelectorAll(".t-fill").forEach(el => { el.style.color = "#166534"; el.style.fontWeight = "600"; });
+      tbody.querySelectorAll(".t-cut").forEach(el => { el.style.color = "#991b1b"; el.style.fontWeight = "600"; });
+
       table.appendChild(tbody);
       calcPage.appendChild(table);
       container.appendChild(calcPage);
       addPageBreak(container);
     }
 
+    // 3. Roll Diagram
     if (options.rollDiagram) {
       if (loadingText) loadingText.textContent = "Exporting Roll Diagram...";
       const rollPage = document.createElement("div");
       rollPage.style.padding = "40px";
-      rollPage.innerHTML = `<h2 style="margin-top: 0;">L-Section Roll Diagram</h2>`;
+      rollPage.innerHTML = `<h2 style="margin-top: 0; color: #0f172a; margin-bottom: 20px;">L-Section Roll Diagram</h2>`;
+
       const canvas = els.rollDiagramCanvas;
-      const img = document.createElement("img");
-      img.src = canvas.toDataURL("image/png");
-      img.style.width = "100%";
-      img.style.border = "1px solid #e2e8f0";
-      rollPage.appendChild(img);
+      if (canvas) {
+        const img = document.createElement("img");
+        img.src = canvas.toDataURL("image/png");
+        img.style.width = "100%";
+        img.style.border = "1px solid #e2e8f0";
+        img.style.borderRadius = "8px";
+        rollPage.appendChild(img);
+      }
+
       const sideCanvas = els.sideViewCanvas;
       if (sideCanvas) {
-        rollPage.innerHTML += `<h2 style="margin-top: 30px;">Cross-Sectional Toe Width Diagram</h2>`;
+        rollPage.innerHTML += `<h2 style="margin-top: 40px; color: #0f172a; margin-bottom: 20px;">Cross-Sectional Toe Width Diagram</h2>`;
         const sideImg = document.createElement("img");
         sideImg.src = sideCanvas.toDataURL("image/png");
         sideImg.style.width = "100%";
         sideImg.style.border = "1px solid #e2e8f0";
+        sideImg.style.borderRadius = "8px";
         rollPage.appendChild(sideImg);
       }
+
       container.appendChild(rollPage);
       addPageBreak(container);
     }
 
+    // 4. Cross Sections
     if (options.crossSections) {
-      const csPage = document.createElement("div");
-      csPage.style.padding = "40px";
-      csPage.innerHTML = `<h2 style="margin-top: 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">Project Cross-Sections</h2>`;
-      container.appendChild(csPage);
+      const csHeaderPage = document.createElement("div");
+      csHeaderPage.style.padding = "40px";
+      csHeaderPage.innerHTML = `<h2 style="margin-top: 0; color: #0f172a; border-bottom: 3px solid #ef4444; padding-bottom: 12px; margin-bottom: 30px;">Cross-Sectional Detail Drawings</h2>`;
+      container.appendChild(csHeaderPage);
+
       const itemsPerBatch = 5;
       for (let i = 0; i < state.calcRows.length; i++) {
         if (loadingText && i % itemsPerBatch === 0) {
           loadingText.textContent = `Rendering Cross-Sections: ${i} / ${state.calcRows.length}`;
         }
+
         const row = state.calcRows[i];
         const sectionDiv = document.createElement("div");
-        sectionDiv.style.marginBottom = "40px";
+        sectionDiv.style.marginBottom = "50px";
         sectionDiv.style.textAlign = "center";
         sectionDiv.style.pageBreakInside = "avoid";
+
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-        svg.setAttribute("width", "1000");
+        svg.setAttribute("width", "1000"); // Fixed width for consistent scaling
         svg.setAttribute("height", "576");
         svg.setAttribute("viewBox", `0 0 ${CROSS_SVG_W} ${CROSS_SVG_H}`);
+
+        // Ensure defs are present for hatching/arrows
         const defs = els.crossSvg.querySelector("defs");
         if (defs) svg.appendChild(defs.cloneNode(true));
+
         drawCrossSection(row, svg);
-        sectionDiv.innerHTML = `<h3 style="text-align: left; color: #334155;">Chainage: ${r3(row.chainage)} m</h3>`;
+
+        sectionDiv.innerHTML = `<h3 style="text-align: left; color: #1e293b; padding-left: 20px; border-left: 5px solid #3b82f6; margin-bottom: 15px;">Chainage: ${r3(row.chainage)} m - Type: ${row.type}</h3>`;
         sectionDiv.appendChild(svg);
         container.appendChild(sectionDiv);
+
+        // Page break logic
         if ((i + 1) % 2 === 0 && i < state.calcRows.length - 1) {
           addPageBreak(container);
         }
@@ -4374,19 +4422,24 @@ async function generateProjectReport(options) {
     }
 
     if (loadingText) loadingText.textContent = "Finalizing PDF document...";
+
     const opt = {
-      margin: 0,
+      margin: 10,
       filename: `${state.project.name || "Earthsoft_Report"}_${new Date().toISOString().split('T')[0]}.pdf`,
-      image: { type: 'jpeg', quality: 0.95 },
-      html2canvas: { scale: 1.5, useCORS: true, letterRendering: true },
-      jsPDF: { unit: 'px', format: [1122, 1587], orientation: 'landscape' },
-      pagebreak: { mode: ['css', 'legacy'] }
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, logging: false, letterRendering: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
     };
+
+    // Use html2pdf to generate and save
     await html2pdf().set(opt).from(container).save();
+
   } catch (error) {
     console.error("Report Generation Error:", error);
-    alert("An error occurred while generating the report. Check console for details.");
+    alert("An error occurred during report generation. This might happen if your project data is very large. Check the console for logs.");
   } finally {
+    const container = document.getElementById("pdf-report-container");
+    if (container) container.remove();
     if (loading) loading.classList.add("hidden");
   }
 }
