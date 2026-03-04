@@ -63,10 +63,10 @@ function createBackgroundBeams() {
   let defsHTML = "<defs>";
 
   pathsData.forEach((p, i) => {
-    pathsHTML += `<path class="beam-path" d="${p}" stroke="url(#gradient-${i})" stroke-opacity="0.8" stroke-width="1.5"></path>\n`;
+    pathsHTML += `<path class="beam-path" d="${p}" stroke="url(#gradient-${i})" stroke-opacity="0.8" stroke-width="0.6"></path>\n`;
 
-    const duration = (Math.random() * 10 + 10).toFixed(2);
-    const delay = (Math.random() * 10).toFixed(2);
+    const duration = (Math.random() * 20 + 20).toFixed(2);
+    const delay = (Math.random() * 15).toFixed(2);
     const y2_target = (0.93 + Math.random() * 0.08).toFixed(2);
 
     defsHTML += `
