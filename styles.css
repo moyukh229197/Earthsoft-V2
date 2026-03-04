@@ -51,8 +51,8 @@
   --glass-shadow: 0 12px 40px rgba(16, 42, 67, 0.06);
   --nav-hover: rgba(0, 0, 0, 0.04);
   --nav-active-bg: hsla(233, 100%, 57%, 0.08);
-  --sidebar-bg-start: hsl(230, 30%, 12%);
-  --sidebar-bg-end: hsl(230, 40%, 6%);
+  --sidebar-bg-start: hsl(225, 25%, 97%);
+  --sidebar-bg-end: hsl(225, 22%, 93%);
   color-scheme: light;
 }
 
@@ -572,7 +572,7 @@ h1 {
 
 .work-nav-btn.active {
   background: var(--nav-active-bg);
-  color: #fff;
+  color: var(--text);
   font-weight: 600;
   border: 1px solid hsla(233, 100%, 57%, 0.3);
 }
