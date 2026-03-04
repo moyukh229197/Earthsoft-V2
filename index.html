@@ -12,6 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet" />
   <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 
 <body>
@@ -110,6 +111,18 @@
           <span class="nav-text">Estimates</span>
         </button>
       </nav>
+
+      <div class="sidebar-footer">
+        <button id="openExportModalBtn" class="work-nav-btn export-btn" type="button">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span class="nav-text">Export Report</span>
+        </button>
+      </div>
     </aside>
 
     <!-- Main Workspace Area -->
@@ -2739,6 +2752,40 @@
     }
   </style>
 
+
+  <!-- Export Report Modal -->
+  <div id="exportModal" class="modal">
+    <div class="modal-content glass-card">
+      <div class="modal-header">
+        <h2>Export Project Report</h2>
+        <button class="close-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted" style="margin-bottom: 20px;">Select items to include in the PDF report:</p>
+        <div class="export-options">
+          <label class="checkbox-container">
+            <input type="checkbox" id="includeCalcSheet" checked>
+            <span class="checkmark"></span>
+            Calculation Sheet
+          </label>
+          <label class="checkbox-container">
+            <input type="checkbox" id="includeCrossSections" checked>
+            <span class="checkmark"></span>
+            All Cross-Sections
+          </label>
+          <label class="checkbox-container">
+            <input type="checkbox" id="includeRollDiagram" checked>
+            <span class="checkmark"></span>
+            Roll Diagram
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelExportBtn">Cancel</button>
+        <button class="btn btn-primary" id="confirmExportBtn">Download PDF</button>
+      </div>
+    </div>
+  </div>
 
   <script src="./app.js"></script>
 </body>

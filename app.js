@@ -157,6 +157,10 @@ const els = {
   cutWaterNode: document.getElementById("cutWaterNode"),
   sidebarToggle: document.getElementById("sidebarToggle"),
   appLayout: document.querySelector(".app-layout"),
+  openExportModalBtn: document.getElementById("openExportModalBtn"),
+  exportModal: document.getElementById("exportModal"),
+  confirmExportBtn: document.getElementById("confirmExportBtn"),
+  cancelExportBtn: document.getElementById("cancelExportBtn"),
 };
 
 const settingSchema = [
@@ -2505,7 +2509,8 @@ function applySettingsFromForm() {
   recalculate();
 }
 
-function drawCrossSection(row) {
+function drawCrossSection(row, targetEl = els.crossSvg) {
+  if (!targetEl) return;
   const s = state.settings;
   const fl = row.proposedLevel;
   const gl = row.groundLevel;
@@ -2527,41 +2532,43 @@ function drawCrossSection(row) {
 
   const layerRows = layers;
 
-  els.layerTbody.innerHTML = layerRows.map((l) => `
-    <tr>
-      <td>${l.name}</td>
-      <td>${r3(l.t)}</td>
-      <td>${r3(l.top)}</td>
-      <td>${r3(l.bottom)}</td>
-    </tr>
-  `).join("") + `
-    <tr>
-      <td><strong>Formation RL</strong></td>
-      <td>-</td>
-      <td>${r3(fl)}</td>
-      <td>${r3(fl)}</td>
-    </tr>
-    <tr>
-      <td><strong>Ground RL (GL)</strong></td>
-      <td>-</td>
-      <td>${r3(gl)}</td>
-      <td>${r3(gl)}</td>
-    </tr>
-  `;
-  els.dimTbody.innerHTML = `
-    <tr><th>Formation Width (Top)</th><td>${r3(s.formationWidthFill)} m</td></tr>
-    <tr><th>Berm Width (Each Berm)</th><td>${r3(s.bermWidth)} m (${Math.round(s.bermWidth * 1000)} mm)</td></tr>
-    <tr><th>Berms per Side (Drawing)</th><td>${row.bank >= 8 ? 2 : (row.bank >= 4 ? 1 : 0)}</td></tr>
-    <tr><th>Bottom Width (Fill)</th><td>${r3(row.fillBottom)} m</td></tr>
-    <tr><th>Bottom Width (Cut)</th><td>${r3(row.cutBottom)} m</td></tr>
-    <tr><th>Embankment Height</th><td>${r3(row.bank)} m</td></tr>
-    <tr><th>Cut Depth</th><td>${r3(row.cut)} m</td></tr>
-    <tr><th>Side Slope Factor</th><td>${r3(s.sideSlopeFactor)}</td></tr>
-    <tr><th>Blanket Rule</th><td>SQ3=0.600 m, SQ2=0.750 m, SQ1=1.000 m</td></tr>
-  `;
+  if (targetEl === els.crossSvg) {
+    els.layerTbody.innerHTML = layerRows.map((l) => `
+      <tr>
+        <td>${l.name}</td>
+        <td>${r3(l.t)}</td>
+        <td>${r3(l.top)}</td>
+        <td>${r3(l.bottom)}</td>
+      </tr>
+    `).join("") + `
+      <tr>
+        <td><strong>Formation RL</strong></td>
+        <td>-</td>
+        <td>${r3(fl)}</td>
+        <td>${r3(fl)}</td>
+      </tr>
+      <tr>
+        <td><strong>Ground RL (GL)</strong></td>
+        <td>-</td>
+        <td>${r3(gl)}</td>
+        <td>${r3(gl)}</td>
+      </tr>
+    `;
+    els.dimTbody.innerHTML = `
+      <tr><th>Formation Width (Top)</th><td>${r3(s.formationWidthFill)} m</td></tr>
+      <tr><th>Berm Width (Each Berm)</th><td>${r3(s.bermWidth)} m (${Math.round(s.bermWidth * 1000)} mm)</td></tr>
+      <tr><th>Berms per Side (Drawing)</th><td>${row.bank >= 8 ? 2 : (row.bank >= 4 ? 1 : 0)}</td></tr>
+      <tr><th>Bottom Width (Fill)</th><td>${r3(row.fillBottom)} m</td></tr>
+      <tr><th>Bottom Width (Cut)</th><td>${r3(row.cutBottom)} m</td></tr>
+      <tr><th>Embankment Height</th><td>${r3(row.bank)} m</td></tr>
+      <tr><th>Cut Depth</th><td>${r3(row.cut)} m</td></tr>
+      <tr><th>Side Slope Factor</th><td>${r3(s.sideSlopeFactor)}</td></tr>
+      <tr><th>Blanket Rule</th><td>SQ3=0.600 m, SQ2=0.750 m, SQ1=1.000 m</td></tr>
+    `;
 
-  els.crossTitle.textContent = `Cross-Section @ CH ${r3(row.chainage)} m`;
-  els.crossMeta.textContent = `Type: ${row.type} | Ground RL: ${r3(gl)} | Proposed RL: ${r3(fl)} | Bank: ${r3(row.bank)} | Cut: ${r3(row.cut)}`;
+    els.crossTitle.textContent = `Cross-Section @ CH ${r3(row.chainage)} m`;
+    els.crossMeta.textContent = `Type: ${row.type} | Ground RL: ${r3(gl)} | Proposed RL: ${r3(fl)} | Bank: ${r3(row.bank)} | Cut: ${r3(row.cut)}`;
+  }
 
   const svgW = CROSS_SVG_W;
   const svgH = CROSS_SVG_H;
@@ -2794,7 +2801,7 @@ function drawCrossSection(row) {
   const glLeftX = centerX - 520;
   const hflLeftX = centerX - 410;
 
-  els.crossSvg.innerHTML = `
+  targetEl.innerHTML = `
     <rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#f8fcff" />
     <line x1="${glLeftX}" y1="${groundY}" x2="${demarcRightX}" y2="${groundY}" stroke="#5d6b77" stroke-dasharray="8 7" stroke-width="1.8" />
     <text x="${demarcRightX + 18}" y="${groundY - 7}" fill="#374b5d" font-size="13" font-weight="700">G.L.</text>
@@ -2868,6 +2875,32 @@ function bindEvents() {
         }
       });
     }
+  }
+
+  if (els.openExportModalBtn) {
+    els.openExportModalBtn.addEventListener("click", () => {
+      if (!state.calcRows.length) {
+        alert("No calculation data available to export.");
+        return;
+      }
+      els.exportModal.showModal();
+    });
+  }
+
+  if (els.confirmExportBtn) {
+    els.confirmExportBtn.addEventListener("click", () => {
+      const options = {
+        calcSheet: document.getElementById("includeCalcSheet").checked,
+        crossSections: document.getElementById("includeCrossSections").checked,
+        rollDiagram: document.getElementById("includeRollDiagram").checked,
+      };
+      els.exportModal.close();
+      generateProjectReport(options);
+    });
+  }
+
+  if (els.cancelExportBtn) {
+    els.cancelExportBtn.addEventListener("click", () => els.exportModal.close());
   }
 
   // Populate date display
@@ -4202,3 +4235,158 @@ async function init() {
 }
 
 init();
+
+async function generateProjectReport(options) {
+  const loading = document.getElementById("aiLoadingOverlay");
+  const loadingText = document.getElementById("aiLoadingText");
+  if (loading) {
+    loading.classList.remove("hidden");
+    loadingText.textContent = "Preparing project report PDF...";
+  }
+
+  try {
+    const container = document.createElement("div");
+    container.style.width = "1122px";
+    container.style.backgroundColor = "#ffffff";
+    container.style.color = "#000000";
+    container.style.fontFamily = "'Outfit', sans-serif";
+    container.style.padding = "0";
+
+    const addPageBreak = (el) => {
+      const br = document.createElement("div");
+      br.style.pageBreakAfter = "always";
+      br.style.height = "1px";
+      el.appendChild(br);
+    };
+
+    const titlePage = document.createElement("div");
+    titlePage.style.padding = "60px";
+    titlePage.style.textAlign = "center";
+    titlePage.style.height = "750px";
+    titlePage.style.display = "flex";
+    titlePage.style.flexDirection = "column";
+    titlePage.style.justifyContent = "center";
+    titlePage.innerHTML = `
+      <h1 style="font-size: 32px; margin-bottom: 20px; color: #1e293b;">Project Earthwork Report</h1>
+      <h2 style="font-size: 24px; color: #334155; margin-bottom: 40px;">${state.project.name || "Untitled Project"}</h2>
+      <p style="font-size: 16px; color: #64748b;">Generated on: ${new Date().toLocaleDateString()}</p>
+      <div style="margin-top: 80px; text-align: left; max-width: 600px; margin-left: auto; margin-right: auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc;">
+        <h3 style="margin-top: 0; color: #1e293b;">Project Statistics</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 8px 0; color: #64748b;">Total Length:</td><td style="text-align: right; font-weight: 600;">${r3(state.calcRows[state.calcRows.length - 1].chainage - state.calcRows[0].chainage)} m</td></tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 8px 0; color: #64748b;">Total Filling:</td><td style="text-align: right; font-weight: 600; color: #166534;">${formatVolume(state.calcRows.reduce((a, b) => a + (b.fillVol || 0), 0))}</td></tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 8px 0; color: #64748b;">Total Cutting:</td><td style="text-align: right; font-weight: 600; color: #991b1b;">${formatVolume(state.calcRows.reduce((a, b) => a + (b.cutVol || 0), 0))}</td></tr>
+          <tr><td style="padding: 8px 0; color: #64748b;">Cross Sections:</td><td style="text-align: right; font-weight: 600;">${state.calcRows.length}</td></tr>
+        </table>
+      </div>
+    `;
+    container.appendChild(titlePage);
+    addPageBreak(container);
+
+    if (options.calcSheet) {
+      if (loadingText) loadingText.textContent = "Exporting Calculation Sheet...";
+      const calcPage = document.createElement("div");
+      calcPage.style.padding = "40px";
+      calcPage.innerHTML = `<h2 style="margin-top: 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">Calculation Sheet</h2>`;
+      const table = document.createElement("table");
+      table.style.width = "100%";
+      table.style.borderCollapse = "collapse";
+      table.style.fontSize = "9px";
+      const originalHeader = els.tableBody.closest("table").querySelector("thead");
+      if (originalHeader) {
+        const thead = originalHeader.cloneNode(true);
+        thead.style.backgroundColor = "#f1f5f9";
+        thead.querySelectorAll("th").forEach(th => {
+          th.style.border = "1px solid #cbd5e1";
+          th.style.padding = "4px";
+          th.style.textAlign = "left";
+        });
+        table.appendChild(thead);
+      }
+      const tbody = els.tableBody.cloneNode(true);
+      tbody.querySelectorAll("td").forEach(td => {
+        td.style.border = "1px solid #cbd5e1";
+        td.style.padding = "4px";
+        const btn = td.querySelector("button");
+        if (btn) td.textContent = btn.textContent;
+      });
+      tbody.querySelectorAll(".t-fill").forEach(el => el.style.color = "#166534");
+      tbody.querySelectorAll(".t-cut").forEach(el => el.style.color = "#991b1b");
+      table.appendChild(tbody);
+      calcPage.appendChild(table);
+      container.appendChild(calcPage);
+      addPageBreak(container);
+    }
+
+    if (options.rollDiagram) {
+      if (loadingText) loadingText.textContent = "Exporting Roll Diagram...";
+      const rollPage = document.createElement("div");
+      rollPage.style.padding = "40px";
+      rollPage.innerHTML = `<h2 style="margin-top: 0;">L-Section Roll Diagram</h2>`;
+      const canvas = els.rollDiagramCanvas;
+      const img = document.createElement("img");
+      img.src = canvas.toDataURL("image/png");
+      img.style.width = "100%";
+      img.style.border = "1px solid #e2e8f0";
+      rollPage.appendChild(img);
+      const sideCanvas = els.sideViewCanvas;
+      if (sideCanvas) {
+        rollPage.innerHTML += `<h2 style="margin-top: 30px;">Cross-Sectional Toe Width Diagram</h2>`;
+        const sideImg = document.createElement("img");
+        sideImg.src = sideCanvas.toDataURL("image/png");
+        sideImg.style.width = "100%";
+        sideImg.style.border = "1px solid #e2e8f0";
+        rollPage.appendChild(sideImg);
+      }
+      container.appendChild(rollPage);
+      addPageBreak(container);
+    }
+
+    if (options.crossSections) {
+      const csPage = document.createElement("div");
+      csPage.style.padding = "40px";
+      csPage.innerHTML = `<h2 style="margin-top: 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">Project Cross-Sections</h2>`;
+      container.appendChild(csPage);
+      const itemsPerBatch = 5;
+      for (let i = 0; i < state.calcRows.length; i++) {
+        if (loadingText && i % itemsPerBatch === 0) {
+          loadingText.textContent = `Rendering Cross-Sections: ${i} / ${state.calcRows.length}`;
+        }
+        const row = state.calcRows[i];
+        const sectionDiv = document.createElement("div");
+        sectionDiv.style.marginBottom = "40px";
+        sectionDiv.style.textAlign = "center";
+        sectionDiv.style.pageBreakInside = "avoid";
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("width", "1000");
+        svg.setAttribute("height", "576");
+        svg.setAttribute("viewBox", `0 0 ${CROSS_SVG_W} ${CROSS_SVG_H}`);
+        const defs = els.crossSvg.querySelector("defs");
+        if (defs) svg.appendChild(defs.cloneNode(true));
+        drawCrossSection(row, svg);
+        sectionDiv.innerHTML = `<h3 style="text-align: left; color: #334155;">Chainage: ${r3(row.chainage)} m</h3>`;
+        sectionDiv.appendChild(svg);
+        container.appendChild(sectionDiv);
+        if ((i + 1) % 2 === 0 && i < state.calcRows.length - 1) {
+          addPageBreak(container);
+        }
+      }
+    }
+
+    if (loadingText) loadingText.textContent = "Finalizing PDF document...";
+    const opt = {
+      margin: 0,
+      filename: `${state.project.name || "Earthsoft_Report"}_${new Date().toISOString().split('T')[0]}.pdf`,
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 1.5, useCORS: true, letterRendering: true },
+      jsPDF: { unit: 'px', format: [1122, 1587], orientation: 'landscape' },
+      pagebreak: { mode: ['css', 'legacy'] }
+    };
+    await html2pdf().set(opt).from(container).save();
+  } catch (error) {
+    console.error("Report Generation Error:", error);
+    alert("An error occurred while generating the report. Check console for details.");
+  } finally {
+    if (loading) loading.classList.add("hidden");
+  }
+}
