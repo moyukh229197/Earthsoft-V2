@@ -125,21 +125,15 @@ body {
   justify-content: center;
 }
 
-.app-layout.sidebar-collapsed .brand-icon {
-  width: 24px;
-  height: 24px;
-}
-
 .app-layout.sidebar-collapsed .sidebar-toggle-btn {
-  width: 24px;
-  height: 24px;
-  margin-left: 0;
+  display: none;
 }
 
-.app-layout.sidebar-collapsed .sidebar-toggle-btn svg {
-  transform: rotate(180deg);
-  width: 14px;
-  height: 14px;
+.app-layout.sidebar-collapsed .brand-icon {
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  display: flex !important;
 }
 
 .app-layout.sidebar-collapsed .work-nav-btn {

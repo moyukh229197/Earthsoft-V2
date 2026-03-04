@@ -2836,8 +2836,17 @@ function bindEvents() {
 
   if (els.sidebarToggle && els.appLayout) {
     els.sidebarToggle.addEventListener("click", () => {
-      els.appLayout.classList.toggle("sidebar-collapsed");
+      els.appLayout.classList.add("sidebar-collapsed");
     });
+
+    const brandIcon = document.querySelector(".brand-icon");
+    if (brandIcon) {
+      brandIcon.addEventListener("click", () => {
+        if (els.appLayout.classList.contains("sidebar-collapsed")) {
+          els.appLayout.classList.remove("sidebar-collapsed");
+        }
+      });
+    }
   }
 
   // Populate date display
