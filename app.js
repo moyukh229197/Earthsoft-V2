@@ -3063,9 +3063,10 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
       </marker>
     </defs>
   `;
-
-  resetCrossView();
-  els.crossSectionModal.showModal();
+  if (targetEl === els.crossSvg) {
+    resetCrossView();
+    els.crossSectionModal.showModal();
+  }
 }
 
 function bindEvents() {
@@ -3133,7 +3134,7 @@ function bindEvents() {
     const now = new Date();
     const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    dateEl.textContent = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+    dateEl.textContent = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()} `;
   }
 
   // --- Strict Verification Engine ---
@@ -3153,13 +3154,13 @@ function bindEvents() {
 
         // Check essential numbers
         if (!Number.isFinite(row.chainage)) {
-          invalidChainage = `Row ${i + 1}`;
+          invalidChainage = `Row ${i + 1} `;
         }
 
         // If cutVol or fillVol area/vol resulted in NaN
         if (Number.isNaN(row.cutVol) || Number.isNaN(row.fillVol) || Number.isNaN(row.bank) || Number.isNaN(row.ewArea) || Number.isNaN(row.areaDiff)) {
           nanFound = true;
-          logicError = `Calculation Error at Chainage ${row.chainage}`;
+          logicError = `Calculation Error at Chainage ${row.chainage} `;
           break;
         }
       }
@@ -3168,7 +3169,7 @@ function bindEvents() {
     }
 
     if (invalidChainage) errors.push(`- Invalid Chainage found near calculation ${invalidChainage}. Check input data.`);
-    if (nanFound && logicError) errors.push(`- Engine encountered severe NaN/Logic calculation errors. ${logicError}. Check cross-sectional parameters or unit rates.`);
+    if (nanFound && logicError) errors.push(`- Engine encountered severe NaN / Logic calculation errors.${logicError}. Check cross - sectional parameters or unit rates.`);
 
     return errors;
   }
@@ -3362,7 +3363,7 @@ function bindEvents() {
           }, 2000);
         } else {
           verifyBtn.disabled = false;
-          alert(`Verification Failed!\n\nPlease fix the following errors before proceeding:\n\n${errors.join("\n")}`);
+          alert(`Verification Failed!\n\nPlease fix the following errors before proceeding: \n\n${errors.join("\n")} `);
         }
       }, 800);
     });
@@ -3488,7 +3489,7 @@ function bindEvents() {
             }
           } catch (err) {
             console.error("Auto-route error for", file.name, err);
-            alert(`Could not process dropped file ${file.name}: ${err.message}`);
+            alert(`Could not process dropped file ${file.name}: ${err.message} `);
           }
         }
 
@@ -3569,7 +3570,7 @@ function bindEvents() {
 
     if (els.takeSnapshotBtn) {
       els.takeSnapshotBtn.addEventListener("click", () => {
-        const name = els.snapshotNameInput.value.trim() || `Snapshot ${new Date().toLocaleTimeString()}`;
+        const name = els.snapshotNameInput.value.trim() || `Snapshot ${new Date().toLocaleTimeString()} `;
         const snapshot = {
           id: Date.now().toString(),
           name,
@@ -3680,20 +3681,20 @@ function bindEvents() {
     }
 
     els.snapshotList.innerHTML = state.snapshots.map(snap => `
-      <div class="glass" style="padding: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+    < div class="glass" style = "padding: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;" >
         <div>
           <strong style="color: var(--text);">${snap.name}</strong><br/>
           <small class="muted">${snap.timestamp}</small>
         </div>
         <button class="btn btn-secondary" onclick="restoreSnapshot('${snap.id}')">Restore</button>
-      </div>
+      </div >
     `).reverse().join("");
   }
 
   window.restoreSnapshot = (id) => {
     const snap = state.snapshots.find(s => s.id === id);
     if (!snap) return;
-    if (!confirm(`Restore snapshot "${snap.name}"? Current unsaved changes will be lost.`)) return;
+    if (!confirm(`Restore snapshot "${snap.name}" ? Current unsaved changes will be lost.`)) return;
 
     state.rawRows = JSON.parse(JSON.stringify(snap.rawRows));
     state.curves = JSON.parse(JSON.stringify(snap.curves));
@@ -3743,7 +3744,7 @@ function bindEvents() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text: previewCsv, dataType: 'levels' })
         });
-        if (!response.ok) throw new Error(`Server Error: ${response.status}`);
+        if (!response.ok) throw new Error(`Server Error: ${response.status} `);
         const resData = await response.json();
         mapResult = resData.data;
       } catch (e) {
@@ -3839,7 +3840,7 @@ function bindEvents() {
     const chainageNote = Number.isFinite(ch[0]) && Number.isFinite(ch[ch.length - 1])
       ? ` | Range: ${r3(ch[0])} m to ${r3(ch[ch.length - 1])} m`
       : "";
-    els.projectMeta.textContent = `Imported ${parsed.length} level rows${chainageNote}`;
+    els.projectMeta.textContent = `Imported ${parsed.length} level rows${chainageNote} `;
     state.project.uploads.levels = true;
     state.project.verified = false;
     updateWizardUI();
@@ -3904,7 +3905,7 @@ function bindEvents() {
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || `Server Error: ${response.status}`);
+        throw new Error(errData.error || `Server Error: ${response.status} `);
       }
 
       const resData = await response.json();
@@ -3923,8 +3924,8 @@ function bindEvents() {
 
       for (const sheet of sheets) {
         // Collect for potential AI fallback
-        combinedCsv += `--- SHEET: ${sheet.name} ---\n`;
-        combinedCsv += sheet.aoa.map(row => row.map(c => `"${String(c || "").replace(/"/g, '""').replace(/\n/g, " ")}"`).join(",")).join("\n") + "\n\n";
+        combinedCsv += `-- - SHEET: ${sheet.name} ---\n`;
+        combinedCsv += sheet.aoa.map(row => row.map(c => `"${String(c || "").replace(/"/g, '""').replace(/\n/g, " ")}"`).join(", ")).join("\n") + "\n\n";
 
         // Try local parsing first using the existing bridge parser
         const localResult = parseBridgeRowsFromAoa(sheet.aoa, sheet.name);
@@ -4501,16 +4502,11 @@ async function generateProjectReport(options) {
   try {
     const container = document.createElement("div");
     container.id = "pdf-report-container";
-    container.style.position = "absolute";
-    container.style.left = "0";
-    container.style.top = "0";
-    container.style.zIndex = "-9999";
     container.style.width = "1122px"; // Standard landscape width
     container.style.backgroundColor = "#ffffff";
     container.style.color = "#000000";
     container.style.fontFamily = "'Outfit', sans-serif";
     container.style.padding = "0";
-    document.body.appendChild(container);
 
     const addPageBreak = (el) => {
       const br = document.createElement("div");
@@ -4685,11 +4681,6 @@ async function generateProjectReport(options) {
 
     if (loadingText) loadingText.textContent = "Finalizing PDF document...";
 
-    // Give the browser time to complete layout of the injected massive DOM
-    // This is a crucial step to avoid elements reporting 0 height in html2canvas
-    container.offsetHeight; // Force reflow
-    await new Promise(r => setTimeout(r, 600));
-
     const opt = {
       margin: 10,
       filename: `${state.project.name || "Earthsoft_Report"}_${new Date().toISOString().split('T')[0]}.pdf`,
@@ -4706,8 +4697,6 @@ async function generateProjectReport(options) {
     console.error("Report Generation Error:", error);
     alert("An error occurred during report generation. This might happen if your project data is very large. Check the console for logs.");
   } finally {
-    const container = document.getElementById("pdf-report-container");
-    if (container) container.remove();
     if (loading) loading.classList.add("hidden");
   }
 }
