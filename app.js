@@ -426,9 +426,38 @@ function normalizeBridgeEntry(raw, index = 0) {
   };
 }
 
-function parseBridgeRowsFromAoa(aoa, sheetCategory = 'Minor') {
+function detectCategoryFromText(text) {
+  if (!text) return null;
+  const s = String(text).toLowerCase();
+  if (s.includes("minor")) return "Minor";
+  if (s.includes("major")) return "Major";
+  if (s.includes("viaduct")) return "Viaduct";
+  if (s.includes("tunnel") || s.includes("tinnel")) return "Tunnel";
+  if (s.includes("important")) return "Important";
+  if (s.includes("ror") || s.includes("road over rail")) return "RoR";
+  if (s.includes("rob") || s.includes("road over bridge")) return "ROB";
+  if (s.includes("mibor") || s.includes("missing bridge")) return "MIBOR";
+  if (s.includes("aqueduct") || s.includes("aquiduct")) return "Aqueduct";
+  return null;
+}
+
+function parseBridgeRowsFromAoa(aoa, sheetName = '') {
   const header = detectBridgeHeaderRow(aoa);
   if (!header) return { rows: [], error: "Bridge sheet must include Start/End chainage or Chainage+Length columns." };
+
+  // Clue from sheet name or header rows above
+  let inferredCategory = detectCategoryFromText(sheetName);
+  if (!inferredCategory) {
+    // Scan rows above the header for categories (often in sheet title rows)
+    for (let j = 0; j < header.rowIndex; j++) {
+      const rowText = (aoa[j] || []).join(" ").trim();
+      if (!rowText) continue;
+      const found = detectCategoryFromText(rowText);
+      if (found) { inferredCategory = found; break; }
+    }
+  }
+  const defaultCategory = inferredCategory || "Minor";
+
   const rows = [];
   const cols = header.cols;
   for (let i = header.rowIndex + 1; i < aoa.length; i += 1) {
@@ -443,18 +472,10 @@ function parseBridgeRowsFromAoa(aoa, sheetCategory = 'Minor') {
     const bridgeNoStr = cols.bridgeNo >= 0 ? String(row[cols.bridgeNo] || "").toLowerCase() : "";
 
     if (!cellCategory) {
-      if (purpose.includes("rob") || typeStr.includes("rob") || bridgeNoStr.includes("rob")) cellCategory = "ROB";
-      else if (purpose.includes("mibor") || typeStr.includes("mibor")) cellCategory = "MIBOR";
-      else if (purpose.includes("aqueduct") || purpose.includes("aquiduct") || purpose.includes("aque")) cellCategory = "Aqueduct";
-      else if (purpose.includes("minor") || typeStr.includes("minor")) cellCategory = "Minor";
-      else if (purpose.includes("major") || typeStr.includes("major")) cellCategory = "Major";
-      else if (purpose.includes("viaduct") || typeStr.includes("viaduct")) cellCategory = "Viaduct";
-      else if (purpose.includes("tunnel") || purpose.includes("tinnel")) cellCategory = "Tunnel";
-      else if (purpose.includes("important") || typeStr.includes("important")) cellCategory = "Important";
-      else if (purpose.includes("ror") || typeStr.includes("ror")) cellCategory = "RoR";
+      cellCategory = detectCategoryFromText(purpose) || detectCategoryFromText(typeStr) || detectCategoryFromText(bridgeNoStr);
     }
 
-    if (!cellCategory) cellCategory = sheetCategory;
+    if (!cellCategory) cellCategory = defaultCategory;
 
     const raw = {
       bridgeNo: cols.bridgeNo >= 0 ? row[cols.bridgeNo] : "",
@@ -3729,12 +3750,18 @@ function bindEvents() {
 
   const importBridgeFile = async (file) => {
     try {
-      // Try local parsing first
-      const aoa = await readSheetAoaFromFile(file);
-      const localResult = parseBridgeRowsFromAoa(aoa, "Minor");
-      let importedRows = localResult.rows || [];
+      // Try local parsing for ALL sheets
+      const sheets = await readAllSheetsFromFile(file);
+      let importedRows = [];
 
-      // If local parsing yielded nothing, try AI fallback
+      for (const sheet of sheets) {
+        const localResult = parseBridgeRowsFromAoa(sheet.aoa, sheet.name);
+        if (localResult.rows && localResult.rows.length > 0) {
+          importedRows = importedRows.concat(localResult.rows);
+        }
+      }
+
+      // If local parsing yielded nothing across all sheets, try AI fallback (as a single unit)
       if (!importedRows.length) {
         try {
           const result = await processFileWithAI(file, "bridges");
@@ -3755,9 +3782,9 @@ function bindEvents() {
         applyProjectGate();
         renderBridgeInputs();
         recalculate();
-        alert(`Successfully imported ${importedRows.length} bridge(s)!`);
+        alert(`Successfully imported ${importedRows.length} bridge(s) from ${sheets.length} sheet(s)!`);
       } else {
-        alert("Could not identify any bridge structures in that file. Check your headers.");
+        alert("Could not identify any bridge structures in that file. Check your headers and sheet content.");
       }
     } catch (err) {
       console.error(err);
