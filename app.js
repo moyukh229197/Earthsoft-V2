@@ -2824,12 +2824,101 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   }
 
   const bermLabel = `${Math.round(s.bermWidth * 1000)} mm (${r3(s.bermWidth)} m)`;
-  const cutPoly = row.cut > 0
-    ? `<polygon points="${leftCutX},${cutBottomY} ${rightCutX},${cutBottomY} ${centerX + halfTop},${topY} ${centerX - halfTop},${topY}" fill="#f0e2e2" stroke="#8a6f72" />`
-    : "";
+  let cutPoly = "";
   let fillPoly = "";
   let berms = "";
-  if (row.bank > 0) {
+
+  if (row.type === "CUTTING" && row.cut > 0) {
+    // Detailed Cutting profile with side drains and berms based on reference drawing
+    const drainW = s.drainWidth ? (s.drainWidth * pxPerM) : (1.2 * pxPerM);
+    const drainH = s.drainHeight ? (s.drainHeight * pxPerM) : (1.0 * pxPerM);
+    const leftPts = [];
+    const rightPts = [];
+    const bermDimSnippets = [];
+
+    // Formation edge and bottom drain
+    const formLeft = centerX - halfTop;
+    const formRight = centerX + halfTop;
+    leftPts.push({ x: formLeft, y: topY });
+    rightPts.push({ x: formRight, y: topY });
+
+    // Drop into side drain
+    const drainBotL_R = formLeft - (drainW * 0.2); // inner slope
+    const drainBotL_L = formLeft - drainW;         // outer edge
+    leftPts.push({ x: drainBotL_R, y: topY + drainH });
+    leftPts.push({ x: drainBotL_L, y: topY + drainH });
+    leftPts.push({ x: drainBotL_L, y: topY }); // outer top edge of drain
+
+    const drainBotR_L = formRight + (drainW * 0.2);
+    const drainBotR_R = formRight + drainW;
+    rightPts.push({ x: drainBotR_L, y: topY + drainH });
+    rightPts.push({ x: drainBotR_R, y: topY + drainH });
+    rightPts.push({ x: drainBotR_R, y: topY });
+
+    // Catch Water Drains on Berms (approx 0.5m x 0.5m based on image)
+    const cwDrainW = 0.5 * pxPerM;
+    const cwDrainH = 0.5 * pxPerM;
+
+    // Calculate berms going UP the cut
+    const bermCount = row.cut >= 8 ? 2 : (row.cut >= 4 ? 1 : 0);
+    const bermFractions = bermCount === 2 ? [0.35, 0.72] : (bermCount === 1 ? [0.58] : []);
+
+    let currentHeight = 0;
+    let currentLeft = drainBotL_L;
+    let currentRight = drainBotR_R;
+
+    bermFractions.forEach((f, idx) => {
+      const targetHeight = row.cut * f;
+      const deltaHeight = targetHeight - currentHeight;
+      const deltaRun = slopeHV * deltaHeight * pxPerM;
+      const y = topY - targetHeight * pxPerM;
+      const lx = currentLeft - deltaRun;
+      const rx = currentRight + deltaRun;
+
+      // Slope up to berm
+      leftPts.push({ x: lx, y });
+      rightPts.push({ x: rx, y });
+
+      // Berm bench with Catch Water Drain
+      // Left Berm
+      const lxBenchEdge = lx - bermW;
+      const lxDrainCenter = lx - bermW + (cwDrainW);
+      leftPts.push({ x: lx - (bermW * 0.2), y }); // flat bit
+      leftPts.push({ x: lxDrainCenter, y: y + cwDrainH }); // drain dip
+      leftPts.push({ x: lxBenchEdge, y }); // outer edge of berm
+
+      // Right Berm
+      const rxBenchEdge = rx + bermW;
+      const rxDrainCenter = rx + bermW - (cwDrainW);
+      rightPts.push({ x: rx + (bermW * 0.2), y });
+      rightPts.push({ x: rxDrainCenter, y: y + cwDrainH });
+      rightPts.push({ x: rxBenchEdge, y });
+
+      const dimY = y - 26;
+      bermDimSnippets.push(drawDim(lxBenchEdge, lx, dimY, bermLabel));
+      bermDimSnippets.push(drawDim(rx, rxBenchEdge, dimY, bermLabel));
+      bermDimSnippets.push(`<text x="${(lxBenchEdge + lx) / 2}" y="${y - 40}" text-anchor="middle" fill="#5a4238" font-size="10" font-weight="700">CATCH WATER DRAIN</text>`);
+      bermDimSnippets.push(`<text x="${(rx + rxBenchEdge) / 2}" y="${y - 40}" text-anchor="middle" fill="#5a4238" font-size="10" font-weight="700">CATCH WATER DRAIN</text>`);
+
+      currentHeight = targetHeight;
+      currentLeft = lxBenchEdge;
+      currentRight = rxBenchEdge;
+    });
+
+    // Final slope to ground level (cut bottom is actually the top G.L. conceptually)
+    const deltaHeight = row.cut - currentHeight;
+    const deltaRun = slopeHV * deltaHeight * pxPerM;
+    const xLeftTop = currentLeft - deltaRun;
+    const xRightTop = currentRight + deltaRun;
+    leftPts.push({ x: xLeftTop, y: cutBottomY });
+    rightPts.push({ x: xRightTop, y: cutBottomY });
+
+    // Close polygon
+    const polyPts = [...leftPts.reverse(), ...rightPts].map((p) => `${p.x},${p.y}`).join(" ");
+    cutPoly = `<polygon points="${polyPts}" fill="#f0e2e2" stroke="#8a6f72" />`;
+    berms = bermDimSnippets.join("");
+
+  } else if (row.bank > 0) {
     const bermCount = row.bank >= 8 ? 2 : (row.bank >= 4 ? 1 : 0);
     const bermFractions = bermCount === 2 ? [0.35, 0.72] : (bermCount === 1 ? [0.58] : []);
     const leftPts = [{ x: centerX - halfTop, y: topY }];
