@@ -80,6 +80,12 @@
           </svg>
           Graphs
         </button>
+        <button class="work-nav-btn" data-work-page-btn="roll-diagram" type="button">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M4 10 h12 M4 6 q 3 4 6 0 M10 14 q 3 -4 6 0 M4 4 v12M16 4v12" />
+          </svg>
+          Roll Diagram
+        </button>
         <button class="work-nav-btn" data-work-page-btn="table" type="button">
           <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
             <rect x="2" y="2" width="16" height="16" rx="2" />
@@ -419,6 +425,38 @@
           </article>
         </section>
       </section>
+
+      <section class="work-page" data-work-page="roll-diagram">
+        <header class="page-header">
+          <div>
+            <h2>Alignment Roll Diagram</h2>
+            <p class="text-secondary">Plan view of the alignment — toe width, bridges, curves, and stations at every
+              chainage.</p>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button id="rollZoomIn" class="btn btn-secondary" type="button" title="Zoom In"
+              style="padding:6px 12px;font-size:16px;line-height:1;">+</button>
+            <button id="rollZoomOut" class="btn btn-secondary" type="button" title="Zoom Out"
+              style="padding:6px 12px;font-size:16px;line-height:1;">−</button>
+            <button id="rollZoomReset" class="btn btn-secondary" type="button" title="Reset Zoom"
+              style="padding:6px 10px;font-size:12px;">Reset</button>
+          </div>
+        </header>
+        <div class="card glass" style="margin-top:16px;padding:0;overflow:hidden;position:relative;">
+          <div id="rollDiagramEmpty"
+            style="display:none;flex-direction:column;align-items:center;justify-content:center;height:300px;gap:12px;opacity:0.55;">
+            <svg viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M6 24h36M16 14l-10 10 10 10M32 14l10 10-10 10" />
+            </svg>
+            <p style="font-size:14px;margin:0;">Import levels data to see the alignment roll diagram.</p>
+          </div>
+          <div id="rollDiagramWrap"
+            style="width:100%;height:600px;overflow-x:auto;overflow-y:hidden;position:relative;cursor:grab;">
+            <canvas id="rollDiagramCanvas" style="display:block;image-rendering:crisp-edges;"></canvas>
+          </div>
+        </div>
+      </section>
+
 
       <section class="work-page" data-work-page="table">
         <section class="glass table-panel">

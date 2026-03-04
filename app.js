@@ -37,6 +37,9 @@ const state = {
 
 const els = {
   projectMeta: document.getElementById("projectMeta"),
+  rollDiagramCanvas: document.getElementById("rollDiagramCanvas"),
+  rollDiagramWrap: document.getElementById("rollDiagramWrap"),
+  rollDiagramEmpty: document.getElementById("rollDiagramEmpty"),
   tableBody: document.getElementById("tableBody"),
   totalFilling: document.getElementById("totalFilling"),
   totalCutting: document.getElementById("totalCutting"),
@@ -1158,6 +1161,7 @@ function recalculate() {
   renderSummary();
   renderTable();
   renderCharts();
+  renderRollDiagram();
   updateEstimates();
 }
 
@@ -1218,6 +1222,9 @@ function setWorkPage(pageName) {
   els.workPages.forEach((page) => {
     page.classList.toggle("active", page.dataset.workPage === selected);
   });
+  if (selected === "roll-diagram" && state.calcRows.length) {
+    requestAnimationFrame(() => renderRollDiagram());
+  }
   if (selected === "graphs" && state.calcRows.length) {
     requestAnimationFrame(() => renderCharts());
   }
@@ -1971,6 +1978,229 @@ function renderCharts() {
   };
 }
 
+function renderRollDiagram() {
+  const canvas = els.rollDiagramCanvas;
+  const wrap = els.rollDiagramWrap;
+  const empty = els.rollDiagramEmpty;
+  if (!canvas) return;
+
+  const noData = !state.calcRows || state.calcRows.length === 0;
+  if (empty) { empty.style.display = noData ? "flex" : "none"; }
+  if (wrap) { wrap.style.display = noData ? "none" : "block"; }
+  if (noData) return;
+
+  const rows = state.calcRows;
+  const minCh = rows[0].chainage;
+  const maxCh = rows[rows.length - 1].chainage;
+  const totalL = Math.max(maxCh - minCh, 1);
+
+  const baseScale = Math.max(0.3, Math.min(4, window._rollScale || 1));
+  const PX_PER_M_X = 0.4 * baseScale;
+  const PX_PER_M_Y = 4.0 * baseScale;
+
+  const PAD_L = 60, PAD_R = 40, PAD_T = 90, PAD_B = 60;
+
+  const maxHalfW = rows.reduce((m, r) => {
+    const w = r.bank > 0 ? r.fillBottom : (r.cut > 0 ? r.cutBottom : (r.effectiveFormationWidth || 0));
+    return Math.max(m, w / 2);
+  }, 0);
+  const loopMaxTc = (state.loopPlatformRows || []).reduce((m, lp) => Math.max(m, Math.abs(safeNum(lp.tc, 0))), 0);
+  const loopPxH = (loopMaxTc + 10) * PX_PER_M_Y;
+  const bodyHalf = Math.max(maxHalfW * PX_PER_M_Y, 40);
+  const canvasH = Math.ceil(PAD_T + bodyHalf * 2 + loopPxH + PAD_B);
+  const canvasW = Math.ceil(PAD_L + totalL * PX_PER_M_X + PAD_R);
+  const centerY = PAD_T + bodyHalf + loopPxH * 0.5;
+
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvasW, canvasH);
+
+  function getX(ch) {
+    return Number.isFinite(ch) ? PAD_L + (ch - minCh) * PX_PER_M_X : null;
+  }
+
+  // ── Background ─────────────────────────────────────────────────────────
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, canvasH);
+  bgGrad.addColorStop(0, "#0d1117");
+  bgGrad.addColorStop(1, "#141d2e");
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  // ── Grid lines ─────────────────────────────────────────────────────────
+  ctx.strokeStyle = "rgba(255,255,255,0.07)";
+  ctx.lineWidth = 1;
+  const gridKm = totalL >= 50000 ? 10000 : totalL >= 10000 ? 2000 : 1000;
+  const startGrid = Math.ceil(minCh / gridKm) * gridKm;
+  for (let ch = startGrid; ch <= maxCh; ch += gridKm) {
+    const gx = getX(ch);
+    if (gx == null) continue;
+    ctx.beginPath(); ctx.moveTo(gx, PAD_T); ctx.lineTo(gx, canvasH - PAD_B); ctx.stroke();
+  }
+
+  // ── Centreline ─────────────────────────────────────────────────────────
+  ctx.setLineDash([6, 6]);
+  ctx.strokeStyle = "rgba(255,255,255,0.25)";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(getX(minCh), centerY); ctx.lineTo(getX(maxCh), centerY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ── Toe width — per-segment coloured trapezoids ─────────────────────────
+  for (let i = 1; i < rows.length; i++) {
+    const r0 = rows[i - 1], r1 = rows[i];
+    const x0 = getX(r0.chainage), x1g = getX(r1.chainage);
+    if (x0 == null || x1g == null) continue;
+    const w0 = r0.bank > 0 ? r0.fillBottom : (r0.cut > 0 ? r0.cutBottom : (r0.effectiveFormationWidth || 0));
+    const w1 = r1.bank > 0 ? r1.fillBottom : (r1.cut > 0 ? r1.cutBottom : (r1.effectiveFormationWidth || 0));
+    const h0 = (w0 / 2) * PX_PER_M_Y, h1 = (w1 / 2) * PX_PER_M_Y;
+    const isFill = r1.bank > 0.001, isCut = r1.cut > 0.001;
+    const fillCol = isFill ? "rgba(34,139,69,0.28)" : isCut ? "rgba(180,44,50,0.28)" : "rgba(100,110,130,0.18)";
+    const strokeCol = isFill ? "rgba(34,200,80,0.75)" : isCut ? "rgba(240,70,70,0.75)" : "rgba(140,150,170,0.45)";
+    // Top edge
+    ctx.strokeStyle = strokeCol; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x0, centerY - h0); ctx.lineTo(x1g, centerY - h1); ctx.stroke();
+    // Bottom edge
+    ctx.beginPath(); ctx.moveTo(x0, centerY + h0); ctx.lineTo(x1g, centerY + h1); ctx.stroke();
+    // Fill trapezoid
+    ctx.fillStyle = fillCol;
+    ctx.beginPath(); ctx.moveTo(x0, centerY - h0); ctx.lineTo(x1g, centerY - h1);
+    ctx.lineTo(x1g, centerY + h1); ctx.lineTo(x0, centerY + h0); ctx.closePath(); ctx.fill();
+  }
+
+  // ── Formation width dash ────────────────────────────────────────────────
+  const fwH = (state.settings.formationWidthFill || 0) / 2 * PX_PER_M_Y;
+  if (fwH > 0) {
+    ctx.strokeStyle = "rgba(120,200,255,0.35)"; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(getX(minCh), centerY - fwH); ctx.lineTo(getX(maxCh), centerY - fwH); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(getX(minCh), centerY + fwH); ctx.lineTo(getX(maxCh), centerY + fwH); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ── Bridges ─────────────────────────────────────────────────────────────
+  const bridges = buildBridgeIntervals();
+  for (const b of bridges) {
+    const bx1 = getX(b.startChainage), bx2 = getX(b.endChainage);
+    if (bx1 == null || bx2 == null) continue;
+    const bHalf = 20 * PX_PER_M_Y;
+    const bW = Math.max(bx2 - bx1, 3 * baseScale);
+    ctx.fillStyle = "rgba(37,99,235,0.50)"; ctx.strokeStyle = "rgba(99,163,255,0.9)"; ctx.lineWidth = 1.5;
+    ctx.fillRect(bx1, centerY - bHalf, bW, bHalf * 2);
+    ctx.strokeRect(bx1, centerY - bHalf, bW, bHalf * 2);
+    ctx.strokeStyle = "rgba(99,163,255,0.3)"; ctx.lineWidth = 0.7;
+    for (let hx = bx1; hx < bx2; hx += 8 * baseScale) {
+      ctx.beginPath(); ctx.moveTo(hx, centerY - bHalf); ctx.lineTo(hx + 8 * baseScale, centerY + bHalf); ctx.stroke();
+    }
+    ctx.fillStyle = "#93c5fd"; ctx.font = `bold ${Math.max(9, 11 * baseScale)}px Outfit,sans-serif`;
+    ctx.textAlign = "left";
+    ctx.fillText(b.bridgeNo, bx1 + 2, centerY - bHalf - 5);
+  }
+
+  // ── Curves ──────────────────────────────────────────────────────────────
+  if (state.curveRows && state.curveRows.length) {
+    ctx.lineWidth = 2 * baseScale;
+    state.curveRows.forEach((c, ci) => {
+      if (!Number.isFinite(c.chainage) || c.chainage < minCh || c.chainage > maxCh) return;
+      const cx1 = getX(c.chainage);
+      if (cx1 == null) return;
+      const len = safeNum(c.length);
+      const cx2 = getX(Math.min(c.chainage + (len > 5 ? len : 200), maxCh));
+      if (cx2 == null) return;
+      const rad = safeNum(c.radius);
+      const dir = (ci % 2 === 0) ? -1 : 1;
+      const bulge = 25 * baseScale;
+      ctx.strokeStyle = "rgba(252,211,77,0.85)"; ctx.fillStyle = "transparent";
+      ctx.beginPath();
+      ctx.moveTo(cx1, centerY);
+      ctx.quadraticCurveTo((cx1 + cx2) / 2, centerY + dir * bulge * 2, cx2, centerY);
+      ctx.stroke();
+      ctx.fillStyle = "#fde68a"; ctx.font = `${Math.max(9, 10 * baseScale)}px Outfit,sans-serif`;
+      ctx.textAlign = "center";
+      const label = (c.curve || "Curve") + (rad > 0 ? ` R=${r3(rad)}m` : "");
+      ctx.fillText(label, (cx1 + cx2) / 2, centerY + dir * (bulge * 2 + 14));
+    });
+  }
+
+  // ── Loops & Platforms ───────────────────────────────────────────────────
+  if (state.loopPlatformRows && state.loopPlatformRows.length) {
+    state.loopPlatformRows.forEach((lp) => {
+      const tc = safeNum(lp.tc, 0);                 // ← BUG FIX: was lp.loopTc
+      const halfBody = fwH || 20;
+      // Loop
+      if (Number.isFinite(lp.loopStartCh) && Number.isFinite(lp.loopEndCh)) {
+        const lx1 = getX(lp.loopStartCh), lx2 = getX(lp.loopEndCh);
+        if (lx1 != null && lx2 != null) {
+          const loopY = centerY - halfBody - (tc * PX_PER_M_Y) - 8;
+          ctx.strokeStyle = "rgba(34,211,238,0.85)"; ctx.lineWidth = 2 * baseScale;
+          ctx.beginPath(); ctx.moveTo(lx1, loopY); ctx.lineTo(lx2, loopY); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(lx1, centerY); ctx.lineTo(lx1, loopY); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(lx2, centerY); ctx.lineTo(lx2, loopY); ctx.stroke();
+          ctx.fillStyle = "rgba(34,211,238,0.07)";
+          ctx.fillRect(lx1, loopY, lx2 - lx1, halfBody);
+          ctx.strokeStyle = "rgba(34,211,238,0.35)"; ctx.lineWidth = Math.max(1, baseScale);
+          for (let lxt = lx1 + 10; lxt < lx2; lxt += 14 * baseScale) {
+            ctx.beginPath(); ctx.moveTo(lxt, loopY - 4); ctx.lineTo(lxt, loopY + 4); ctx.stroke();
+          }
+          ctx.fillStyle = "#67e8f9"; ctx.font = `bold ${Math.max(9, 10 * baseScale)}px Outfit,sans-serif`;
+          ctx.textAlign = "left";
+          ctx.fillText("\u25CE " + (lp.station || "Station"), lx1, loopY - 8);
+        }
+      }
+      // Platform
+      if (Number.isFinite(lp.pfStartCh) && Number.isFinite(lp.pfEndCh)) {
+        const px1 = getX(lp.pfStartCh), px2 = getX(lp.pfEndCh);
+        if (px1 != null && px2 != null) {
+          const pfW = safeNum(lp.pfWidth, 10);
+          const loopY = centerY - halfBody - (tc * PX_PER_M_Y) - 8;
+          const pfH = pfW * PX_PER_M_Y * 0.5;
+          const pfTop = loopY - pfH - 4;
+          ctx.fillStyle = "rgba(239,68,68,0.45)"; ctx.strokeStyle = "rgba(252,165,165,0.8)"; ctx.lineWidth = 1.5;
+          ctx.fillRect(px1, pfTop, Math.max(px2 - px1, 4), pfH);
+          ctx.strokeRect(px1, pfTop, Math.max(px2 - px1, 4), pfH);
+          ctx.fillStyle = "#fca5a5"; ctx.font = `${Math.max(8, 9 * baseScale)}px Outfit,sans-serif`;
+          ctx.textAlign = "left"; ctx.fillText("PF", px1, pfTop - 4);
+        }
+      }
+    });
+  }
+
+  // ── Scale Ruler ─────────────────────────────────────────────────────────
+  const rulerY = canvasH - PAD_B + 16;
+  const tkInt = totalL >= 50000 ? 5000 : totalL >= 20000 ? 2000 : totalL >= 5000 ? 1000 : 500;
+  const startTk = Math.ceil(minCh / tkInt) * tkInt;
+  ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(getX(minCh), rulerY); ctx.lineTo(getX(maxCh), rulerY); ctx.stroke();
+  ctx.fillStyle = "rgba(255,255,255,0.6)"; ctx.font = `${Math.max(9, 10 * baseScale)}px Outfit,sans-serif`; ctx.textAlign = "center";
+  for (let ch = startTk; ch <= maxCh; ch += tkInt) {
+    const tx = getX(ch);
+    if (tx == null) continue;
+    ctx.beginPath(); ctx.moveTo(tx, rulerY - 4); ctx.lineTo(tx, rulerY + 4); ctx.stroke();
+    ctx.fillText(ch >= 1000 ? `${r3(ch / 1000)} km` : `${ch} m`, tx, rulerY + 16);
+  }
+  ctx.textAlign = "left"; ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.font = "10px Outfit,sans-serif";
+  ctx.fillText(`CH ${minCh}m`, PAD_L, rulerY + 30);
+  ctx.textAlign = "right"; ctx.fillText(`CH ${maxCh}m`, canvasW - PAD_R, rulerY + 30);
+
+  // ── Legend ───────────────────────────────────────────────────────────────
+  const legend = [
+    { col: "rgba(34,200,80,0.75)", lbl: "Filling" },
+    { col: "rgba(240,70,70,0.75)", lbl: "Cutting" },
+    { col: "rgba(120,200,255,0.5)", lbl: "Formation" },
+    { col: "rgba(99,163,255,0.9)", lbl: "Bridge" },
+    { col: "rgba(252,211,77,0.85)", lbl: "Curve" },
+    { col: "rgba(34,211,238,0.85)", lbl: "Loop/Station" },
+    { col: "rgba(252,165,165,0.8)", lbl: "Platform" },
+  ];
+  ctx.font = `${Math.max(9, 10 * baseScale)}px Outfit,sans-serif`;
+  let lx = PAD_L;
+  for (const item of legend) {
+    ctx.fillStyle = item.col; ctx.fillRect(lx, 10, 12, 12);
+    ctx.fillStyle = "rgba(255,255,255,0.75)"; ctx.textAlign = "left";
+    ctx.fillText(item.lbl, lx + 15, 21);
+    lx += 15 + ctx.measureText(item.lbl).width + 14;
+    if (lx > canvasW - 100) break;
+  }
+}
+
 function buildSettingsInputs() {
   els.settingsGrid.innerHTML = settingSchema.map(([key, label]) => `
     <label>
@@ -2383,6 +2613,15 @@ function bindEvents() {
 
     return errors;
   }
+
+  // Roll Diagram zoom buttons
+  const rollZoomIn = document.getElementById("rollZoomIn");
+  const rollZoomOut = document.getElementById("rollZoomOut");
+  const rollZoomReset = document.getElementById("rollZoomReset");
+  function _rollRedraw() { if (state.calcRows.length) renderRollDiagram(); }
+  if (rollZoomIn) rollZoomIn.addEventListener("click", () => { window._rollScale = Math.min(4, (window._rollScale || 1) * 1.4); _rollRedraw(); });
+  if (rollZoomOut) rollZoomOut.addEventListener("click", () => { window._rollScale = Math.max(0.2, (window._rollScale || 1) / 1.4); _rollRedraw(); });
+  if (rollZoomReset) rollZoomReset.addEventListener("click", () => { window._rollScale = 1; _rollRedraw(); });
 
   // Verify Calculations button
   const verifyBtn = document.getElementById("verifyCalcBtn");
