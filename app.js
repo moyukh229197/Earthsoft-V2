@@ -4502,11 +4502,18 @@ async function generateProjectReport(options) {
   try {
     const container = document.createElement("div");
     container.id = "pdf-report-container";
-    container.style.width = "1122px"; // Standard landscape width
+    container.style.position = "absolute";
+    container.style.top = "0";
+    container.style.left = "0";
+    container.style.zIndex = "-9999";
+    container.style.opacity = "0.01";
+    container.style.pointerEvents = "none";
+    container.style.width = "1122px";          // Standard landscape width
     container.style.backgroundColor = "#ffffff";
     container.style.color = "#000000";
     container.style.fontFamily = "'Outfit', sans-serif";
     container.style.padding = "0";
+    document.body.appendChild(container);
 
     const addPageBreak = (el) => {
       const br = document.createElement("div");
@@ -4681,6 +4688,10 @@ async function generateProjectReport(options) {
 
     if (loadingText) loadingText.textContent = "Finalizing PDF document...";
 
+    // Allow browser time to complete layout of generated DOM tables
+    container.offsetHeight;
+    await new Promise(r => setTimeout(r, 600));
+
     const opt = {
       margin: 10,
       filename: `${state.project.name || "Earthsoft_Report"}_${new Date().toISOString().split('T')[0]}.pdf`,
@@ -4697,6 +4708,8 @@ async function generateProjectReport(options) {
     console.error("Report Generation Error:", error);
     alert("An error occurred during report generation. This might happen if your project data is very large. Check the console for logs.");
   } finally {
+    const container = document.getElementById("pdf-report-container");
+    if (container) container.remove();
     if (loading) loading.classList.add("hidden");
   }
 }
