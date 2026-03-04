@@ -2879,26 +2879,20 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
       leftPts.push({ x: lx, y });
       rightPts.push({ x: rx, y });
 
-      // Berm bench with Catch Water Drain
+      // Berm bench flat
       // Left Berm
       const lxBenchEdge = lx - bermW;
-      const lxDrainCenter = lx - bermW + (cwDrainW);
-      leftPts.push({ x: lx - (bermW * 0.2), y }); // flat bit
-      leftPts.push({ x: lxDrainCenter, y: y + cwDrainH }); // drain dip
-      leftPts.push({ x: lxBenchEdge, y }); // outer edge of berm
+      leftPts.push({ x: lxBenchEdge, y }); // flat berm
 
       // Right Berm
       const rxBenchEdge = rx + bermW;
-      const rxDrainCenter = rx + bermW - (cwDrainW);
-      rightPts.push({ x: rx + (bermW * 0.2), y });
-      rightPts.push({ x: rxDrainCenter, y: y + cwDrainH });
       rightPts.push({ x: rxBenchEdge, y });
 
-      const dimY = y - 26;
+      const dimY = y - 18;
       bermDimSnippets.push(drawDim(lxBenchEdge, lx, dimY, bermLabel));
       bermDimSnippets.push(drawDim(rx, rxBenchEdge, dimY, bermLabel));
-      bermDimSnippets.push(`<text x="${(lxBenchEdge + lx) / 2}" y="${y - 40}" text-anchor="middle" fill="#5a4238" font-size="10" font-weight="700">CATCH WATER DRAIN</text>`);
-      bermDimSnippets.push(`<text x="${(rx + rxBenchEdge) / 2}" y="${y - 40}" text-anchor="middle" fill="#5a4238" font-size="10" font-weight="700">CATCH WATER DRAIN</text>`);
+      bermDimSnippets.push(`<text x="${(lxBenchEdge + lx) / 2}" y="${y - 28}" text-anchor="middle" fill="#385a48" font-size="11" font-weight="700">BERM</text>`);
+      bermDimSnippets.push(`<text x="${(rx + rxBenchEdge) / 2}" y="${y - 28}" text-anchor="middle" fill="#385a48" font-size="11" font-weight="700">BERM</text>`);
 
       currentHeight = targetHeight;
       currentLeft = lxBenchEdge;
@@ -2986,9 +2980,9 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     const y = (i % 2 === 0) ? (trackTopY - 54) : (trackTopY - 64);
     return `<text x="${segMidPoints[i]}" y="${y}" text-anchor="middle" fill="#2f4d6a" font-size="11" font-weight="700">${label}</text>`;
   }).join("");
-  const bodyLabel = row.type === "CUTTING" ? "Cutting Section" : "Embankment Fill";
-  const bodySubLabel = row.type === "CUTTING" ? "(Earth cutting profile)" : "(SQ1/SQ2/SQ3 Category Soils)";
-  const bodyYRef = row.type === "CUTTING" ? ((topY + cutBottomY) / 2) : ((topY + toeY) / 2);
+  const bodyLabel = row.type === "CUTTING" ? "Cutting Profile" : "Embankment Fill";
+  const bodySubLabel = row.type === "CUTTING" ? "" : "(SQ1/SQ2/SQ3 Category Soils)";
+  const bodyYRef = row.type === "CUTTING" ? (topY + 120) : ((topY + toeY) / 2);
   const topLayerCalloutY = row.bank > 0 ? (topY + blanketHDraw) : (topY + blanketH);
   const calloutAnchorX = centerX + halfTop + 12;
   const calloutEndX = Math.min(calloutAnchorX + 160, svgW - 220);
