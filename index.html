@@ -2594,31 +2594,79 @@
       "proposedLevel": 584.912681514608
     }
   ]
+}</script>
   <!-- Global AI Loading Overlay -->
-  <div id="aiLoadingOverlay" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(8px);">
-    <div style="background: var(--card-bg); padding: 32px; border-radius: 16px; border: 1px solid var(--border); box-shadow: var(--shadow-xl); display: flex; flex-direction: column; align-items: center; gap: 16px;">
-        <div class="cube-loader">
-            <div class="cube cube1"></div>
-            <div class="cube cube2"></div>
-            <div class="cube cube3"></div>
-            <div class="cube cube4"></div>
-        </div>
-        <h3 style="margin:0; font-family: var(--font-primary); color: var(--text);">AI Processing...</h3>
-        <p id="aiLoadingText" style="margin:0; color: var(--text-2); font-size: 0.9rem;">Extracting and formatting data structures.</p>
+  <div id="aiLoadingOverlay" class="hidden"
+    style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(8px);">
+    <div
+      style="background: var(--card-bg); padding: 32px; border-radius: 16px; border: 1px solid var(--border); box-shadow: var(--shadow-xl); display: flex; flex-direction: column; align-items: center; gap: 16px;">
+      <div class="cube-loader">
+        <div class="cube cube1"></div>
+        <div class="cube cube2"></div>
+        <div class="cube cube3"></div>
+        <div class="cube cube4"></div>
+      </div>
+      <h3 style="margin:0; font-family: var(--font-primary); color: var(--text);">AI Processing...</h3>
+      <p id="aiLoadingText" style="margin:0; color: var(--text-2); font-size: 0.9rem;">Extracting and formatting data
+        structures.</p>
     </div>
   </div>
 
   <style>
-    .cube-loader { width: 40px; height: 40px; position: relative; margin: 0 auto; }
-    .cube { width: 33%; height: 33%; background-color: var(--primary); float: left; animation: cube-grid-scale 1.3s infinite ease-in-out; border-radius: 2px;}
-    .cube1 { animation-delay: 0.2s; }
-    .cube2 { animation-delay: 0.3s; }
-    .cube3 { animation-delay: 0.4s; }
-    .cube4 { animation-delay: 0.1s; }
-    @keyframes cube-grid-scale { 0%, 70%, 100% { transform: scale3D(1, 1, 1); } 35% { transform: scale3D(0, 0, 1); } }
-    #aiLoadingOverlay:not(.hidden) { display: flex !important; }
-    #aiLoadingOverlay.hidden { display: none !important; }
+    .cube-loader {
+      width: 40px;
+      height: 40px;
+      position: relative;
+      margin: 0 auto;
+    }
+
+    .cube {
+      width: 33%;
+      height: 33%;
+      background-color: var(--primary);
+      float: left;
+      animation: cube-grid-scale 1.3s infinite ease-in-out;
+      border-radius: 2px;
+    }
+
+    .cube1 {
+      animation-delay: 0.2s;
+    }
+
+    .cube2 {
+      animation-delay: 0.3s;
+    }
+
+    .cube3 {
+      animation-delay: 0.4s;
+    }
+
+    .cube4 {
+      animation-delay: 0.1s;
+    }
+
+    @keyframes cube-grid-scale {
+
+      0%,
+      70%,
+      100% {
+        transform: scale3D(1, 1, 1);
+      }
+
+      35% {
+        transform: scale3D(0, 0, 1);
+      }
+    }
+
+    #aiLoadingOverlay:not(.hidden) {
+      display: flex !important;
+    }
+
+    #aiLoadingOverlay.hidden {
+      display: none !important;
+    }
   </style>
+
 
   <script src="./app.js"></script>
 </body>
