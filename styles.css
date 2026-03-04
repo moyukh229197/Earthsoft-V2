@@ -464,12 +464,14 @@ body {
   margin: 0;
   font-weight: 600;
   letter-spacing: 0.02em;
+  color: #000 !important;
 }
 
 .sidebar-brand .eyebrow {
   font-size: 0.6rem;
   letter-spacing: 0.2em;
   margin: 0;
+  color: #000 !important;
 }
 
 .topbar {
