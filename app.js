@@ -3769,27 +3769,35 @@ function bindEvents() {
 
   const importBridgeFile = async (file) => {
     try {
-      // Try local parsing for ALL sheets
       const sheets = await readAllSheetsFromFile(file);
-      let importedRows = [];
-
+      let combinedCsv = "";
       for (const sheet of sheets) {
-        const localResult = parseBridgeRowsFromAoa(sheet.aoa, sheet.name);
-        if (localResult.rows && localResult.rows.length > 0) {
-          importedRows = importedRows.concat(localResult.rows);
-        }
+        combinedCsv += `--- SHEET: ${sheet.name} ---\n`;
+        combinedCsv += sheet.aoa.map(row => row.join(",")).join("\n") + "\n\n";
       }
 
-      // If local parsing yielded nothing across all sheets, try AI fallback (as a single unit)
-      if (!importedRows.length) {
-        try {
-          const result = await processFileWithAI(file, "bridges");
-          if (result && result.success && result.data && result.data.length > 0) {
-            importedRows = result.data;
-          }
-        } catch (aiErr) {
-          console.warn("AI bridge fallback failed:", aiErr.message);
+      showAILoading(`Extracting bridges details via AI...`);
+      let importedRows = [];
+      try {
+        const response = await fetch("/api/extract-data", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: combinedCsv, dataType: "bridges" })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || `Server Error: ${response.status}`);
         }
+
+        const resData = await response.json();
+        if (resData && resData.success && resData.data && resData.data.length > 0) {
+          importedRows = resData.data;
+        }
+      } catch (aiErr) {
+        throw new Error("AI bridge extraction failed: " + aiErr.message);
+      } finally {
+        hideAILoading();
       }
 
       if (importedRows.length > 0) {
