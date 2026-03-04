@@ -4520,14 +4520,6 @@ async function generateProjectReport(options) {
 
     wrapper.appendChild(container);
 
-    const addPageBreak = (el) => {
-      const br = document.createElement("div");
-      br.className = "html2pdf__page-break";
-      br.style.pageBreakAfter = "always";
-      br.style.height = "1px";
-      el.appendChild(br);
-    };
-
     // 1. Title Page
     const titlePage = document.createElement("div");
     titlePage.style.padding = "100px 60px";
@@ -4544,8 +4536,8 @@ async function generateProjectReport(options) {
       <div style="text-align: left; max-width: 650px; margin: 0 auto; padding: 40px; border: 2px solid #f1f5f9; border-radius: 20px; background: #f8fafc; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);">
         <h3 style="margin-top: 0; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 20px;">Project Summary</h3>
         <table style="width: 100%; border-collapse: collapse; font-size: 16px;">
-          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #64748b;">Total Chainage:</td><td style="text-align: right; font-weight: 600;">${r3(state.calcRows[0].chainage)} m to ${r3(state.calcRows[state.calcRows.length - 1].chainage)} m</td></tr>
-          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #64748b;">Total Length:</td><td style="text-align: right; font-weight: 600;">${r3(state.calcRows[state.calcRows.length - 1].chainage - state.calcRows[0].chainage)} m</td></tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #64748b;">Total Chainage:</td><td style="text-align: right; font-weight: 600;">${r3(state.calcRows[0]?.chainage || 0)} m to ${r3(state.calcRows[state.calcRows.length - 1]?.chainage || 0)} m</td></tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #64748b;">Total Length:</td><td style="text-align: right; font-weight: 600;">${r3((state.calcRows[state.calcRows.length - 1]?.chainage || 0) - (state.calcRows[0]?.chainage || 0))} m</td></tr>
           <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #166534; font-weight: 600;">Total Filling (Bank):</td><td style="text-align: right; font-weight: 700; color: #166534;">${formatVolume(state.calcRows.reduce((a, b) => a + (b.fillVol || 0), 0))}</td></tr>
           <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #991b1b; font-weight: 600;">Total Cutting (Cut):</td><td style="text-align: right; font-weight: 700; color: #991b1b;">${formatVolume(state.calcRows.reduce((a, b) => a + (b.cutVol || 0), 0))}</td></tr>
           <tr><td style="padding: 12px 0; color: #64748b;">Total Data Points:</td><td style="text-align: right; font-weight: 600;">${state.calcRows.length} Cross-Sections</td></tr>
@@ -4553,15 +4545,15 @@ async function generateProjectReport(options) {
       </div>
     `;
     container.appendChild(titlePage);
-    addPageBreak(container);
 
     // 2. Calculation Sheet
     if (options.calcSheet) {
       if (loadingText) loadingText.textContent = "Exporting Calculation Sheet...";
+      // Standardize table selection
+      const originalHeader = document.querySelector(".table-panel thead, .test-table thead, table thead");
+
       const CHUNK_SIZE = 35; // Maximum rows per PDF page
       const totalRows = state.calcRows.length;
-      const originalHeader = els.tableBody.closest("table").querySelector("thead");
-      const originalRows = els.tableBody.querySelectorAll("tr");
 
       for (let i = 0; i < totalRows; i += CHUNK_SIZE) {
         if (loadingText) loadingText.textContent = `Exporting Calculation Sheet: Page ${Math.floor(i / CHUNK_SIZE) + 1}`;
@@ -4593,17 +4585,44 @@ async function generateProjectReport(options) {
         }
 
         const tbody = document.createElement("tbody");
-        const rowsChunk = Array.from(originalRows).slice(i, i + CHUNK_SIZE);
+        const rowsChunk = state.calcRows.slice(i, i + CHUNK_SIZE);
 
-        rowsChunk.forEach((originalRow, idx) => {
-          const tr = originalRow.cloneNode(true);
+        rowsChunk.forEach((r, idx) => {
+          const tr = document.createElement("tr");
           tr.style.backgroundColor = idx % 2 === 0 ? "#ffffff" : "#fdfdfd";
+
+          const structureNo = r.structureNo ? String(r.structureNo).replace(/\n/g, " ").trim() : "-";
+          const station = r.station ? String(r.station).replace(/\n/g, " ") : "-";
+          const bridgeRefs = (r.bridgeRefs && r.bridgeRefs.length) ? r.bridgeRefs.join(" | ") : "-";
+
+          const chainageLabel = (r.chainage < 0 ? "-" : "") + Math.floor(Math.abs(r.chainage) / 1000) + "+" + (Math.abs(r.chainage) % 1000).toFixed(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1").padStart(3, "0");
+
+          const cellsHtml = `
+              <td>${bridgeRefs}</td>
+              <td>${station}</td>
+              <td>${chainageLabel}</td>
+              <td>${r.diff ? r3(r.diff) : "—"}</td>
+              <td>${r3(r.groundLevel)}</td>
+              <td class="t-pro">${r3(r.proposedLevel)}</td>
+              <td>${r.loopTc ? r3(r.loopTc) : "—"}</td>
+              <td>${r.platformWidth ? r3(r.platformWidth) : "—"}</td>
+              <td>${r.bridgeDeductLen ? r3(r.bridgeDeductLen) : "—"}</td>
+              <td>${r.ewDiff ? r3(r.ewDiff) : "—"}</td>
+              <td>${r.rlDiff ? r3(r.rlDiff) : "—"}</td>
+              <td class="t-fill">${r.bank > 0.0001 ? r3(r.bank) : "—"}</td>
+              <td class="t-cut">${r.cut > 0.0001 ? r3(r.cut) : "—"}</td>
+              <td class="t-fill">${r.fillArea > 0.0001 ? r3(r.fillArea) : "—"}</td>
+              <td class="t-cut">${r.cutArea > 0.0001 ? r3(r.cutArea) : "—"}</td>
+              <td class="t-fill">${r.fillVol > 0.0001 ? r3(r.fillVol) : "—"}</td>
+              <td class="t-cut">${r.cutVol > 0.0001 ? r3(r.cutVol) : "—"}</td>
+           `;
+          tr.innerHTML = cellsHtml;
+
           tr.querySelectorAll("td").forEach(td => {
             td.style.border = "1px solid #e2e8f0";
             td.style.padding = "6px 4px";
             td.style.textAlign = "center";
-            const btn = td.querySelector("button");
-            if (btn) td.textContent = btn.textContent;
+            td.style.color = "#1e293b";
           });
           tr.querySelectorAll(".t-fill").forEach(el => { el.style.color = "#166534"; el.style.fontWeight = "600"; });
           tr.querySelectorAll(".t-cut").forEach(el => { el.style.color = "#991b1b"; el.style.fontWeight = "600"; });
@@ -4613,9 +4632,7 @@ async function generateProjectReport(options) {
         table.appendChild(tbody);
         chunkPage.appendChild(table);
         container.appendChild(chunkPage);
-        addPageBreak(container);
       }
-      addPageBreak(container);
     }
 
     // 3. Roll Diagram
@@ -4647,19 +4664,22 @@ async function generateProjectReport(options) {
       }
 
       container.appendChild(rollPage);
-      addPageBreak(container);
     }
 
     // 4. Cross Sections
     if (options.crossSections) {
       const csHeaderPage = document.createElement("div");
       csHeaderPage.style.padding = "40px";
+      csHeaderPage.style.height = "750px";
       csHeaderPage.innerHTML = `<h2 style="margin-top: 0; color: #0f172a; border-bottom: 3px solid #ef4444; padding-bottom: 12px; margin-bottom: 30px;">Cross-Sectional Detail Drawings</h2>`;
       container.appendChild(csHeaderPage);
 
-      const itemsPerBatch = 5;
+      const itemsPerBatch = 2; // Exact number of items that fit well on one A4 page without breaking
+      let currentCsPage = document.createElement("div");
+      currentCsPage.style.padding = "20px";
+
       for (let i = 0; i < state.calcRows.length; i++) {
-        if (loadingText && i % itemsPerBatch === 0) {
+        if (loadingText && i % 5 === 0) {
           loadingText.textContent = `Rendering Cross-Sections: ${i} / ${state.calcRows.length}`;
         }
 
@@ -4682,11 +4702,15 @@ async function generateProjectReport(options) {
 
         sectionDiv.innerHTML = `<h3 style="text-align: left; color: #1e293b; padding-left: 20px; border-left: 5px solid #3b82f6; margin-bottom: 15px;">Chainage: ${r3(row.chainage)} m - Type: ${row.type}</h3>`;
         sectionDiv.appendChild(svg);
-        container.appendChild(sectionDiv);
+        currentCsPage.appendChild(sectionDiv);
 
         // Page break logic
-        if ((i + 1) % 2 === 0 && i < state.calcRows.length - 1) {
-          addPageBreak(container);
+        if ((i + 1) % itemsPerBatch === 0 || i === state.calcRows.length - 1) {
+          container.appendChild(currentCsPage);
+          if (i < state.calcRows.length - 1) {
+            currentCsPage = document.createElement("div");
+            currentCsPage.style.padding = "20px";
+          }
         }
       }
     }
@@ -4697,8 +4721,14 @@ async function generateProjectReport(options) {
     container.offsetHeight;
     await new Promise(r => setTimeout(r, 600));
 
+    // Calculate dynamic JS PDF workflow sequentially for scale without black pages
+    const pagesArray = Array.from(container.children);
+    if (!pagesArray.length) {
+      throw new Error("No pages generated to export.");
+    }
+
     const opt = {
-      margin: 10,
+      margin: [10, 10, 10, 10], // Slightly improved margin config
       filename: `${state.project.name || "Earthsoft_Report"}_${new Date().toISOString().split('T')[0]}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, logging: false, letterRendering: true },
@@ -4706,8 +4736,15 @@ async function generateProjectReport(options) {
       pagebreak: { mode: ['css', 'legacy'] }
     };
 
-    // Use html2pdf to generate and save
-    await html2pdf().set(opt).from(container).save();
+    let worker = html2pdf().set(opt).from(pagesArray[0]).toPdf();
+
+    for (let j = 1; j < pagesArray.length; j++) {
+      worker = worker.get('pdf').then(pdf => {
+        pdf.addPage();
+      }).from(pagesArray[j]).toContainer().toCanvas().toPdf();
+    }
+
+    await worker.save();
 
   } catch (error) {
     console.error("Report Generation Error:", error);
