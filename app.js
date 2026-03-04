@@ -3798,12 +3798,10 @@ function bindEvents() {
         combinedCsv += `--- SHEET: ${sheet.name} ---\n`;
         combinedCsv += sheet.aoa.map(row => row.map(c => `"${String(c || "").replace(/"/g, '""').replace(/\n/g, " ")}"`).join(",")).join("\n") + "\n\n";
 
-        // Try local parsing first
-        const { rows } = parseExcelSheet(sheet, resolveBridgeColumns, (raw, rowIdx) => {
-          return normalizeBridgeEntry(raw, rowIdx);
-        });
-        if (rows && rows.length > 0) {
-          importedRows = importedRows.concat(rows);
+        // Try local parsing first using the existing bridge parser
+        const localResult = parseBridgeRowsFromAoa(sheet.aoa, sheet.name);
+        if (localResult.rows && localResult.rows.length > 0) {
+          importedRows = importedRows.concat(localResult.rows);
         }
       }
 
