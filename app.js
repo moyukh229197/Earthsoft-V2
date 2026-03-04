@@ -100,10 +100,6 @@ const els = {
   takeSnapshotBtn: document.getElementById("takeSnapshotBtn"),
   snapshotNameInput: document.getElementById("snapshotNameInput"),
   snapshotList: document.getElementById("snapshotList"),
-  exportBtn: document.getElementById("exportBtn"),
-  closePdfExportBtn: document.getElementById("closePdfExportBtn"),
-  exportCalcPdfBtn: document.getElementById("exportCalcPdfBtn"),
-  exportCrossPdfBtn: document.getElementById("exportCrossPdfBtn"),
   openSettingsBtn: document.getElementById("openSettingsBtn"),
   settingsModal: document.getElementById("settingsModal"),
   settingsForm: document.getElementById("settingsForm"),
@@ -1282,7 +1278,6 @@ function updateWizardUI() {
 function applyProjectGate() {
   const active = Boolean(state.project.active);
   if (els.importBtn) els.importBtn.disabled = !active;
-  if (els.exportBtn) els.exportBtn.disabled = !active;
   if (els.openSettingsBtn) els.openSettingsBtn.disabled = !active;
   if (els.saveProjectBtn) els.saveProjectBtn.disabled = !active;
   const projectTitle = state.project.name ? `${state.project.name}` : "No active project";
@@ -1440,135 +1435,7 @@ function escapeHtml(v) {
     .replace(/"/g, "&quot;");
 }
 
-async function generateNativePdf(title, bodyHtml, orientation = "portrait") {
-  if (typeof html2pdf === "undefined") {
-    alert("PDF generation library failed to load. Please check your connection or try again.");
-    return;
-  }
 
-  const htmlContent = `
-    <div style="font-family: Arial, sans-serif; padding: 10px; color: #173045; background: #fff;">
-      <style>
-        h1 { margin: 0 0 6px; font-size: 20px; }
-        h2 { margin: 16px 0 8px; font-size: 15px; }
-        p { margin: 0 0 6px; font-size: 12px; color: #4a647d; }
-        table { width: 100%; border-collapse: collapse; font-size: 10px; }
-        th, td { border: 1px solid #c9dced; padding: 4px; text-align: right; }
-        th:first-child, td:first-child { text-align: left; }
-        thead th { background-color: #f0f7ff; }
-        .card { page-break-inside: avoid; border: 1px solid #c9dced; border-radius: 8px; padding: 8px; margin-bottom: 20px; }
-        .meta { font-size: 11px; margin-top: 6px; line-height: 1.45; }
-        svg { width: 100%; height: 170px; border: 1px solid #d9e8f7; border-radius: 6px; background: #f7fbff; }
-        .page-break { page-break-before: always; }
-      </style>
-      ${bodyHtml}
-    </div>
-  `;
-
-  const fileBase = String(state.project.name || "project").replace(/[^\w.-]+/g, "_").replace(/^_+|_+$/g, "") || "project";
-  const filename = `${fileBase}_${title.replace(/\s+/g, "_")}.pdf`;
-
-  const opt = {
-    margin: 10,
-    filename: filename,
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: orientation }
-  };
-
-  try {
-    els.exportBtn.textContent = "Generating PDF...";
-    els.exportBtn.disabled = true;
-
-    await html2pdf().set(opt).from(htmlContent).save();
-
-    els.exportBtn.textContent = "Export PDF";
-    els.exportBtn.disabled = false;
-  } catch (err) {
-    console.error("PDF generation failed:", err);
-    alert("Failed to generate PDF. See console for details.");
-    els.exportBtn.textContent = "Export PDF";
-    els.exportBtn.disabled = false;
-  }
-}
-
-function exportCalculationPdf() {
-  if (!state.calcRows.length) {
-    alert("No calculation rows available to export.");
-    return;
-  }
-  const head = ["Structures", "Station", "Chainage", "Diff", "Ground RL", "Proposed RL", "Loop T/C", "PF Width", "Bridge No", "Deducted Len", "EW Diff", "RL Diff", "Bank", "Cut", "Fill Area", "Cut Area", "Fill Vol", "Cut Vol"];
-  const rows = state.calcRows.map((r) => [
-    (r.structureNo || "-"),
-    (r.station || "-"),
-    r3(r.chainage), r3(r.diff), r3(r.groundLevel), r3(r.proposedLevel), r3(r.loopTc), r3(r.platformWidth),
-    (r.bridgeRefs && r.bridgeRefs.length) ? r.bridgeRefs.join(" | ") : "-",
-    r3(r.bridgeDeductLen), r3(r.ewDiff), r3(r.rlDiff), r3(r.bank), r3(r.cut), r3(r.fillArea), r3(r.cutArea), r3(r.fillVol), r3(r.cutVol),
-  ]);
-  const html = `
-    <h1>${escapeHtml(state.project.name || "Railway Earthwork Project")}</h1>
-    <p>Calculation Sheet Export | Generated: ${escapeHtml(new Date().toLocaleString())}</p>
-    <table>
-      <thead><tr>${head.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr></thead>
-      <tbody>
-        ${rows.map((r) => `<tr>${r.map((c) => `<td>${escapeHtml(c)}</td>`).join("")}</tr>`).join("")}
-      </tbody>
-    </table>
-  `;
-  generateNativePdf("Calculation Sheet", html, "landscape");
-}
-
-function buildCrossSectionMiniSvg(row) {
-  const bank = Math.max(safeNum(row.bank), 0);
-  const cut = Math.max(safeNum(row.cut), 0);
-  const topY = 56;
-  const baseY = 140;
-  const h = Math.min(70, Math.max(18, bank * 7));
-  const leftTop = 230;
-  const rightTop = 430;
-  const leftToe = 90;
-  const rightToe = 570;
-  const crownY = topY;
-  const toeY = baseY;
-  const embankment = bank > 0
-    ? `<polygon points="${leftTop},${crownY} ${rightTop},${crownY} ${rightToe},${toeY} ${leftToe},${toeY}" fill="#dfe9de" stroke="#738878" />`
-    : `<polygon points="${leftTop},${crownY + 28} ${rightTop},${crownY + 28} ${rightToe},${toeY} ${leftToe},${toeY}" fill="#f2e5e6" stroke="#9c8082" />`;
-  const layerTop = crownY - 10;
-  return `
-    <svg viewBox="0 0 660 180" role="img" aria-label="Cross Section">
-      <line x1="50" y1="${toeY}" x2="610" y2="${toeY}" stroke="#5d6b77" stroke-dasharray="8 6" />
-      <text x="615" y="${toeY - 4}" font-size="11" fill="#3b4d5b">G.L.</text>
-      ${embankment}
-      <rect x="${leftTop}" y="${layerTop}" width="${rightTop - leftTop}" height="10" fill="#ccd3d9" stroke="#7f8a95" />
-      <text x="${rightTop + 8}" y="${layerTop + 8}" font-size="11" fill="#2f4d6a">Ballast 0.350 m</text>
-      <text x="260" y="${crownY + 24}" font-size="12" fill="#2d435a" font-weight="700">${bank > 0 ? "Embankment Fill" : "Cutting Section"}</text>
-      <text x="260" y="${crownY + 40}" font-size="11" fill="#2d435a">Bank: ${r3(bank)} m | Cut: ${r3(cut)} m</text>
-    </svg>
-  `;
-}
-
-function exportCrossSectionsPdf() {
-  if (!state.calcRows.length) {
-    alert("No cross-sections available to export.");
-    return;
-  }
-  const cards = state.calcRows.map((r) => `
-    <div class="card">
-      <h2>CH ${r3(r.chainage)} m</h2>
-      ${buildCrossSectionMiniSvg(r)}
-      <div class="meta">
-        Ground RL: ${r3(r.groundLevel)} m | Proposed RL: ${r3(r.proposedLevel)} m | RL Diff: ${r3(r.rlDiff)} m<br/>
-        Loop T/C: ${r3(r.loopTc)} m | PF Width: ${r3(r.platformWidth)} m | Bridge Deduct: ${r3(r.bridgeDeductLen)} m
-      </div>
-    </div>
-  `).join("");
-  const html = `
-    <h1>${escapeHtml(state.project.name || "Railway Earthwork Project")}</h1>
-    <p>Cross-Sections Export | Generated: ${escapeHtml(new Date().toLocaleString())}</p>
-    ${cards}
-  `;
-  generateNativePdf("Cross Sections", html, "portrait");
-}
 
 function renderFormulaSummary() {
   if (!els.resultInputBody || !els.resultFillBody || !els.resultCutBody || !els.resultQtyBody) return;
@@ -3213,12 +3080,6 @@ function bindEvents() {
       e.preventDefault();
       if (els.saveProjectBtn) els.saveProjectBtn.click();
     }
-    // Export PDF: Ctrl+E / Cmd+E
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "e") {
-      e.preventDefault();
-      if (els.exportBtn) els.exportBtn.click();
-    }
-
     // Arrow Key Navigation for Chainages (Only active on Overview)
     const overviewPage = document.querySelector('.work-page[data-work-page="overview"]');
     if (overviewPage && overviewPage.classList.contains("active")) {
@@ -4191,26 +4052,6 @@ function bindEvents() {
       } finally {
         e.target.value = "";
       }
-    });
-  }
-
-  els.exportBtn.addEventListener("click", () => {
-    els.pdfExportModal?.showModal();
-  });
-
-  if (els.closePdfExportBtn && els.pdfExportModal) {
-    els.closePdfExportBtn.addEventListener("click", () => els.pdfExportModal.close());
-  }
-  if (els.exportCalcPdfBtn) {
-    els.exportCalcPdfBtn.addEventListener("click", () => {
-      exportCalculationPdf();
-      els.pdfExportModal?.close();
-    });
-  }
-  if (els.exportCrossPdfBtn) {
-    els.exportCrossPdfBtn.addEventListener("click", () => {
-      exportCrossSectionsPdf();
-      els.pdfExportModal?.close();
     });
   }
 

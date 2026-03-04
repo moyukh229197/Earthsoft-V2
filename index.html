@@ -157,7 +157,6 @@
             <input id="projectImportInput" type="file" accept=".ew,.EW" hidden />
             <button id="importBtn" class="btn btn-secondary">Import Data</button>
           </div>
-          <button id="exportBtn" class="btn btn-primary">Export PDF</button>
           <button id="verifyCalcBtn" class="btn-verify-inline" type="button" disabled>⚡ Verify</button>
         </div>
       </header>
@@ -782,21 +781,6 @@
             Verified
           </span>
         </button>
-      </div>
-    </div>
-  </dialog>
-
-  <dialog id="pdfExportModal" class="modal glass">
-    <div class="modal-body">
-      <div class="modal-head">
-        <h3>Export PDF</h3>
-        <button id="closePdfExportBtn" type="button" class="icon-btn">✕</button>
-      </div>
-      <div class="import-option-grid">
-        <button id="exportCalcPdfBtn" type="button" class="btn btn-secondary import-option-btn">Calculation Sheet
-          PDF</button>
-        <button id="exportCrossPdfBtn" type="button" class="btn btn-secondary import-option-btn">Cross-Sections
-          PDF</button>
       </div>
     </div>
   </dialog>
