@@ -1997,7 +1997,7 @@ function renderRollDiagram() {
   const maxCh = rows[rows.length - 1].chainage;
   const totalL = Math.max(maxCh - minCh, 1);
 
-  const baseScale = Math.max(0.3, Math.min(4, window._rollScale || 1));
+  const baseScale = Math.max(0.3, Math.min(4, window._planScale || 1));
   const PX_PER_M_X = 0.4 * baseScale;
   const PX_PER_M_Y = 4.0 * baseScale;
 
@@ -2216,7 +2216,7 @@ function renderSideView() {
   const maxCh = rows[rows.length - 1].chainage;
   const totalL = Math.max(maxCh - minCh, 1);
 
-  const baseScale = Math.max(0.3, Math.min(4, window._rollScale || 1));
+  const baseScale = Math.max(0.3, Math.min(4, window._sideScale || 1));
   const PX_PER_M_X = 0.4 * baseScale;
 
   const PAD_L = 72;   // room for Y-axis labels
@@ -2980,7 +2980,11 @@ function bindEvents() {
         syncBtn.style.borderColor = synced ? "rgba(34,211,238,0.6)" : "rgba(255,255,255,0.15)";
         syncBtn.style.color = synced ? "#67e8f9" : "rgba(255,255,255,0.7)";
         syncBtn.querySelector("span") && (syncBtn.querySelector("span").textContent = synced ? "Synced ✓" : "Sync Scrolling");
-        if (synced && planWrap && sideWrap) sideWrap.scrollLeft = planWrap.scrollLeft;
+        if (synced && planWrap && sideWrap) {
+          window._sideScale = window._planScale || 1;
+          if (state.calcRows.length) renderSideView();
+          requestAnimationFrame(() => { sideWrap.scrollLeft = planWrap.scrollLeft; });
+        }
       });
     }
 
@@ -3006,7 +3010,6 @@ function bindEvents() {
         const dx = e.clientX - lx, dy = e.clientY - ly;
         wrap.scrollLeft -= dx; wrap.scrollTop -= dy;
         lx = e.clientX; ly = e.clientY;
-        // Sync horizontally
         if (synced) {
           const other = wrap === planWrap ? sideWrap : planWrap;
           syncScrollLeft(wrap, other);
@@ -3041,7 +3044,8 @@ function bindEvents() {
         e.preventDefault();
         const ZOOM_STEP = 1.12;
         const factor = e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;   // scroll up = zoom in
-        const oldScale = window._rollScale || 1;
+        const isPlan = wrap === planWrap;
+        const oldScale = isPlan ? (window._planScale || 1) : (window._sideScale || 1);
         const newScale = Math.max(0.12, Math.min(8, oldScale * factor));
         if (newScale === oldScale) return;
 
@@ -3051,21 +3055,29 @@ function bindEvents() {
         const cursorYpx = e.clientY - rect.top + wrap.scrollTop;
         const ratio = newScale / oldScale;
 
-        window._rollScale = newScale;
-
-        // Re-render both at new scale
-        if (state.calcRows.length) {
-          renderRollDiagram();
-          renderSideView();
+        if (synced) {
+          window._planScale = newScale;
+          window._sideScale = newScale;
+          if (state.calcRows.length) { renderRollDiagram(); renderSideView(); }
+        } else {
+          if (isPlan) {
+            window._planScale = newScale;
+            if (state.calcRows.length) renderRollDiagram();
+          } else {
+            window._sideScale = newScale;
+            if (state.calcRows.length) renderSideView();
+          }
         }
 
         // Restore cursor focal point
         requestAnimationFrame(() => {
           wrap.scrollLeft = cursorXpx * ratio - (e.clientX - rect.left);
           wrap.scrollTop = cursorYpx * ratio - (e.clientY - rect.top);
-          // Sync horizontal scroll to other panel
-          const other = wrap === planWrap ? sideWrap : planWrap;
-          if (synced && other) other.scrollLeft = wrap.scrollLeft;
+          // Sync horizontal scroll to other panel if synced
+          if (synced) {
+            const other = wrap === planWrap ? sideWrap : planWrap;
+            if (other) other.scrollLeft = wrap.scrollLeft;
+          }
         });
       }, { passive: false });
     }
@@ -3074,25 +3086,47 @@ function bindEvents() {
     addWheelZoom(sideWrap);
 
     // ── +/−/Reset zoom buttons ───────────────────────────────────────────────
-    function zoomButtons(scale) {
-      const ref = planWrap;
-      const oldScale = window._rollScale || 1;
-      window._rollScale = Math.max(0.12, Math.min(8, scale));
+    function zoomButtons(factor, isReset) {
       if (!state.calcRows.length) return;
-      const ratio = window._rollScale / oldScale;
-      const cx = ref ? ref.scrollLeft + ref.clientWidth / 2 : 0;
-      const cy = ref ? ref.scrollTop + ref.clientHeight / 2 : 0;
+
+      const oldPlan = window._planScale || 1, oldSide = window._sideScale || 1;
+      const newPlan = isReset ? 1 : Math.max(0.12, Math.min(8, oldPlan * factor));
+      const newSide = isReset ? 1 : Math.max(0.12, Math.min(8, oldSide * factor));
+
+      const ratioPlan = newPlan / oldPlan;
+      const ratioSide = newSide / oldSide;
+
+      window._planScale = newPlan;
+      window._sideScale = synced ? newPlan : newSide;
+
+      // Centre points to zoom toward
+      const pcx = planWrap ? planWrap.scrollLeft + planWrap.clientWidth / 2 : 0;
+      const pcy = planWrap ? planWrap.scrollTop + planWrap.clientHeight / 2 : 0;
+      const scx = sideWrap ? sideWrap.scrollLeft + sideWrap.clientWidth / 2 : 0;
+      const scy = sideWrap ? sideWrap.scrollTop + sideWrap.clientHeight / 2 : 0;
+
       renderRollDiagram();
       renderSideView();
+
       requestAnimationFrame(() => {
-        if (ref) { ref.scrollLeft = cx * ratio - ref.clientWidth / 2; ref.scrollTop = cy * ratio - ref.clientHeight / 2; }
-        if (synced && sideWrap && ref) sideWrap.scrollLeft = ref.scrollLeft;
+        if (planWrap) {
+          planWrap.scrollLeft = isReset ? 0 : pcx * ratioPlan - planWrap.clientWidth / 2;
+          planWrap.scrollTop = isReset ? 0 : pcy * ratioPlan - planWrap.clientHeight / 2;
+        }
+        if (sideWrap) {
+          if (synced && planWrap && !isReset) {
+            sideWrap.scrollLeft = planWrap.scrollLeft;
+          } else {
+            sideWrap.scrollLeft = isReset ? 0 : scx * ratioSide - sideWrap.clientWidth / 2;
+          }
+          sideWrap.scrollTop = isReset ? 0 : scy * ratioSide - sideWrap.clientHeight / 2;
+        }
       });
     }
 
-    if (zoomIn) zoomIn.addEventListener("click", () => zoomButtons((window._rollScale || 1) * 1.4));
-    if (zoomOut) zoomOut.addEventListener("click", () => zoomButtons((window._rollScale || 1) / 1.4));
-    if (zoomReset) zoomReset.addEventListener("click", () => { zoomButtons(1); if (planWrap) { planWrap.scrollLeft = 0; planWrap.scrollTop = 0; } if (sideWrap) { sideWrap.scrollLeft = 0; sideWrap.scrollTop = 0; } });
+    if (zoomIn) zoomIn.addEventListener("click", () => zoomButtons(1.4, false));
+    if (zoomOut) zoomOut.addEventListener("click", () => zoomButtons(1 / 1.4, false));
+    if (zoomReset) zoomReset.addEventListener("click", () => zoomButtons(1, true));
   })();
 
   // Verify Calculations button
