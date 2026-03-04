@@ -239,10 +239,14 @@ function normalizeHeaderToken(v) {
 }
 
 function findColByAliases(headers, aliases) {
-  return headers.findIndex((h) => {
-    const n = normalizeHeaderToken(h);
-    return aliases.some((a) => n === a || n.includes(a));
-  });
+  for (const a of aliases) {
+    const idx = headers.findIndex((h) => {
+      const n = normalizeHeaderToken(h);
+      return n === a || n.includes(a);
+    });
+    if (idx >= 0) return idx;
+  }
+  return -1;
 }
 
 function resolveImportColumns(headerCells) {
@@ -316,16 +320,16 @@ function parseImportedRows(aoa, startCh, interval) {
 
 function resolveBridgeColumns(headerCells) {
   return {
-    bridgeNo: findColByAliases(headerCells, ["bridgeno", "bridgenumber", "structureno", "structure", "bridge", "slno", "sl.no", "serialno", "sno", "sn", "tunnelname", "tunnelno", "tunnel"]),
-    startChainage: findColByAliases(headerCells, ["bridgestartchainage", "startchainage", "fromchainage", "chfrom", "startch"]),
-    endChainage: findColByAliases(headerCells, ["bridgeendchainage", "endchainage", "tochainage", "chto", "endch"]),
-    length: findColByAliases(headerCells, ["totalspanlength", "bridgelength", "length", "spanm", "totallength"]),
-    chainage: findColByAliases(headerCells, ["chainage", "ch", "centerchainage", "location"]),
+    bridgeNo: findColByAliases(headerCells, ["bridgeno", "bridgenumber", "structureno", "tunnelno", "tunnelname", "structure", "bridge", "tunnel", "slno", "sl.no", "serialno", "sno", "sn"]),
+    startChainage: findColByAliases(headerCells, ["bridgestartchainage", "startchainage", "fromchainage", "chfrom", "startch", "fromkm"]),
+    endChainage: findColByAliases(headerCells, ["bridgeendchainage", "endchainage", "tochainage", "chto", "endch", "tokm"]),
+    length: findColByAliases(headerCells, ["totalspanlength", "bridgelength", "length", "spanm", "totallength", "len"]),
+    chainage: findColByAliases(headerCells, ["chainage", "ch", "centerchainage", "location", "km"]),
     category: findColByAliases(headerCells, ["category", "purpose", "bridgecategory", "typeofobstruction", "typeofcrossing"]),
-    type: findColByAliases(headerCells, ["bridgetype", "structuretype", "typeofspan", "typeofsuperstructure"]),
-    size: findColByAliases(headerCells, ["bridgesize", "size", "dimensions", "proposedspan"]),
-    spans: findColByAliases(headerCells, ["noofspans", "numberofspans"]),
-    spanLength: findColByAliases(headerCells, ["spanlength", "individualspan", "unitsize"]),
+    type: findColByAliases(headerCells, ["bridgetype", "structuretype", "typeofspan", "typeofsuperstructure", "superstructure", "purpose"]),
+    size: findColByAliases(headerCells, ["bridgesize", "size", "dimensions", "proposedspan", "proposedspanarrangement"]),
+    spans: findColByAliases(headerCells, ["noofspans", "numberofspans", "spanarrangement", "arrangement"]),
+    spanLength: findColByAliases(headerCells, ["spanlength", "individualspan", "unitsize", "spanarrangement", "arrangement"]),
   };
 }
 
@@ -412,13 +416,29 @@ function normalizeBridgeEntry(raw, index = 0) {
 
   const length = Number.isFinite(lengthRaw) && lengthRaw > 0 ? lengthRaw : (end - start);
 
+  // Derive Category/Type if missing or generic
+  let cat = String(raw.bridgeCategory || "").trim();
+  if (!cat || cat === "-" || cat === "Minor" || cat === "undefined") {
+    const dCat = detectCategoryFromText(bridgeNo) || detectCategoryFromText(raw.bridgeType) || detectCategoryFromText(raw.bridgeSize);
+    if (dCat) cat = dCat;
+  }
+  if (!cat || cat === "undefined") cat = "Minor";
+
+  let bType = String(raw.bridgeType || "").trim();
+  if (!bType || bType === "-" || bType === "Box" || bType === "undefined") {
+    const dType = detectBridgeTypeFromText(cat) || detectBridgeTypeFromText(bridgeNo) || detectBridgeTypeFromText(raw.bridgeSize);
+    if (dType) bType = dType;
+  }
+  if (!bType && cat === "Tunnel") bType = "Box";
+  if (!bType || bType === "undefined") bType = "Box";
+
   const DEDUCTIBLE_CATEGORIES = ["Major", "Important", "RoR", "Viaduct", "Tunnel"];
-  const shouldDeduct = DEDUCTIBLE_CATEGORIES.some(cat => raw.bridgeCategory && String(raw.bridgeCategory).toLowerCase() === cat.toLowerCase());
+  const shouldDeduct = DEDUCTIBLE_CATEGORIES.some(c => cat.toLowerCase() === c.toLowerCase());
 
   return {
     bridgeNo,
-    bridgeCategory: String(raw.bridgeCategory || "Minor"),
-    bridgeType: String(raw.bridgeType || "Box"),
+    bridgeCategory: cat,
+    bridgeType: bType,
     bridgeSize: String(raw.bridgeSize || "-"),
     bridgeSpans: spansVal || "1",
     bridgeSpanLength: Number.isFinite(spanLen) ? spanLen : "",
@@ -3770,34 +3790,44 @@ function bindEvents() {
   const importBridgeFile = async (file) => {
     try {
       const sheets = await readAllSheetsFromFile(file);
+      let importedRows = [];
       let combinedCsv = "";
+
       for (const sheet of sheets) {
+        // Collect for potential AI fallback
         combinedCsv += `--- SHEET: ${sheet.name} ---\n`;
-        combinedCsv += sheet.aoa.map(row => row.join(",")).join("\n") + "\n\n";
+        combinedCsv += sheet.aoa.map(row => row.map(c => `"${String(c || "").replace(/"/g, '""').replace(/\n/g, " ")}"`).join(",")).join("\n") + "\n\n";
+
+        // Try local parsing first
+        const { rows } = parseExcelSheet(sheet, resolveBridgeColumns, (raw, rowIdx) => {
+          return normalizeBridgeEntry(raw, rowIdx);
+        });
+        if (rows && rows.length > 0) {
+          importedRows = importedRows.concat(rows);
+        }
       }
 
-      showAILoading(`Extracting bridges details via AI...`);
-      let importedRows = [];
-      try {
-        const response = await fetch("/api/extract-data", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: combinedCsv, dataType: "bridges" })
-        });
+      // If local parsing didn't find anything, try the AI (likely a complex/messy layout)
+      if (importedRows.length === 0 && combinedCsv.trim().length > 10) {
+        showAILoading(`No standard structure headers found. Trying AI extraction...`);
+        try {
+          const response = await fetch("/api/extract-data", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: combinedCsv, dataType: "bridges" })
+          });
 
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error || `Server Error: ${response.status}`);
+          if (response.ok) {
+            const resData = await response.json();
+            if (resData && resData.success && resData.data && resData.data.length > 0) {
+              importedRows = resData.data.map((r, i) => normalizeBridgeEntry(r, i)).filter(Boolean);
+            }
+          }
+        } catch (aiErr) {
+          console.warn("AI Fallback failed:", aiErr);
+        } finally {
+          hideAILoading();
         }
-
-        const resData = await response.json();
-        if (resData && resData.success && resData.data && resData.data.length > 0) {
-          importedRows = resData.data.map((r, i) => normalizeBridgeEntry(r, i)).filter(Boolean);
-        }
-      } catch (aiErr) {
-        throw new Error("AI bridge extraction failed: " + aiErr.message);
-      } finally {
-        hideAILoading();
       }
 
       if (importedRows.length > 0) {
@@ -3809,7 +3839,7 @@ function bindEvents() {
         applyProjectGate();
         renderBridgeInputs();
         recalculate();
-        alert(`Successfully imported ${importedRows.length} bridge(s) from ${sheets.length} sheet(s)!`);
+        alert(`Successfully imported ${importedRows.length} bridge(s)/tunnel(s)!`);
       } else {
         alert("Could not identify any bridge structures in that file. Check your headers and sheet content.");
       }
