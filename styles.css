@@ -60,6 +60,16 @@
   box-sizing: border-box;
 }
 
+.t-fill {
+  color: var(--green) !important;
+  font-weight: 500;
+}
+
+.t-cut {
+  color: var(--red) !important;
+  font-weight: 500;
+}
+
 body {
   margin: 0;
   font-family: 'Outfit', sans-serif;

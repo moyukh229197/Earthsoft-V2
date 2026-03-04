@@ -1585,32 +1585,32 @@ function renderFormulaSummary() {
     cut: acc.cut + r.cut,
   }), { prepared: 0, blanket: 0, fill: 0, cut: 0 });
 
-  const renderRows = (list) => list.map(([label, value, unit]) => `
-    <tr>
+  const renderRows = (list, colorClass = "") => list.map(([label, value, unit]) => `
+    <tr class="${colorClass}">
       <td>${label}</td>
       <td>${value}</td>
       <td class="unit">${unit}</td>
     </tr>
   `).join("");
   els.resultInputBody.innerHTML = renderRows(inputRows);
-  els.resultFillBody.innerHTML = renderRows(fillRows);
-  els.resultCutBody.innerHTML = renderRows(cutRows);
+  els.resultFillBody.innerHTML = renderRows(fillRows, "t-fill");
+  els.resultCutBody.innerHTML = renderRows(cutRows, "t-cut");
   els.resultQtyBody.innerHTML = `
     ${qtyRows.map((r) => `
       <tr>
         <td>${r.label}</td>
         <td>${fmtM3(r.prepared)}</td>
         <td>${fmtM3(r.blanket)}</td>
-        <td>${fmtM3(r.fill)}</td>
-        <td>${fmtM3(r.cut)}</td>
+        <td class="t-fill">${fmtM3(r.fill)}</td>
+        <td class="t-cut">${fmtM3(r.cut)}</td>
       </tr>
     `).join("")}
     <tr>
       <td><strong>Total qty</strong></td>
       <td><strong>${fmtM3(qtyTotal.prepared)}</strong></td>
       <td><strong>${fmtM3(qtyTotal.blanket)}</strong></td>
-      <td><strong>${fmtM3(qtyTotal.fill)}</strong></td>
-      <td><strong>${fmtM3(qtyTotal.cut)}</strong></td>
+      <td class="t-fill"><strong>${fmtM3(qtyTotal.fill)}</strong></td>
+      <td class="t-cut"><strong>${fmtM3(qtyTotal.cut)}</strong></td>
     </tr>
   `;
 }
@@ -1641,8 +1641,8 @@ function renderTable() {
         <td>${r.bridgeDeductLen ? r3(r.bridgeDeductLen) : "—"}</td>
         <td>${r.ewDiff ? r3(r.ewDiff) : "—"}</td>
         <td>${r.rlDiff ? r3(r.rlDiff) : "—"}</td>
-        <td>${r.bank > 0.0001 ? r3(r.bank) : "—"}</td>
-        <td>${r.cut > 0.0001 ? r3(r.cut) : "—"}</td>
+        <td class="t-fill">${r.bank > 0.0001 ? r3(r.bank) : "—"}</td>
+        <td class="t-cut">${r.cut > 0.0001 ? r3(r.cut) : "—"}</td>
         <td class="t-fill">${r.fillArea > 0.0001 ? r3(r.fillArea) : "—"}</td>
         <td class="t-cut">${r.cutArea > 0.0001 ? r3(r.cutArea) : "—"}</td>
         <td class="t-fill">${r.fillVol > 0.0001 ? r3(r.fillVol) : "—"}</td>
