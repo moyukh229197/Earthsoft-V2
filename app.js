@@ -1692,6 +1692,7 @@ function renderTable() {
     const rowClass = (r.bridgeRefs && r.bridgeRefs.length) ? "bridge-row" : "";
     return `
       <tr class="${rowClass}">
+        <td>${bridgeRefs}</td>
         <td>${station}</td>
         <td><button class="chainage-link theme-ch" data-cross-index="${idx}" title="Open cross-section">${(r.chainage < 0 ? "-" : "") + Math.floor(Math.abs(r.chainage) / 1000) + "+" + (Math.abs(r.chainage) % 1000).toFixed(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1").padStart(3, "0")}</button></td>
         <td>${r.diff ? r3(r.diff) : "—"}</td>
@@ -1699,7 +1700,6 @@ function renderTable() {
         <td class="t-pro">${r3(r.proposedLevel)}</td>
         <td>${r.loopTc ? r3(r.loopTc) : "—"}</td>
         <td>${r.platformWidth ? r3(r.platformWidth) : "—"}</td>
-        <td>${bridgeRefs}</td>
         <td>${r.bridgeDeductLen ? r3(r.bridgeDeductLen) : "—"}</td>
         <td>${r.ewDiff ? r3(r.ewDiff) : "—"}</td>
         <td>${r.rlDiff ? r3(r.rlDiff) : "—"}</td>
