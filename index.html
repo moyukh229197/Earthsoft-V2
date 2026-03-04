@@ -13,6 +13,7 @@
     rel="stylesheet" />
   <link rel="stylesheet" href="./styles.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet" />
 </head>
 
 <body>
@@ -2755,35 +2756,76 @@
 
   <!-- Export Report Modal -->
   <dialog id="exportModal" class="modal">
-    <div class="modal-content glass-card">
-      <div class="modal-header">
-        <h2>Export Project Report</h2>
-        <button class="close-modal" onclick="this.closest('dialog').close()">&times;</button>
+    <div class="modal-content glass-strong"
+      style="max-width: 550px; border: 1px solid rgba(255,255,255,0.1); padding: 0;">
+      <div class="modal-header"
+        style="padding: 24px 30px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div
+            style="width: 38px; height: 38px; background: rgba(59, 130, 246, 0.15); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.2);">
+            <i class="ri-file-pdf-2-line" style="font-size: 1.25rem;"></i>
+          </div>
+          <div style="text-align: left;">
+            <h2 style="margin: 0; font-size: 1.2rem; font-weight: 700; color: white;">Export Project Report</h2>
+            <p style="margin: 2px 0 0; font-size: 0.75rem; color: rgba(255,255,255,0.45);">Generate professional
+              engineering
+              documentation</p>
+          </div>
+        </div>
+        <button class="close-modal" onclick="this.closest('dialog').close()"
+          style="background: rgba(255,255,255,0.05); border: none; font-size: 1.2rem; cursor: pointer; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: 0.2s;">&times;</button>
       </div>
-      <div class="modal-body">
-        <p class="muted" style="margin-bottom: 20px;">Select items to include in the PDF report:</p>
-        <div class="export-options">
-          <label class="checkbox-container">
-            <input type="checkbox" id="includeCalcSheet" checked>
-            <span class="checkmark"></span>
-            Calculation Sheet
+
+      <div class="modal-body" style="padding: 30px; text-align: left;">
+        <div class="export-cards-grid">
+
+          <label class="export-card">
+            <input type="checkbox" id="includeCalcSheet" checked style="display: none;">
+            <div class="export-card-content">
+              <div class="card-icon"><i class="ri-table-line"></i></div>
+              <div class="card-info">
+                <span class="card-title">Calculation Sheet</span>
+                <span class="card-desc">Comprehensive quantity tables and engineering data</span>
+              </div>
+              <div class="card-check"><i class="ri-checkbox-circle-fill"></i></div>
+            </div>
           </label>
-          <label class="checkbox-container">
-            <input type="checkbox" id="includeCrossSections" checked>
-            <span class="checkmark"></span>
-            All Cross-Sections
+
+          <label class="export-card">
+            <input type="checkbox" id="includeCrossSections" checked style="display: none;">
+            <div class="export-card-content">
+              <div class="card-icon"><i class="ri-shape-line"></i></div>
+              <div class="card-info">
+                <span class="card-title">Project Cross-Sections</span>
+                <span class="card-desc">High-resolution SVG profile for every calculation point</span>
+              </div>
+              <div class="card-check"><i class="ri-checkbox-circle-fill"></i></div>
+            </div>
           </label>
-          <label class="checkbox-container">
-            <input type="checkbox" id="includeRollDiagram" checked>
-            <span class="checkmark"></span>
-            Roll Diagram
+
+          <label class="export-card">
+            <input type="checkbox" id="includeRollDiagram" checked style="display: none;">
+            <div class="export-card-content">
+              <div class="card-icon"><i class="ri-line-chart-line"></i></div>
+              <div class="card-info">
+                <span class="card-title">L-Section Diagrams</span>
+                <span class="card-desc">Longitudinal profile and toe-width roll diagrams</span>
+              </div>
+              <div class="card-check"><i class="ri-checkbox-circle-fill"></i></div>
+            </div>
           </label>
+
         </div>
       </div>
+
       <div class="modal-footer"
-        style="padding: 20px; display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--stroke);">
-        <button class="btn btn-secondary" id="cancelExportBtn">Cancel</button>
-        <button class="btn btn-primary" id="confirmExportBtn">Download PDF</button>
+        style="padding: 0 30px 30px; display: flex; justify-content: flex-end; gap: 12px; border: none; background: transparent;">
+        <button class="btn btn-secondary" id="cancelExportBtn"
+          style="min-width: 100px; padding: 10px 20px; font-weight: 600; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">Cancel</button>
+        <button class="btn btn-primary" id="confirmExportBtn"
+          style="min-width: 160px; padding: 10px 24px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.39);">
+          <i class="ri-download-cloud-2-line" style="font-size: 1.1rem;"></i> Generate PDF
+        </button>
       </div>
     </div>
   </dialog>

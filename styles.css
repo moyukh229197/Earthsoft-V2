@@ -234,6 +234,89 @@ body {
   background: hsla(233, 100%, 57%, 0.1) !important;
 }
 
+/* refined export cards */
+.export-card {
+  display: block;
+  cursor: pointer;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.export-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+}
+
+.export-card input:checked+.export-card-content {
+  background: hsla(233, 100%, 57%, 0.08);
+  border-color: hsla(233, 100%, 57%, 0.4);
+}
+
+.export-card input:checked+.export-card-content .card-check {
+  color: #3b82f6;
+  opacity: 1;
+  transform: scale(1);
+}
+
+.export-card input:checked+.export-card-content .card-icon {
+  background: #3b82f6;
+  color: white;
+}
+
+.export-card-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  transition: inherit;
+}
+
+.card-icon {
+  width: 44px;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  color: rgba(255, 255, 255, 0.7);
+  transition: all 0.3s ease;
+}
+
+.card-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: white;
+}
+
+.card-desc {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 2px;
+}
+
+.card-check {
+  font-size: 1.5rem;
+  color: #3b82f6;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
 .export-options {
   display: flex;
   flex-direction: column;
