@@ -318,7 +318,7 @@ function parseImportedRows(aoa, startCh, interval) {
 
 function resolveBridgeColumns(headerCells) {
   return {
-    bridgeNo: findColByAliases(headerCells, ["bridgeno", "bridgenumber", "structureno", "structure", "bridge"]),
+    bridgeNo: findColByAliases(headerCells, ["bridgeno", "bridgenumber", "structureno", "structure", "bridge", "slno", "sl.no", "serialno", "sno", "sn", "tunnelname", "tunnelno", "tunnel"]),
     startChainage: findColByAliases(headerCells, ["bridgestartchainage", "startchainage", "fromchainage", "chfrom", "startch"]),
     endChainage: findColByAliases(headerCells, ["bridgeendchainage", "endchainage", "tochainage", "chto", "endch"]),
     length: findColByAliases(headerCells, ["totalspanlength", "bridgelength", "length", "spanm", "totallength"]),
