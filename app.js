@@ -892,8 +892,18 @@ function renderLoopInputs() {
     if (els.loopMeta) els.loopMeta.textContent = "No station/loops data imported.";
     return;
   }
-  els.loopTableBody.innerHTML = rows.map((r, i) => `
-    <tr data-loop-row="${i}">
+
+  const stations = [...new Set(rows.map(r => r.station).filter(Boolean))];
+  const stationColors = {};
+  stations.forEach((s, idx) => {
+    stationColors[s] = `hsl(${(idx * 137.508) % 360}, 65%, 50%)`;
+  });
+
+  els.loopTableBody.innerHTML = rows.map((r, i) => {
+    const sColor = stationColors[r.station] || 'transparent';
+    const bgStyle = sColor !== 'transparent' ? sColor.replace('hsl', 'hsla').replace(')', ', 0.08)') : 'transparent';
+    return `
+    <tr data-loop-row="${i}" style="border-left: 4px solid ${sColor}; background: ${bgStyle};">
       <td><input data-loop-field="station" value="${String(r.station || "")}" /></td>
       <td><input data-loop-field="csb" value="${Number.isFinite(r.csb) ? r3(r.csb) : ""}" /></td>
       <td><input data-loop-field="tc" value="${Number.isFinite(r.tc) ? r3(r.tc) : ""}" /></td>
@@ -905,7 +915,7 @@ function renderLoopInputs() {
       <td><input data-loop-field="remarks" value="${String(r.remarks || "")}" /></td>
       <td><button type="button" class="bridge-del" data-loop-del="${i}">Delete</button></td>
     </tr>
-  `).join("");
+  `}).join("");
   const loopRanges = rows.filter((r) => Number.isFinite(r.loopStartCh) && Number.isFinite(r.loopEndCh)).length;
   const pfRanges = rows.filter((r) => Number.isFinite(r.pfStartCh) && Number.isFinite(r.pfEndCh)).length;
   if (els.loopMeta) els.loopMeta.textContent = `Rows: ${rows.length} | Loop ranges: ${loopRanges} | Platform ranges: ${pfRanges}`;
