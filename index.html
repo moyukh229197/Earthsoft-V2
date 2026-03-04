@@ -137,21 +137,29 @@
           <span class="pro-badge">Pro</span>
         </div>
         <div class="toolbar">
-          <button id="createProjectBtn" class="btn btn-primary">Create Project</button>
-          <button id="importProjectBtn" class="btn btn-secondary">Open Project</button>
-          <button id="saveProjectBtn" class="btn btn-secondary">Save Project</button>
-          <button id="snapshotsBtn" class="btn btn-secondary">Snapshots</button>
-          <button id="resetProjectBtn" class="btn btn-secondary">Reset</button>
-          <button id="openSettingsBtn" class="btn btn-secondary">Expand Project Settings</button>
+          <button id="createProjectBtn" class="btn btn-primary"><i class="ri-folder-add-line"
+              style="margin-right: 4px;"></i> Create Project</button>
+          <button id="importProjectBtn" class="btn btn-secondary"><i class="ri-folder-open-line"
+              style="margin-right: 4px;"></i> Open Project</button>
+          <button id="saveProjectBtn" class="btn btn-secondary"><i class="ri-save-3-line"
+              style="margin-right: 4px;"></i> Save Project</button>
+          <button id="snapshotsBtn" class="btn btn-secondary"><i class="ri-history-line" style="margin-right: 4px;"></i>
+            Snapshots</button>
+          <button id="resetProjectBtn" class="btn btn-secondary"><i class="ri-restart-line"
+              style="margin-right: 4px;"></i> Reset</button>
+          <button id="openSettingsBtn" class="btn btn-secondary"><i class="ri-settings-3-line"
+              style="margin-right: 4px;"></i> Expand Project Settings</button>
           <div class="import-wrap">
             <input id="importInput" type="file" accept=".xlsx,.xls,.csv" hidden />
             <input id="bridgeImportInput" type="file" accept=".xlsx,.xls,.csv" hidden />
             <input id="curveImportInput" type="file" accept=".xlsx,.xls,.csv" hidden />
             <input id="loopImportInput" type="file" accept=".xlsx,.xls,.csv" hidden />
             <input id="projectImportInput" type="file" accept=".ew,.EW" hidden />
-            <button id="importBtn" class="btn btn-secondary">Import Data</button>
+            <button id="importBtn" class="btn btn-secondary"><i class="ri-download-cloud-2-line"
+                style="margin-right: 4px;"></i> Import Data</button>
           </div>
-          <button id="verifyCalcBtn" class="btn-verify-inline" type="button" disabled>⚡ Verify</button>
+          <button id="verifyCalcBtn" class="btn-verify-inline" type="button" disabled><i class="ri-shield-check-line"
+              style="margin-right: 4px;"></i> Verify</button>
         </div>
         <div class="topbar-right"
           style="display:flex; align-items:center; gap:16px; margin-left:12px; padding-left:16px; border-left:1px solid var(--stroke);">
@@ -188,28 +196,32 @@
             style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
             <div
               style="color: var(--muted); font-size: 0.8rem; font-weight: 500; display: flex; align-items: center; gap: 6px;">
-              <i class="ri-ruler-line"></i> Chainage Range</div>
+              <i class="ri-ruler-line"></i> Chainage Range
+            </div>
             <div id="dashChRange" style="font-size: 1.25rem; font-weight: 700; color: white;">0.000 to 0.000</div>
           </div>
           <div class="glass-card"
             style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
             <div
               style="color: var(--muted); font-size: 0.8rem; font-weight: 500; display: flex; align-items: center; gap: 6px;">
-              <i class="ri-route-line"></i> Total Length</div>
+              <i class="ri-route-line"></i> Total Length
+            </div>
             <div id="dashLength" style="font-size: 1.25rem; font-weight: 700; color: white;">0.000 km</div>
           </div>
           <div class="glass-card"
             style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
             <div
               style="color: var(--muted); font-size: 0.8rem; font-weight: 500; display: flex; align-items: center; gap: 6px;">
-              <i class="ri-shape-line"></i> Data Points</div>
+              <i class="ri-shape-line"></i> Data Points
+            </div>
             <div id="dashPoints" style="font-size: 1.25rem; font-weight: 700; color: white;">0 Cross-Sections</div>
           </div>
           <div class="glass-card"
             style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
             <div
               style="color: var(--muted); font-size: 0.8rem; font-weight: 500; display: flex; align-items: center; gap: 6px;">
-              <i class="ri-building-line"></i> Structures</div>
+              <i class="ri-building-line"></i> Structures
+            </div>
             <div id="dashStructures" style="font-size: 1.25rem; font-weight: 700; color: white;">0 Bridges, 0 Curves
             </div>
           </div>
