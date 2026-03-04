@@ -444,6 +444,16 @@ function detectCategoryFromText(text) {
   return null;
 }
 
+function detectBridgeTypeFromText(text) {
+  if (!text) return null;
+  const s = String(text).toLowerCase();
+  if (s.includes("box")) return "Box";
+  if (s.includes("psc") || s.includes("slab")) return "PSC Slab";
+  if (s.includes("composite") || s.includes("girder")) return "Composite Girder";
+  if (s.includes("owg") || s.includes("open web")) return "OWG";
+  return null;
+}
+
 function parseBridgeRowsFromAoa(aoa, sheetName = '') {
   const header = detectBridgeHeaderRow(aoa);
   if (!header) return { rows: [], error: "Bridge sheet must include Start/End chainage or Chainage+Length columns." };
@@ -468,6 +478,7 @@ function parseBridgeRowsFromAoa(aoa, sheetName = '') {
 
     // Read category from cell
     let cellCategory = cols.category >= 0 ? String(row[cols.category] || "").trim() : "";
+    let cellType = cols.type >= 0 ? String(row[cols.type] || "").trim() : "";
 
     // Auto-detect category if possible
     const purpose = cols.category >= 0 ? String(row[cols.category] || "").toLowerCase() : "";
@@ -480,10 +491,16 @@ function parseBridgeRowsFromAoa(aoa, sheetName = '') {
 
     if (!cellCategory) cellCategory = defaultCategory;
 
+    let detectedType = detectBridgeTypeFromText(cellType) || detectBridgeTypeFromText(purpose) || detectBridgeTypeFromText(bridgeNoStr);
+    if (!detectedType) {
+      if (cellCategory === "Tunnel") detectedType = "Box"; // Default for tunnel
+    }
+    const finalType = detectedType || cellType || "Box";
+
     const raw = {
       bridgeNo: cols.bridgeNo >= 0 ? row[cols.bridgeNo] : "",
       bridgeCategory: cellCategory,
-      bridgeType: cols.type >= 0 ? (String(row[cols.type] || "").trim() || "Box") : "Box",
+      bridgeType: finalType,
       bridgeSize: cols.size >= 0 ? (String(row[cols.size] || "").trim() || "-") : "-",
       bridgeSpans: cols.spans >= 0 ? (String(row[cols.spans] || "").trim() || "1") : "1",
       bridgeSpanLength: cols.spanLength >= 0 ? row[cols.spanLength] : "",
