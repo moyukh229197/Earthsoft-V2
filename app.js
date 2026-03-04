@@ -2431,81 +2431,51 @@ function renderSideView() {
     const bW = Math.max(bx2 - bx1, 4);
     const tunnel = isTunnel(b);
 
-    if (tunnel) {
-      const archH = 18;
-      const midBy = (by1 + by2) / 2;
-      ctx.fillStyle = "rgba(60,40,20,0.65)";
-      ctx.strokeStyle = "rgba(180,130,60,0.8)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(bx1, midBy + archH);
-      ctx.lineTo(bx1, midBy);
-      ctx.quadraticCurveTo((bx1 + bx2) / 2, midBy - archH * 1.5, bx2, midBy);
-      ctx.lineTo(bx2, midBy + archH);
-      ctx.closePath();
-      ctx.fill(); ctx.stroke();
+    // All structures (bridges, tunnels, viaducts) drawn with the same style
+    ctx.fillStyle = "rgba(37,99,235,0.18)";
+    ctx.strokeStyle = "rgba(99,163,255,0.8)";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(bx1, by1 - 6);
+    ctx.lineTo(bx2, by2 - 6);
+    ctx.lineTo(bx2, by2 + 6);
+    ctx.lineTo(bx1, by1 + 6);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
 
-      ctx.strokeStyle = "rgba(180,130,60,0.25)"; ctx.lineWidth = 1;
-      for (let hx = bx1; hx < bx2; hx += 10) {
-        ctx.beginPath(); ctx.moveTo(hx, midBy + archH); ctx.lineTo(hx + 6, midBy); ctx.stroke();
-      }
+    ctx.strokeStyle = "hsl(215,100%,65%)";
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(bx1, by1); ctx.lineTo(bx2, by2); ctx.stroke();
 
-      // Collect tunnel label for de-overlap
-      allLabels.push({
-        x: (bx1 + bx2) / 2,
-        baseY: midBy - archH * 1.5 - 8,
-        text: "TUNNEL: " + b.bridgeNo,
-        color: "#d97706",
-        font: "bold 10px Outfit,sans-serif",
-        type: "tunnel"
-      });
-
-    } else {
-      ctx.fillStyle = "rgba(37,99,235,0.18)";
-      ctx.strokeStyle = "rgba(99,163,255,0.8)";
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.moveTo(bx1, by1 - 6);
-      ctx.lineTo(bx2, by2 - 6);
-      ctx.lineTo(bx2, by2 + 6);
-      ctx.lineTo(bx1, by1 + 6);
-      ctx.closePath();
-      ctx.fill(); ctx.stroke();
-
-      ctx.strokeStyle = "hsl(215,100%,65%)";
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(bx1, by1); ctx.lineTo(bx2, by2); ctx.stroke();
-
-      const pierSpacing = 60;
-      const numPiers = Math.max(0, Math.floor(bW / pierSpacing) - 1);
+    const pierSpacing = 60;
+    const numPiers = Math.max(0, Math.floor(bW / pierSpacing) - 1);
+    ctx.strokeStyle = "rgba(99,163,255,0.6)"; ctx.lineWidth = 3;
+    for (let p = 1; p <= numPiers; p++) {
+      const t = p / (numPiers + 1);
+      const px = bx1 + t * bW;
+      const pyTop = by1 + t * (by2 - by1);
+      const pierCh = b.startChainage + t * (b.endChainage - b.startChainage);
+      const pierGl = glAt(pierCh);
+      const pyBot = getY(pierGl);
+      ctx.beginPath(); ctx.moveTo(px, pyTop + 6); ctx.lineTo(px, pyBot); ctx.stroke();
+      ctx.strokeStyle = "rgba(99,163,255,0.4)"; ctx.lineWidth = 8;
+      ctx.beginPath(); ctx.moveTo(px, pyBot - 3); ctx.lineTo(px, pyBot); ctx.stroke();
       ctx.strokeStyle = "rgba(99,163,255,0.6)"; ctx.lineWidth = 3;
-      for (let p = 1; p <= numPiers; p++) {
-        const t = p / (numPiers + 1);
-        const px = bx1 + t * bW;
-        const pyTop = by1 + t * (by2 - by1);
-        const pierCh = b.startChainage + t * (b.endChainage - b.startChainage);
-        const pierGl = glAt(pierCh);
-        const pyBot = getY(pierGl);
-        ctx.beginPath(); ctx.moveTo(px, pyTop + 6); ctx.lineTo(px, pyBot); ctx.stroke();
-        ctx.strokeStyle = "rgba(99,163,255,0.4)"; ctx.lineWidth = 8;
-        ctx.beginPath(); ctx.moveTo(px, pyBot - 3); ctx.lineTo(px, pyBot); ctx.stroke();
-        ctx.strokeStyle = "rgba(99,163,255,0.6)"; ctx.lineWidth = 3;
-      }
-
-      ctx.strokeStyle = "rgba(99,163,255,0.55)"; ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.moveTo(bx1, by1 - 10); ctx.lineTo(bx1, gy1); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(bx2, by2 - 10); ctx.lineTo(bx2, gy2); ctx.stroke();
-
-      // Collect bridge label for de-overlap
-      allLabels.push({
-        x: (bx1 + bx2) / 2,
-        baseY: Math.min(by1, by2) - 14,
-        text: b.bridgeNo + (b.bridgeCategory ? ` (${b.bridgeCategory})` : ""),
-        color: "#93c5fd",
-        font: "bold 10px Outfit,sans-serif",
-        type: "bridge"
-      });
     }
+
+    ctx.strokeStyle = "rgba(99,163,255,0.55)"; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(bx1, by1 - 10); ctx.lineTo(bx1, gy1); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx2, by2 - 10); ctx.lineTo(bx2, gy2); ctx.stroke();
+
+    // Collect label for de-overlap
+    allLabels.push({
+      x: (bx1 + bx2) / 2,
+      baseY: Math.min(by1, by2) - 14,
+      text: b.bridgeNo + (b.bridgeCategory ? ` (${b.bridgeCategory})` : ""),
+      color: "#93c5fd",
+      font: "bold 10px Outfit,sans-serif",
+      type: tunnel ? "tunnel" : "bridge"
+    });
   }
 
   // ── Station / Loop markers (vertical dashed) ──────────────────────────────
@@ -2650,8 +2620,7 @@ function renderSideView() {
     { col: "hsl(233,100%,65%)", lbl: "Formation RL" },
     { col: "rgba(34,139,69,0.5)", lbl: "Embankment (Fill)" },
     { col: "rgba(180,44,50,0.5)", lbl: "Cut Section" },
-    { col: "rgba(99,163,255,0.8)", lbl: "Bridge / Viaduct" },
-    { col: "rgba(180,130,60,0.8)", lbl: "Tunnel" },
+    { col: "rgba(99,163,255,0.8)", lbl: "Bridge / Viaduct / Tunnel" },
     { col: "rgba(34,211,238,0.7)", lbl: "Station" },
   ];
   ctx.font = "10px Outfit,sans-serif"; let lx = PAD_L;
