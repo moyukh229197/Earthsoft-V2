@@ -4495,11 +4495,15 @@ async function generateProjectReport(options) {
   const loading = document.getElementById("aiLoadingOverlay");
   const loadingText = document.getElementById("aiLoadingText");
   const loadingHeader = document.getElementById("aiLoadingHeader");
+  const progressBarContainer = document.getElementById("aiProgressBarContainer");
+  const progressBar = document.getElementById("aiProgressBar");
 
   if (loading) {
     loading.classList.remove("hidden");
     if (loadingHeader) loadingHeader.textContent = "System Processing...";
     if (loadingText) loadingText.textContent = "Preparing project report PDF...";
+    if (progressBarContainer) progressBarContainer.style.display = "block";
+    if (progressBar) progressBar.style.width = "0%";
   }
 
   try {
@@ -4519,6 +4523,8 @@ async function generateProjectReport(options) {
     container.style.padding = "0";
 
     wrapper.appendChild(container);
+
+    if (progressBar) progressBar.style.width = "5%";
 
     // 1. Title Page
     const titlePage = document.createElement("div");
@@ -4555,8 +4561,12 @@ async function generateProjectReport(options) {
       const CHUNK_SIZE = 35; // Maximum rows per PDF page
       const totalRows = state.calcRows.length;
 
+      const calcPagesCount = Math.ceil(totalRows / CHUNK_SIZE);
+
       for (let i = 0; i < totalRows; i += CHUNK_SIZE) {
-        if (loadingText) loadingText.textContent = `Exporting Calculation Sheet: Page ${Math.floor(i / CHUNK_SIZE) + 1}`;
+        const currentPage = Math.floor(i / CHUNK_SIZE) + 1;
+        if (loadingText) loadingText.textContent = `Building Calculation Sheet: Page ${currentPage} of ${calcPagesCount}`;
+        if (progressBar) progressBar.style.width = `${5 + (currentPage / calcPagesCount) * 15}%`; // 5% -> 20% span
 
         const chunkPage = document.createElement("div");
         chunkPage.style.padding = "40px";
@@ -4635,6 +4645,8 @@ async function generateProjectReport(options) {
       }
     }
 
+    if (progressBar) progressBar.style.width = "25%";
+
     // 3. Roll Diagram
     if (options.rollDiagram) {
       if (loadingText) loadingText.textContent = "Exporting Roll Diagram...";
@@ -4664,6 +4676,7 @@ async function generateProjectReport(options) {
       }
 
       container.appendChild(rollPage);
+      if (progressBar) progressBar.style.width = "30%";
     }
 
     // 4. Cross Sections
@@ -4680,7 +4693,10 @@ async function generateProjectReport(options) {
 
       for (let i = 0; i < state.calcRows.length; i++) {
         if (loadingText && i % 5 === 0) {
-          loadingText.textContent = `Rendering Cross-Sections: ${i} / ${state.calcRows.length}`;
+          loadingText.textContent = `Building Cross-Sections: ${i} / ${state.calcRows.length}`;
+        }
+        if (progressBar && i % 5 === 0) {
+          progressBar.style.width = `${30 + ((i / state.calcRows.length) * 20)}%`; // 30% -> 50% span
         }
 
         const row = state.calcRows[i];
@@ -4715,7 +4731,8 @@ async function generateProjectReport(options) {
       }
     }
 
-    if (loadingText) loadingText.textContent = "Finalizing PDF document...";
+    if (loadingText) loadingText.textContent = "Finalizing PDF document. This may take a minute...";
+    if (progressBar) progressBar.style.width = "50%";
 
     // Allow browser time to complete layout of generated DOM tables
     container.offsetHeight;
@@ -4738,13 +4755,23 @@ async function generateProjectReport(options) {
 
     let worker = html2pdf().set(opt).from(pagesArray[0]).toPdf();
 
+    // 50% -> 100% processing worker pipeline
     for (let j = 1; j < pagesArray.length; j++) {
       worker = worker.get('pdf').then(pdf => {
         pdf.addPage();
+        if (loadingText) loadingText.textContent = `Rendering page ${j} of ${pagesArray.length}...`;
+        if (progressBar) {
+          const pct = 50 + ((j / pagesArray.length) * 50);
+          progressBar.style.width = `${pct}%`;
+        }
       }).from(pagesArray[j]).toContainer().toCanvas().toPdf();
     }
 
     await worker.save();
+
+    if (progressBar) progressBar.style.width = "100%";
+    if (loadingText) loadingText.textContent = "Download complete!";
+    await new Promise(r => setTimeout(r, 800));
 
   } catch (error) {
     console.error("Report Generation Error:", error);
@@ -4754,6 +4781,7 @@ async function generateProjectReport(options) {
     if (wrapper) wrapper.remove();
 
     if (loadingHeader) loadingHeader.textContent = "AI Processing..."; // Reset to original
+    if (progressBarContainer) progressBarContainer.style.display = "none";
     if (loading) loading.classList.add("hidden");
   }
 }
