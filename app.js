@@ -2713,7 +2713,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
 
   const svgW = CROSS_SVG_W;
   const svgH = CROSS_SVG_H;
-  const marginX = 90;
+  const marginX = 280;
   const centerX = svgW / 2;
   const layerTotalM = ballastThickness + blanketRuleThickness + topLayerThickness;
   const halfTopM = s.formationWidthFill / 2;
@@ -2901,9 +2901,9 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   const bodySubLabel = row.type === "CUTTING" ? "(Earth cutting profile)" : "(SQ1/SQ2/SQ3 Category Soils)";
   const bodyYRef = row.type === "CUTTING" ? ((topY + cutBottomY) / 2) : ((topY + toeY) / 2);
   const topLayerCalloutY = row.bank > 0 ? (topY + blanketHDraw) : (topY + blanketH);
-  const calloutAnchorX = centerX + halfTop + 8;
-  const calloutEndX = calloutAnchorX + 232;
-  const calloutTextX = calloutEndX + 8;
+  const calloutAnchorX = centerX + halfTop + 12;
+  const calloutEndX = Math.min(calloutAnchorX + 160, svgW - 220);
+  const calloutTextX = calloutEndX + 10;
   const calloutDy = -34;
   const ballastCalloutStartY = trackTopY + Math.max(ballastH * 0.48, 2);
   const blanketCalloutStartY = topY + Math.max(blanketHDraw * 0.62, 2);
@@ -2934,8 +2934,8 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     `Ground RL (GL): ${r3(gl)} m`,
   ];
   const levelText = levelLabels.map((txt, i) => {
-    const y = topY + 40 + i * 20;
-    const x = svgW - 240;
+    const y = 80 + i * 22;
+    const x = svgW - 260;
     return `<text x="${x}" y="${y}" fill="#2b3f52" font-size="12" font-weight="700">${txt}</text>`;
   }).join("");
   const demarcRightX = svgW - 210;
