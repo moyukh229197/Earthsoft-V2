@@ -1996,12 +1996,11 @@ function renderRollDiagram() {
   const minCh = rows[0].chainage;
   const maxCh = rows[rows.length - 1].chainage;
   const totalL = Math.max(maxCh - minCh, 1);
-
   const baseScale = Math.max(0.3, Math.min(4, window._planScale || 1));
   const PX_PER_M_X = 0.4 * baseScale;
-  const PX_PER_M_Y = 4.0 * baseScale;
+  const PX_PER_M_Y = 2.8 * baseScale; // Reduced by 30% from 4.0
 
-  const PAD_L = 60, PAD_R = 40, PAD_T = 90, PAD_B = 60;
+  const PAD_L = 60, PAD_R = 40, PAD_T = 70, PAD_B = 45; // Reduced paddings
 
   const maxHalfW = rows.reduce((m, r) => {
     const w = r.bank > 0 ? r.fillBottom : (r.cut > 0 ? r.cutBottom : (r.effectiveFormationWidth || 0));
@@ -2009,7 +2008,7 @@ function renderRollDiagram() {
   }, 0);
   const loopMaxTc = (state.loopPlatformRows || []).reduce((m, lp) => Math.max(m, Math.abs(safeNum(lp.tc, 0))), 0);
   const loopPxH = (loopMaxTc + 10) * PX_PER_M_Y;
-  const bodyHalf = Math.max(maxHalfW * PX_PER_M_Y, 40);
+  const bodyHalf = Math.max(maxHalfW * PX_PER_M_Y, 28); // Reduced min from 40
   const canvasH = Math.ceil(PAD_T + bodyHalf * 2 + loopPxH + PAD_B);
   const canvasW = Math.ceil(PAD_L + totalL * PX_PER_M_X + PAD_R);
   const centerY = PAD_T + bodyHalf + loopPxH * 0.5;
