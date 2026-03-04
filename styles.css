@@ -488,7 +488,6 @@ h1 {
 .work-page {
   display: none;
   animation: fadeIn 0.4s ease;
-  padding: 0 20px;
 }
 
 @keyframes fadeIn {
