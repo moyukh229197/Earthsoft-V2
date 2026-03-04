@@ -1988,10 +1988,10 @@ function renderRollDiagram() {
   const totalL = Math.max(maxCh - minCh, 1);
 
   const PAD_L = 60, PAD_R = 40, PAD_T = 70, PAD_B = 45; // Reduced paddings
-  const MAX_SAFE_W = 16000;
+  const MAX_SAFE_W = 32000;
   const maxScaleLimit = (MAX_SAFE_W - PAD_L - PAD_R) / (totalL * 0.4);
 
-  const baseScale = Math.max(0.12, Math.min(Math.min(10, maxScaleLimit), window._planScale || 1));
+  const baseScale = Math.max(0.05, Math.min(maxScaleLimit, window._planScale || 1));
   window._planScale = baseScale; // Update state inline
 
   const PX_PER_M_X = 0.4 * baseScale;
@@ -2256,10 +2256,10 @@ function renderSideView() {
   const PAD_T = 60;   // legend + title
   const PAD_B = 50;   // chainage labels
 
-  const MAX_SAFE_W = 16000;
+  const MAX_SAFE_W = 32000;
   const maxScaleLimit = (MAX_SAFE_W - PAD_L - PAD_R) / (totalL * 0.4);
 
-  const baseScale = Math.max(0.12, Math.min(Math.min(10, maxScaleLimit), window._sideScale || 1));
+  const baseScale = Math.max(0.05, Math.min(maxScaleLimit, window._sideScale || 1));
   window._sideScale = baseScale; // Update state inline
 
   const PX_PER_M_X = 0.4 * baseScale;
@@ -3176,7 +3176,7 @@ function bindEvents() {
         const factor = e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;   // scroll up = zoom in
         const isPlan = wrap === planWrap;
         const oldScale = isPlan ? (window._planScale || 1) : (window._sideScale || 1);
-        const newScale = Math.max(0.12, Math.min(8, oldScale * factor));
+        const newScale = Math.max(0.05, oldScale * factor);
         if (newScale === oldScale) return;
 
         // Remember which chainage is under the cursor so we can restore it after re-render
@@ -3220,8 +3220,8 @@ function bindEvents() {
       if (!state.calcRows.length) return;
 
       const oldPlan = window._planScale || 1, oldSide = window._sideScale || 1;
-      const newPlan = isReset ? 1 : Math.max(0.12, Math.min(8, oldPlan * factor));
-      const newSide = isReset ? 1 : Math.max(0.12, Math.min(8, oldSide * factor));
+      const newPlan = isReset ? 1 : Math.max(0.05, oldPlan * factor);
+      const newSide = isReset ? 1 : Math.max(0.05, oldSide * factor);
 
       const ratioPlan = newPlan / oldPlan;
       const ratioSide = newSide / oldSide;
