@@ -324,20 +324,20 @@
             <div class="bridge-actions">
               <button id="bridgeAddBtn" class="btn btn-secondary" type="button" title="Add a new blank bridge row">Add
                 Bridge Row</button>
-              <button id="bridgeRefreshBtn" class="btn btn-secondary" type="button"
-                title="Refresh/Re-sort the list">Refresh List</button>
+              <button id="bridgeRefreshBtn" class="btn btn-secondary" type="button" title="Refresh/Re-sort">Refresh
+                List</button>
               <button id="bridgeClearBtn" class="btn btn-destructive" type="button" title="Delete All Bridges"
-                onclick="if(window.clearAllBridges) { window.clearAllBridges(); } else if(confirm('Are you sure?')){state.bridgeRows=[];renderBridgeInputs();recalculate();}">Delete
+                onclick="if(confirm('Are you sure?')){state.bridgeRows=[];renderBridgeInputs();recalculate();}">Delete
                 All</button>
-              <button id="bridgeApplyBtn" class="btn btn-primary" type="button"
-                title="Save changes and update deductions">Apply Bridge Deductions</button>
+              <button id="bridgeApplyBtn" class="btn btn-primary" type="button" title="Apply Changes">Apply Bridge
+                Deductions</button>
             </div>
           </div>
           <div class="bridge-wrap">
             <table class="bridge-table">
               <thead>
                 <tr>
-                  <th>Bridge No</th>
+                  <th>Structures</th>
                   <th>Category</th>
                   <th>Type</th>
                   <th>Size</th>
@@ -542,7 +542,7 @@
                   <th>Proposed RL</th>
                   <th>Loop T/C</th>
                   <th>PF Width</th>
-                  <th>Bridge No</th>
+                  <th>Structures</th>
                   <th>Deducted Len</th>
                   <th>EW Diff</th>
                   <th>RL Diff</th>
@@ -783,7 +783,7 @@
         <div class="wizard-step" data-wizard-step="bridges">
           <div class="wizard-step-left">
             <strong>3. Import Bridge List</strong>
-            <small>Bridge No, start chainage, end chainage/length for deductions.</small>
+            <small>Structure name, start chainage, end chainage/length for deductions.</small>
           </div>
           <div class="wizard-step-right">
             <button type="button" class="btn btn-secondary wizard-upload-btn"
