@@ -3775,7 +3775,7 @@ function bindEvents() {
       }
 
       if (importedRows.length > 0) {
-        state.bridgeRows = state.bridgeRows.concat(importedRows);
+        state.bridgeRows = importedRows;
         state.bridgeRows.sort((a, b) => (safeNum(a.startChainage) - safeNum(b.startChainage)));
         state.project.uploads.bridges = true;
         state.project.verified = false;
@@ -3920,7 +3920,7 @@ function bindEvents() {
 
         if (data.rows && data.rows.length > 0) {
           // Add the newly extracted bridges to existing ones
-          state.bridgeRows = state.bridgeRows.concat(data.rows);
+          state.bridgeRows = data.rows;
           state.project.uploads.bridges = true;
           state.project.verified = false;
 
