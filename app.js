@@ -2005,7 +2005,7 @@ function renderRollDiagram() {
   window._planScale = baseScale; // Update state inline
 
   const PX_PER_M_X = 0.4 * baseScale;
-  const PX_PER_M_Y = 2.8 * baseScale; // Reduced by 30% from 4.0
+  const PX_PER_M_Y = 2.8; // Fixed vertical scale, height remains constant
 
   const maxHalfW = rows.reduce((m, r) => {
     const w = r.bank > 0 ? r.fillBottom : (r.cut > 0 ? r.cutBottom : (r.effectiveFormationWidth || 0));
@@ -2065,7 +2065,7 @@ function renderRollDiagram() {
 
   const maxYMetres = Math.ceil(Math.max(centerY - PAD_T, canvasH - PAD_B - centerY) / PX_PER_M_Y);
   ctx.fillStyle = "rgba(255,255,255,0.4)";
-  ctx.font = `${Math.max(8, 9 * baseScale)}px Outfit,sans-serif`;
+  ctx.font = `9px Outfit,sans-serif`;
   ctx.textAlign = "left";
 
   for (let ym = 0; ym <= maxYMetres; ym += yMinor) {
@@ -2217,7 +2217,7 @@ function renderRollDiagram() {
   const startTk = Math.ceil(minCh / tkInt) * tkInt;
   ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(getX(minCh), rulerY); ctx.lineTo(getX(maxCh), rulerY); ctx.stroke();
-  ctx.fillStyle = "rgba(255,255,255,0.6)"; ctx.font = `${Math.max(9, 10 * baseScale)}px Outfit,sans-serif`; ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(255,255,255,0.6)"; ctx.font = `9px Outfit,sans-serif`; ctx.textAlign = "center";
   for (let ch = startTk; ch <= maxCh; ch += tkInt) {
     const tx = getX(ch);
     if (tx == null) continue;
@@ -2238,7 +2238,7 @@ function renderRollDiagram() {
     { col: "rgba(34,211,238,0.85)", lbl: "Loop/Station" },
     { col: "rgba(252,165,165,0.8)", lbl: "Platform" },
   ];
-  ctx.font = `${Math.max(9, 10 * baseScale)}px Outfit,sans-serif`;
+  ctx.font = `10px Outfit,sans-serif`;
   let lx = PAD_L;
   for (const item of legend) {
     ctx.fillStyle = item.col; ctx.fillRect(lx, 10, 12, 12);
@@ -2273,6 +2273,7 @@ function renderSideView() {
   window._sideScale = baseScale; // Update state inline
 
   const PX_PER_M_X = 0.4 * baseScale;
+  const PX_PER_M_Y = 1.5; // Fixed vertical scale
 
   // Elevation range from calcRows
   const allGLs = rows.map(r => safeNum(r.groundLevel));
@@ -2282,7 +2283,7 @@ function renderSideView() {
   const elevRange = Math.max(maxElev - minElev, 1);
 
   const canvasW = Math.ceil(PAD_L + totalL * PX_PER_M_X + PAD_R);
-  const bodyH = Math.max(300, Math.min(500, elevRange * 4 * baseScale));
+  const bodyH = 400; // Elevation scale fixed height
   const canvasH = PAD_T + bodyH + PAD_B;
 
   canvas.width = canvasW;
@@ -2316,7 +2317,7 @@ function renderSideView() {
     const gy = getY(el);
     ctx.beginPath(); ctx.moveTo(PAD_L, gy); ctx.lineTo(canvasW - PAD_R, gy); ctx.stroke();
     ctx.fillStyle = "rgba(255,255,255,0.35)";
-    ctx.font = `${Math.max(9, 9 * baseScale)}px Outfit,sans-serif`;
+    ctx.font = `9px Outfit,sans-serif`;
     ctx.textAlign = "right";
     ctx.fillText(r3(el) + " m", PAD_L - 5, gy + 4);
   }
@@ -2440,7 +2441,7 @@ function renderSideView() {
 
     if (tunnel) {
       // ── TUNNEL ── dark filled arch with hatching
-      const archH = 18 * baseScale;
+      const archH = 18; // Fixed height
       const midBy = (by1 + by2) / 2;
       ctx.fillStyle = "rgba(60,40,20,0.65)";
       ctx.strokeStyle = "rgba(180,130,60,0.8)";
@@ -2455,12 +2456,12 @@ function renderSideView() {
 
       // Hatching inside tunnel
       ctx.strokeStyle = "rgba(180,130,60,0.25)"; ctx.lineWidth = 1;
-      for (let hx = bx1; hx < bx2; hx += 10 * baseScale) {
-        ctx.beginPath(); ctx.moveTo(hx, midBy + archH); ctx.lineTo(hx + 6 * baseScale, midBy); ctx.stroke();
+      for (let hx = bx1; hx < bx2; hx += 10) { // Fixed spacing
+        ctx.beginPath(); ctx.moveTo(hx, midBy + archH); ctx.lineTo(hx + 6, midBy); ctx.stroke(); // Fixed spacing
       }
 
       // Label
-      ctx.fillStyle = "#d97706"; ctx.font = `bold ${Math.max(9, 10 * baseScale)}px Outfit,sans-serif`;
+      ctx.fillStyle = "#d97706"; ctx.font = `bold 10px Outfit,sans-serif`;
       ctx.textAlign = "center";
       ctx.fillText("⬛ TUNNEL: " + b.bridgeNo, (bx1 + bx2) / 2, midBy - archH * 1.5 - 8);
 
@@ -2471,10 +2472,10 @@ function renderSideView() {
       ctx.strokeStyle = "rgba(99,163,255,0.8)";
       ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.moveTo(bx1, by1 - 6 * baseScale);
-      ctx.lineTo(bx2, by2 - 6 * baseScale);
-      ctx.lineTo(bx2, by2 + 6 * baseScale);
-      ctx.lineTo(bx1, by1 + 6 * baseScale);
+      ctx.moveTo(bx1, by1 - 6); // Fixed height
+      ctx.lineTo(bx2, by2 - 6); // Fixed height
+      ctx.lineTo(bx2, by2 + 6); // Fixed height
+      ctx.lineTo(bx1, by1 + 6); // Fixed height
       ctx.closePath();
       ctx.fill(); ctx.stroke();
 
@@ -2484,9 +2485,9 @@ function renderSideView() {
       ctx.beginPath(); ctx.moveTo(bx1, by1); ctx.lineTo(bx2, by2); ctx.stroke();
 
       // Pier marks (every ~60px)
-      const pierSpacing = 60 * baseScale;
+      const pierSpacing = 60; // Fixed spacing
       const numPiers = Math.max(0, Math.floor(bW / pierSpacing) - 1);
-      ctx.strokeStyle = "rgba(99,163,255,0.6)"; ctx.lineWidth = 3 * baseScale;
+      ctx.strokeStyle = "rgba(99,163,255,0.6)"; ctx.lineWidth = 3; // Fixed width
       for (let p = 1; p <= numPiers; p++) {
         const t = p / (numPiers + 1);
         const px = bx1 + t * bW;
@@ -2495,20 +2496,20 @@ function renderSideView() {
         const pierCh = b.startChainage + t * (b.endChainage - b.startChainage);
         const pierGl = glAt(pierCh);
         const pyBot = getY(pierGl);
-        ctx.beginPath(); ctx.moveTo(px, pyTop + 6 * baseScale); ctx.lineTo(px, pyBot); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(px, pyTop + 6); ctx.lineTo(px, pyBot); ctx.stroke(); // Fixed height
         // Pier base widening
-        ctx.strokeStyle = "rgba(99,163,255,0.4)"; ctx.lineWidth = 8 * baseScale;
+        ctx.strokeStyle = "rgba(99,163,255,0.4)"; ctx.lineWidth = 8; // Fixed width
         ctx.beginPath(); ctx.moveTo(px, pyBot - 3); ctx.lineTo(px, pyBot); ctx.stroke();
-        ctx.strokeStyle = "rgba(99,163,255,0.6)"; ctx.lineWidth = 3 * baseScale;
+        ctx.strokeStyle = "rgba(99,163,255,0.6)"; ctx.lineWidth = 3; // Fixed width
       }
 
       // Abutment walls at each end
-      ctx.strokeStyle = "rgba(99,163,255,0.55)"; ctx.lineWidth = 4 * baseScale;
-      ctx.beginPath(); ctx.moveTo(bx1, by1 - 10 * baseScale); ctx.lineTo(bx1, gy1); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(bx2, by2 - 10 * baseScale); ctx.lineTo(bx2, gy2); ctx.stroke();
+      ctx.strokeStyle = "rgba(99,163,255,0.55)"; ctx.lineWidth = 4; // Fixed width
+      ctx.beginPath(); ctx.moveTo(bx1, by1 - 10); ctx.lineTo(bx1, gy1); ctx.stroke(); // Fixed height
+      ctx.beginPath(); ctx.moveTo(bx2, by2 - 10); ctx.lineTo(bx2, gy2); ctx.stroke(); // Fixed height
 
       // Label above
-      ctx.fillStyle = "#93c5fd"; ctx.font = `bold ${Math.max(9, 10 * baseScale)}px Outfit,sans-serif`;
+      ctx.fillStyle = "#93c5fd"; ctx.font = `bold 10px Outfit,sans-serif`;
       ctx.textAlign = "center";
       const labY = Math.min(by1, by2) - 12;
       ctx.fillText(b.bridgeNo + (b.bridgeCategory ? ` (${b.bridgeCategory})` : ""), (bx1 + bx2) / 2, labY);
@@ -2529,7 +2530,7 @@ function renderSideView() {
       ctx.strokeStyle = "rgba(34,211,238,0.5)"; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(sx, PAD_T); ctx.lineTo(sx, PAD_T + bodyH); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = "#67e8f9"; ctx.font = `bold ${Math.max(8, 9 * baseScale)}px Outfit,sans-serif`;
+      ctx.fillStyle = "#67e8f9"; ctx.font = `bold 9px Outfit,sans-serif`;
       ctx.textAlign = "center";
       ctx.fillText("◉ " + (lp.station || "Stn"), sx, PAD_T + 12);
     }
@@ -2544,7 +2545,7 @@ function renderSideView() {
       ctx.strokeStyle = "rgba(252,211,77,0.5)"; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
       ctx.beginPath(); ctx.moveTo(cx, PAD_T + 20); ctx.lineTo(cx, PAD_T + bodyH); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = "#fde68a"; ctx.font = `${Math.max(8, 9 * baseScale)}px Outfit,sans-serif`;
+      ctx.fillStyle = "#fde68a"; ctx.font = `9px Outfit,sans-serif`;
       ctx.textAlign = "center";
       const rad = safeNum(c.radius);
       ctx.fillText((c.curve || "C") + (rad > 0 ? ` R=${r3(rad)}` : ""), cx, PAD_T + 8 + (ci % 3) * 10);
@@ -2568,7 +2569,7 @@ function renderSideView() {
   const startTk = Math.ceil(minCh / tkInt) * tkInt;
   ctx.strokeStyle = "rgba(255,255,255,0.3)"; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(PAD_L, rulerY); ctx.lineTo(canvasW - PAD_R, rulerY); ctx.stroke();
-  ctx.fillStyle = "rgba(255,255,255,0.55)"; ctx.font = `${Math.max(9, 10 * baseScale)}px Outfit,sans-serif`;
+  ctx.fillStyle = "rgba(255,255,255,0.55)"; ctx.font = `10px Outfit,sans-serif`;
   ctx.textAlign = "center";
   for (let ch = startTk; ch <= maxCh; ch += tkInt) {
     const tx = getX(ch);
