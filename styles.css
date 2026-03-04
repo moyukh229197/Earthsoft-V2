@@ -703,6 +703,15 @@ h1 {
   background: var(--nav-hover);
 }
 
+.btn-destructive {
+  background: var(--red);
+  color: #fff;
+}
+
+.btn-destructive:hover {
+  filter: brightness(1.15);
+}
+
 
 .summary-strip {
   margin-top: 0;
