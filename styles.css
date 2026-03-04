@@ -125,8 +125,9 @@ body {
 }
 
 .app-layout.sidebar-collapsed .brand-text,
-.app-layout.sidebar-collapsed .nav-text {
-  display: none;
+.app-layout.sidebar-collapsed .nav-text,
+.app-layout.sidebar-collapsed .author-text {
+  display: none !important;
 }
 
 .app-layout.sidebar-collapsed .sidebar-brand {
