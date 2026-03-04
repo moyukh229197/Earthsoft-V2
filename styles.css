@@ -1562,10 +1562,11 @@ td:first-child {
   fill: none;
 }
 
-/* Compact Theme Capsule Toggle */
+/* Compact Theme Toggle Switch */
 .theme-capsule {
   display: inline-flex;
   cursor: pointer;
+  align-items: center;
 }
 
 .theme-capsule input {
@@ -1575,40 +1576,81 @@ td:first-child {
 .theme-capsule-track {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
+  position: relative;
+  width: 56px;
+  height: 30px;
   border-radius: 999px;
   background: var(--bg-accent-1);
   border: 1px solid var(--stroke);
   transition: all 0.3s ease;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+  /* Provide padding to align children if needed, but we use absolute icons */
 }
 
-.theme-capsule-track:hover {
+/* The Sliding Thumb */
+.theme-capsule-track::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 3.5px;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  z-index: 1;
+}
+
+.theme-capsule:hover .theme-capsule-track {
   border-color: var(--blue);
 }
 
-/* Dark mode (default): show moon, hide sun */
+.theme-capsule-track svg {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  top: 7.5px;
+  z-index: 2;
+  transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.3s ease;
+}
+
+/* Dark mode (default): moon icon inside thumb */
 .theme-capsule .icon-sun {
-  display: none;
+  left: 7px;
+  opacity: 0;
+  stroke: #f59e0b;
+  transform: translateX(0);
 }
 
 .theme-capsule .icon-moon {
-  display: block;
+  left: 7px;
+  opacity: 1;
+  stroke: #a78bfa;
+  transform: translateX(0);
 }
 
-/* Light mode (checked): show sun, hide moon */
+/* Light mode (checked): track lighting and thumb moves right */
+.theme-capsule input:checked~.theme-capsule-track {
+  background: hsl(220, 18%, 92%);
+  border-color: hsl(220, 13%, 80%);
+}
+
+.theme-capsule input:checked~.theme-capsule-track::before {
+  transform: translateX(27px);
+  background: white;
+  border-color: #d1d5db;
+}
+
 .theme-capsule input:checked~.theme-capsule-track .icon-sun {
-  display: block;
+  opacity: 1;
+  transform: translateX(27px);
 }
 
 .theme-capsule input:checked~.theme-capsule-track .icon-moon {
-  display: none;
-}
-
-.theme-capsule input:checked~.theme-capsule-track {
-  background: hsl(48, 96%, 89%);
-  border-color: hsl(45, 93%, 47%);
+  opacity: 0;
+  transform: translateX(27px);
 }
 
 @keyframes spin {
