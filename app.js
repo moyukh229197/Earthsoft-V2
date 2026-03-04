@@ -3661,8 +3661,10 @@ function bindEvents() {
 
   if (els.resetProjectBtn) {
     els.resetProjectBtn.addEventListener("click", () => {
-      resetForNewProject();
-      alert("Workspace reset to default. Create a new project to continue.");
+      if (confirm("Are you sure you want to reset the project? All unsaved progress will be lost.")) {
+        resetForNewProject();
+        alert("Workspace reset to default. Create a new project to continue.");
+      }
     });
   }
 
