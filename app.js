@@ -2034,15 +2034,56 @@ function renderRollDiagram() {
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, canvasW, canvasH);
 
-  // ── Grid lines ─────────────────────────────────────────────────────────
-  ctx.strokeStyle = "rgba(255,255,255,0.07)";
+  // ── X & Y Grid lines (Major & Minor) ───────────────────────────────────
+  const minSpacPx = 25; // Minimum px spacing for minor grid lines
+
+  // X-axis divisions (Chainage)
+  let xMajor = 1000, xMinor = 500;
+  if (PX_PER_M_X * 10 >= minSpacPx) { xMajor = 50; xMinor = 10; }
+  else if (PX_PER_M_X * 25 >= minSpacPx) { xMajor = 100; xMinor = 25; }
+  else if (PX_PER_M_X * 50 >= minSpacPx) { xMajor = 250; xMinor = 50; }
+  else if (PX_PER_M_X * 100 >= minSpacPx) { xMajor = 500; xMinor = 100; }
+  else if (PX_PER_M_X * 500 >= minSpacPx) { xMajor = 2000; xMinor = 500; }
+  else { xMajor = 10000; xMinor = 2000; }
+
   ctx.lineWidth = 1;
-  const gridKm = totalL >= 50000 ? 10000 : totalL >= 10000 ? 2000 : 1000;
-  const startGrid = Math.ceil(minCh / gridKm) * gridKm;
-  for (let ch = startGrid; ch <= maxCh; ch += gridKm) {
+  const startX = Math.ceil(minCh / xMinor) * xMinor;
+  for (let ch = startX; ch <= maxCh; ch += xMinor) {
     const gx = getX(ch);
     if (gx == null) continue;
+    const isMajor = (ch % xMajor === 0);
+    ctx.strokeStyle = isMajor ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.035)";
     ctx.beginPath(); ctx.moveTo(gx, PAD_T); ctx.lineTo(gx, canvasH - PAD_B); ctx.stroke();
+  }
+
+  // Y-axis divisions (Width from Centerline)
+  let yMajor = 20, yMinor = 5;
+  if (PX_PER_M_Y * 2 >= minSpacPx) { yMajor = 10; yMinor = 2; }
+  else if (PX_PER_M_Y * 5 >= minSpacPx) { yMajor = 20; yMinor = 5; }
+  else if (PX_PER_M_Y * 10 >= minSpacPx) { yMajor = 50; yMinor = 10; }
+  else { yMajor = 100; yMinor = 20; }
+
+  const maxYMetres = Math.ceil(Math.max(centerY - PAD_T, canvasH - PAD_B - centerY) / PX_PER_M_Y);
+  ctx.fillStyle = "rgba(255,255,255,0.4)";
+  ctx.font = `${Math.max(8, 9 * baseScale)}px Outfit,sans-serif`;
+  ctx.textAlign = "left";
+
+  for (let ym = 0; ym <= maxYMetres; ym += yMinor) {
+    if (ym === 0) continue; // Skip centerline
+    const isMajor = (ym % yMajor === 0);
+    ctx.strokeStyle = isMajor ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.035)";
+    const dy = ym * PX_PER_M_Y;
+
+    // Top side (negative Y from center)
+    if (centerY - dy >= PAD_T) {
+      ctx.beginPath(); ctx.moveTo(PAD_L, centerY - dy); ctx.lineTo(canvasW - PAD_R, centerY - dy); ctx.stroke();
+      if (isMajor) ctx.fillText(`${ym}m`, PAD_L + 6, centerY - dy - 4);
+    }
+    // Bottom side (positive Y from center)
+    if (centerY + dy <= canvasH - PAD_B) {
+      ctx.beginPath(); ctx.moveTo(PAD_L, centerY + dy); ctx.lineTo(canvasW - PAD_R, centerY + dy); ctx.stroke();
+      if (isMajor) ctx.fillText(`${ym}m`, PAD_L + 6, centerY + dy - 4);
+    }
   }
 
   // ── Centreline ─────────────────────────────────────────────────────────
