@@ -2403,13 +2403,23 @@ function renderRollDiagram() {
       _hoveredRowIdx = -1;
     };
 
-    canvas.onclick = (e) => {
-      if (_hoveredRowIdx >= 0 && _hoveredRowIdx < state.calcRows.length) {
+    // Distinguish click vs drag: only open cross-section if mouse didn't move
+    let _downX = 0, _downY = 0;
+    canvas.addEventListener('mousedown', (e) => {
+      _downX = e.clientX;
+      _downY = e.clientY;
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+      const dx = Math.abs(e.clientX - _downX);
+      const dy = Math.abs(e.clientY - _downY);
+      // Only treat as a click if mouse moved less than 5px (not a drag)
+      if (dx < 5 && dy < 5 && _hoveredRowIdx >= 0 && _hoveredRowIdx < state.calcRows.length) {
         drawCrossSection(state.calcRows[_hoveredRowIdx]);
         tooltip.style.display = 'none';
         if (crosshair) crosshair.style.display = 'none';
       }
-    };
+    });
   }
 }
 
