@@ -786,6 +786,18 @@
                 style="margin-right:4px;"></i> Import KML/KMZ</button>
             <button id="importStationPlanBtn" class="btn btn-secondary" type="button"><i class="ri-image-add-line"
                 style="margin-right:4px;"></i> Add Station Plan</button>
+            <button id="clearMapBtn" class="btn btn-danger" type="button"
+              style="background: rgba(244, 63, 94, 0.1); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.2);">
+              <i class="ri-delete-bin-line" style="margin-right:4px;"></i> Clear Map
+            </button>
+            <div class="custom-select-wrapper" style="min-width: 140px;">
+              <select id="mapTypeSelect" class="btn btn-secondary" style="appearance: auto; padding-right: 32px;">
+                <option value="hybrid" selected>Hybrid View</option>
+                <option value="satellite">Satellite View</option>
+                <option value="roadmap">Roadmap View</option>
+                <option value="terrain">Terrain View</option>
+              </select>
+            </div>
             <input id="kmlImportInput" type="file" accept=".kml,.KML,.kmz,.KMZ" hidden />
             <input id="stationPlanImportInput" type="file" accept=".png,.jpg,.jpeg,.webp,.pdf,.PDF" hidden />
           </div>

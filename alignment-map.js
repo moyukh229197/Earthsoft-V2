@@ -14,6 +14,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const kmlImportInput = document.getElementById("kmlImportInput");
     const importStationPlanBtn = document.getElementById("importStationPlanBtn");
     const stationPlanImportInput = document.getElementById("stationPlanImportInput");
+    const clearMapBtn = document.getElementById("clearMapBtn");
+    const mapTypeSelect = document.getElementById("mapTypeSelect");
 
     if (importKmlBtn && kmlImportInput) {
         importKmlBtn.addEventListener("click", () => kmlImportInput.click());
@@ -22,6 +24,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (importStationPlanBtn && stationPlanImportInput) {
         importStationPlanBtn.addEventListener("click", () => stationPlanImportInput.click());
         stationPlanImportInput.addEventListener("change", handleStationPlanImport);
+    }
+    if (clearMapBtn) {
+        clearMapBtn.addEventListener("click", clearMapData);
+    }
+    if (mapTypeSelect) {
+        mapTypeSelect.addEventListener("change", (e) => {
+            if (alignmentMap) {
+                alignmentMap.setMapTypeId(e.target.value);
+            }
+        });
     }
 
     // Handle map resize on page reveal
@@ -39,6 +51,26 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 });
+
+function clearMapData() {
+    if (!confirm("Are you sure you want to clear all map data? This will remove the alignment and all station plans.")) return;
+
+    state.kmlData = null;
+    state.stationPlans = {};
+    saveState();
+
+    // Clear visualization
+    if (mapItems && mapItems.length) {
+        mapItems.forEach(item => { if (item && item.setMap) item.setMap(null); });
+    }
+    mapItems = [];
+
+    // Reset view
+    document.getElementById("alignmentMapContainer").style.display = "none";
+    document.getElementById("alignmentMapEmpty").style.display = "flex";
+
+    console.log("Map data cleared.");
+}
 
 // Initialize Map System (called by Google Maps API loader callback)
 window.initMapSystem = function () {
