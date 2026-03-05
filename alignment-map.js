@@ -7,15 +7,42 @@ let alignmentMap = null;
 let googleInfoWindow = null;
 let mapItems = []; // Store markers and polylines for easy clearing
 
+// Initialize UI and Event Listeners when DOM is ready
+document.addEventListener("DOMContentLoaded", () => {
+    // Map control buttons
+    const importKmlBtn = document.getElementById("importKmlBtn");
+    const kmlImportInput = document.getElementById("kmlImportInput");
+    const importStationPlanBtn = document.getElementById("importStationPlanBtn");
+    const stationPlanImportInput = document.getElementById("stationPlanImportInput");
+
+    if (importKmlBtn && kmlImportInput) {
+        importKmlBtn.addEventListener("click", () => kmlImportInput.click());
+        kmlImportInput.addEventListener("change", handleKmlImport);
+    }
+    if (importStationPlanBtn && stationPlanImportInput) {
+        importStationPlanBtn.addEventListener("click", () => stationPlanImportInput.click());
+        stationPlanImportInput.addEventListener("change", handleStationPlanImport);
+    }
+
+    // Handle map resize on page reveal
+    const workNavBtns = document.querySelectorAll(".work-nav-btn");
+    workNavBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            if (btn.dataset.workPageBtn === "alignment-map") {
+                setTimeout(() => {
+                    if (alignmentMap) {
+                        google.maps.event.trigger(alignmentMap, "resize");
+                        if (state.kmlData) drawAlignmentMap();
+                    }
+                }, 300);
+            }
+        });
+    });
+});
+
 // Initialize Map System (called by Google Maps API loader callback)
 window.initMapSystem = function () {
     if (typeof google === 'undefined') return;
-
-    // Setup DOM Event Listeners
-    if (els.importKmlBtn) els.importKmlBtn.addEventListener("click", () => els.kmlImportInput.click());
-    if (els.kmlImportInput) els.kmlImportInput.addEventListener("change", handleKmlImport);
-    if (els.importStationPlanBtn) els.importStationPlanBtn.addEventListener("click", () => els.stationPlanImportInput.click());
-    if (els.stationPlanImportInput) els.stationPlanImportInput.addEventListener("change", handleStationPlanImport);
 
     // Initialize Map
     const mapContainer = document.getElementById("alignmentMapContainer");

@@ -65,7 +65,6 @@ const els = {
   importStationPlanBtn: document.getElementById("importStationPlanBtn"),
   kmlImportInput: document.getElementById("kmlImportInput"),
   stationPlanImportInput: document.getElementById("stationPlanImportInput"),
-  mapTileSelect: document.getElementById("mapTileSelect"),
   importOptionsModal: document.getElementById("importOptionsModal"),
   closeImportOptionsBtn: document.getElementById("closeImportOptionsBtn"),
   importOptionButtons: Array.from(document.querySelectorAll("[data-import-kind]")),
