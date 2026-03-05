@@ -2139,33 +2139,42 @@ td:first-child {
   background: #0d1117;
 }
 
-/* Google Maps InfoWindow Customization */
-.gm-style-iw-c {
+/* Leaflet Map Customization */
+.leaflet-container {
+  background-color: #0d1117 !important;
+  font-family: 'Outfit', sans-serif !important;
+}
+
+/* Dark Theme for OSM Tiles */
+.leaflet-tile-pane {
+  filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+}
+
+/* Satellite Tiles should NOT have filters */
+.leaflet-satellite-layer .leaflet-tile-pane {
+  filter: none !important;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
   background: hsla(222, 40%, 12%, 0.95) !important;
   color: #fff !important;
   border: 1px solid hsla(222, 20%, 30%, 0.5) !important;
-  border-radius: 8px !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
-  font-family: 'Outfit', sans-serif !important;
   backdrop-filter: blur(4px) !important;
-  padding: 14px !important;
 }
 
-.gm-style-iw-d {
-  overflow: hidden !important;
-  /* Hide scrollbars if content fits */
+.leaflet-popup-content {
+  margin: 12px !important;
+  line-height: 1.5 !important;
 }
 
-.gm-style .gm-style-iw-tc::after {
-  background: hsla(222, 40%, 12%, 0.95) !important;
-  border: 1px solid hsla(222, 20%, 30%, 0.5) !important;
-  border-top: none !important;
-  border-left: none !important;
+.leaflet-container a.leaflet-popup-close-button {
+  color: hsla(0, 0%, 100%, 0.5) !important;
 }
 
-.gm-ui-hover-effect {
-  filter: invert(1) !important;
-  /* Make close button white */
+.leaflet-container a.leaflet-popup-close-button:hover {
+  color: #fff !important;
 }
 
 .map-popup-title {

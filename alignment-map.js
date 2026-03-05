@@ -1,11 +1,11 @@
 /**
  * alignment-map.js
- * Handles the Google Maps integration for geographic alignment and earthwork visual overlays.
+ * Handles the Leaflet.js (Free Map) integration for geographic alignment and earthwork visual overlays.
  */
 
 let alignmentMap = null;
-let googleInfoWindow = null;
-let mapItems = []; // Store markers and polylines for easy clearing
+let baseLayers = {};
+let mapItems = null; // We'll use a FeatureGroup for easy clearing
 
 // Initialize UI and Event Listeners when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
@@ -31,10 +31,24 @@ document.addEventListener("DOMContentLoaded", () => {
     if (mapTypeSelect) {
         mapTypeSelect.addEventListener("change", (e) => {
             if (alignmentMap) {
-                alignmentMap.setMapTypeId(e.target.value);
+                const layerName = e.target.value;
+                Object.values(baseLayers).forEach(layer => alignmentMap.removeLayer(layer));
+                if (baseLayers[layerName]) {
+                    alignmentMap.addLayer(baseLayers[layerName]);
+                    // Toggle dark filter class for OSM
+                    const container = alignmentMap.getContainer();
+                    if (layerName === 'roadmap' || layerName === 'terrain') {
+                        container.classList.remove('leaflet-satellite-layer');
+                    } else {
+                        container.classList.add('leaflet-satellite-layer');
+                    }
+                }
             }
         });
     }
+
+    // Initialize Leaflet Map
+    initLeafletMap();
 
     // Handle map resize on page reveal
     const workNavBtns = document.querySelectorAll(".work-nav-btn");
@@ -43,7 +57,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (btn.dataset.workPageBtn === "alignment-map") {
                 setTimeout(() => {
                     if (alignmentMap) {
-                        google.maps.event.trigger(alignmentMap, "resize");
+                        alignmentMap.invalidateSize();
                         if (state.kmlData) drawAlignmentMap();
                     }
                 }, 300);
@@ -52,6 +66,44 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
+function initLeafletMap() {
+    const mapContainer = document.getElementById("alignmentMapContainer");
+    if (!mapContainer) return;
+
+    alignmentMap = L.map(mapContainer, {
+        center: [20.5937, 78.9629], // India
+        zoom: 5,
+        zoomControl: true,
+        attributionControl: true
+    });
+
+    // Define Base Layers
+    baseLayers = {
+        roadmap: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }),
+        satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        }),
+        hybrid: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri'
+        }),
+        terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+            attribution: 'Tiles &copy; OpenTopoMap contributors'
+        })
+    };
+
+    // Default to Hybrid
+    alignmentMap.addLayer(baseLayers.hybrid);
+    alignmentMap.getContainer().classList.add('leaflet-satellite-layer');
+
+    mapItems = L.featureGroup().addTo(alignmentMap);
+
+    if (state.kmlData) {
+        drawAlignmentMap();
+    }
+}
+
 function clearMapData() {
     if (!confirm("Are you sure you want to clear all map data? This will remove the alignment and all station plans.")) return;
 
@@ -59,80 +111,13 @@ function clearMapData() {
     state.stationPlans = {};
     saveState();
 
-    // Clear visualization
-    if (mapItems && mapItems.length) {
-        mapItems.forEach(item => { if (item && item.setMap) item.setMap(null); });
-    }
-    mapItems = [];
+    if (mapItems) mapItems.clearLayers();
 
-    // Reset view
     document.getElementById("alignmentMapContainer").style.display = "none";
     document.getElementById("alignmentMapEmpty").style.display = "flex";
 
     console.log("Map data cleared.");
 }
-
-// Initialize Map System (called by Google Maps API loader callback)
-window.initMapSystem = function () {
-    console.log("initMapSystem / initMap called!");
-    if (typeof google === 'undefined') {
-        console.warn("Google objects not found in initMapSystem.");
-        return;
-    }
-
-    // Initialize Map
-    const mapContainer = document.getElementById("alignmentMapContainer");
-    const emptyState = document.getElementById("alignmentMapEmpty");
-
-    if (!mapContainer || !emptyState) {
-        console.error("Map container or empty state element not found.");
-        return;
-    }
-
-    if (alignmentMap) {
-        console.log("Map already initialized.");
-        return;
-    }
-
-    alignmentMap = new google.maps.Map(mapContainer, {
-        center: { lat: 20.5937, lng: 78.9629 }, // Default to India center
-        zoom: 5,
-        mapTypeId: google.maps.MapTypeId.HYBRID,
-        tilt: 0,
-        mapTypeControl: true,
-        streetViewControl: false,
-        fullscreenControl: true,
-        backgroundColor: '#0d1117',
-        styles: [
-            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
-            {
-                featureType: "administrative.locality",
-                elementType: "labels.text.fill",
-                stylers: [{ color: "#d59563" }],
-            }
-        ]
-    });
-
-    googleInfoWindow = new google.maps.InfoWindow();
-
-    // Re-draw map if data exists (on load)
-    if (state.kmlData) {
-        drawAlignmentMap();
-    }
-};
-
-// Alias for keyless script compatibility (it hardcodes initMap)
-window.initMap = window.initMapSystem;
-
-// Second Fallback: If the callback doesn't fire, try to init after some time
-setTimeout(() => {
-    if (!alignmentMap && typeof google !== 'undefined' && google.maps) {
-        console.log("Fallback: Initializing map manually as callback didn't fire.");
-        window.initMapSystem();
-    }
-}, 3000);
 
 // ── KML/KMZ Import ─────────────────────────────────────────────────────────
 
@@ -187,14 +172,12 @@ const _safeNum = (v, fallback = 0) => (typeof safeNum === 'function' ? safeNum(v
 function parseKMLData(kmlText) {
     console.log("Parsing KML data (Regex Mode)...");
 
-    // Use regex to find coordinate blocks - much more robust against namespaces
     const coordRegex = /<coordinates>([\s\S]*?)<\/coordinates>/g;
     const points_extracted = [];
     let match;
 
     while ((match = coordRegex.exec(kmlText)) !== null) {
         const text = match[1].trim();
-        // Split by whitespace/newlines
         const tuples = text.split(/[\s\n\r]+/);
         tuples.forEach(tuple => {
             const parts = tuple.split(',').map(s => s.trim());
@@ -209,8 +192,6 @@ function parseKMLData(kmlText) {
     }
 
     if (points_extracted.length === 0) {
-        console.error("No coordinates found using regex. Falling back to DOM parser...");
-        // Fallback to DOM parser if regex failed (unlikely but safe)
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(kmlText, "text/xml");
         const coordsNodes = xmlDoc.getElementsByTagName("coordinates");
@@ -229,14 +210,10 @@ function parseKMLData(kmlText) {
     }
 
     if (points_extracted.length === 0) {
-        console.error("Critical: No valid coordinates found in KML.");
-        alert("Could not parse coordinates from the KML file. Please ensure it contains standard Google Earth / KML path data.");
+        alert("Could not parse coordinates from the KML file.");
         return;
     }
 
-    console.log(`Successfully extracted ${points_extracted.length} points.`);
-
-    // Remove duplicates
     const points = [];
     points_extracted.forEach((p, idx) => {
         if (idx === 0) points.push(p);
@@ -262,10 +239,7 @@ function parseKMLData(kmlText) {
 
     const container = document.querySelector('.work-page[data-work-page="alignment-map"]');
     if (container && container.style.display !== 'none') {
-        console.log("On map page, triggering draw...");
         drawAlignmentMap();
-    } else {
-        console.log("Not on map page, state saved. Please go to Alignment Map to see results.");
     }
 }
 
@@ -296,59 +270,36 @@ function handleStationPlanImport(e) {
 // ── Map Rendering Core ───────────────────────────────────────────────────
 
 function drawAlignmentMap() {
-    console.log("Drawing Alignment Map...");
-    if (!alignmentMap) {
-        console.warn("Map not initialized yet. Skipping draw.");
-        return;
-    }
+    if (!alignmentMap || !mapItems) return;
 
     if (!state.kmlData || !state.kmlData.points || !state.kmlData.points.length) {
-        console.log("No KML data to draw.");
         document.getElementById("alignmentMapContainer").style.display = "none";
         document.getElementById("alignmentMapEmpty").style.display = "flex";
         return;
     }
 
-    // Hide empty state, show map
     document.getElementById("alignmentMapContainer").style.display = "block";
     document.getElementById("alignmentMapEmpty").style.display = "none";
+    alignmentMap.invalidateSize();
 
-    // Trigger resize is important if the container was hidden
-    google.maps.event.trigger(alignmentMap, "resize");
+    mapItems.clearLayers();
 
     const points = state.kmlData.points;
-    const path = points.map(p => ({ lat: p.lat, lng: p.lng }));
-
-    // Define bounds for the alignment
-    const bounds = new google.maps.LatLngBounds();
-    path.forEach(p => bounds.extend(p));
-
-    // Clear previous items
-    if (mapItems && mapItems.length) {
-        mapItems.forEach(item => { if (item && item.setMap) item.setMap(null); });
-    }
-    mapItems = [];
+    const path = points.map(p => [p.lat, p.lng]);
 
     // Base Alignment Polyline
-    const basePoly = new google.maps.Polyline({
-        path: path,
-        geodesic: true,
-        strokeColor: "#ffffff",
-        strokeOpacity: 0.8, // Increased for visibility
-        strokeWeight: 3,    // Thicker line
-        map: alignmentMap
-    });
-    mapItems.push(basePoly);
+    L.polyline(path, {
+        color: '#ffffff',
+        weight: 3,
+        opacity: 0.8
+    }).addTo(mapItems);
 
-    if (!bounds.isEmpty()) {
-        alignmentMap.fitBounds(bounds);
-        console.log("Map bounds fitted to alignment.");
+    const bounds = L.latLngBounds(path);
+    if (bounds.isValid()) {
+        alignmentMap.fitBounds(bounds, { padding: [50, 50] });
     }
 
-    // Offset Mapping: Most projects don't start at CH 0. 
-    // We assume the first point of the KML matches the first point of our calculations.
     const startChOffset = (state.calcRows && state.calcRows.length) ? _safeNum(state.calcRows[0].chainage) : 0;
-    console.log(`Using Chainage Offset: ${startChOffset}`);
 
     // Earthwork Overlays
     if (state.calcRows && state.calcRows.length > 1) {
@@ -357,59 +308,43 @@ function drawAlignmentMap() {
             const isFill = r1.bank > 0.001, isCut = r1.cut > 0.001;
             if (!isFill && !isCut) continue;
 
-            // Map project chainage to KML-relative distance
             const p0 = getLatLngFromChainage(r0.chainage - startChOffset, points);
             const p1 = getLatLngFromChainage(r1.chainage - startChOffset, points);
 
             if (p0 && p1) {
-                const ewPoly = new google.maps.Polyline({
-                    path: [p0, p1],
-                    strokeColor: isFill ? "#22c55e" : "#f43f5e",
-                    strokeOpacity: 0.9,
-                    strokeWeight: 6,
-                    map: alignmentMap
-                });
-                mapItems.push(ewPoly);
+                L.polyline([[p0.lat, p0.lng], [p1.lat, p1.lng]], {
+                    color: isFill ? '#22c55e' : '#f43f5e',
+                    weight: 6,
+                    opacity: 0.9
+                }).addTo(mapItems);
             }
         }
     }
 
     // Helper to add titled markers
     const addMarker = (midCh, title, content, color) => {
-        // Map project chainage to KML-relative distance
         const pt = getLatLngFromChainage(midCh - startChOffset, points);
         if (!pt) return;
 
-        const marker = new google.maps.Marker({
-            position: pt,
-            map: alignmentMap,
-            title: title,
-            icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                fillColor: color,
-                fillOpacity: 0.9,
-                strokeColor: '#ffffff',
-                strokeWeight: 1,
-                scale: 8
-            }
-        });
-
-        marker.addListener("click", () => {
-            googleInfoWindow.setContent(content);
-            googleInfoWindow.open(alignmentMap, marker);
-        });
-        mapItems.push(marker);
+        L.circleMarker([pt.lat, pt.lng], {
+            radius: 8,
+            fillColor: color,
+            color: '#ffffff',
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.9
+        }).bindPopup(content, { maxWidth: 350 }).addTo(mapItems);
     };
 
     // Bridges
     state.bridgeRows.forEach(br => {
         const mid = (_safeNum(br.startChainage) + _safeNum(br.endChainage)) / 2;
         const content = `
-      <div class="map-popup-title">Bridge ${br.bridgeNo}</div>
-      <div class="map-popup-row"><span class="label">Type:</span> <span class="value">${br.bridgeType}</span></div>
-      <div class="map-popup-row"><span class="label">Start:</span> <span class="value">${_safeNum(br.startChainage).toFixed(3)}</span></div>
-      <div class="map-popup-row"><span class="label">End:</span> <span class="value">${_safeNum(br.endChainage).toFixed(3)}</span></div>
-    `;
+            <div class="map-popup-title">Bridge ${br.bridgeNo}</div>
+            <div class="map-popup-row"><span class="label">Type:</span> <span class="value">${br.bridgeType}</span></div>
+            <div class="map-popup-row"><span class="label">Start:</span> <span class="value">${_safeNum(br.startChainage).toFixed(3)}</span></div>
+            <div class="map-popup-row"><span class="label">End:</span> <span class="value">${_safeNum(br.endChainage).toFixed(3)}</span></div>
+        `;
         addMarker(mid, `Bridge ${br.bridgeNo}`, content, "#3b82f6");
     });
 
@@ -417,9 +352,9 @@ function drawAlignmentMap() {
     state.curveRows.forEach(cr => {
         const mid = (_safeNum(cr.startChainage) + _safeNum(cr.endChainage)) / 2;
         const content = `
-      <div class="map-popup-title">Curve</div>
-      <div class="map-popup-row"><span class="label">Radius:</span> <span class="value">${cr.radius} m</span></div>
-    `;
+            <div class="map-popup-title">Curve</div>
+            <div class="map-popup-row"><span class="label">Radius:</span> <span class="value">${cr.radius} m</span></div>
+        `;
         addMarker(mid, "Curve", content, "#eab308");
     });
 
@@ -427,7 +362,9 @@ function drawAlignmentMap() {
     state.loopPlatformRows.forEach(lp => {
         const mid = (_safeNum(lp.startChainage) + _safeNum(lp.endChainage)) / 2;
         let planHtml = '';
-        const plan = state.stationPlans[String(lp.desc).toLowerCase().trim()];
+        const planKey = String(lp.desc).toLowerCase().trim();
+        const plan = state.stationPlans[planKey];
+
         if (plan) {
             if (plan.startsWith('data:application/pdf')) {
                 planHtml = `<iframe src="${plan}#toolbar=0" class="station-plan-pdf" style="width:100%;height:200px;border:none;"></iframe>`;
@@ -437,11 +374,11 @@ function drawAlignmentMap() {
         }
 
         const content = `
-      <div class="map-popup-title">${lp.desc}</div>
-      <div class="map-popup-row"><span class="label">Start CH:</span> <span class="value">${_safeNum(lp.startChainage).toFixed(3)}</span></div>
-      <div class="map-popup-row"><span class="label">End CH:</span> <span class="value">${_safeNum(lp.endChainage).toFixed(3)}</span></div>
-      ${planHtml}
-    `;
+            <div class="map-popup-title">${lp.desc}</div>
+            <div class="map-popup-row"><span class="label">Start CH:</span> <span class="value">${_safeNum(lp.startChainage).toFixed(3)}</span></div>
+            <div class="map-popup-row"><span class="label">End CH:</span> <span class="value">${_safeNum(lp.endChainage).toFixed(3)}</span></div>
+            ${planHtml}
+        `;
         addMarker(mid, lp.desc, content, "#06b6d4");
     });
 }
