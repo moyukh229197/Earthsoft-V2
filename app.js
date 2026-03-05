@@ -2323,6 +2323,9 @@ function renderRollDiagram() {
   }
 
   if (tooltip) {
+    // Store the last hovered row index so click can use it
+    let _hoveredRowIdx = -1;
+
     canvas.onmousemove = (e) => {
       const rect = canvas.getBoundingClientRect();
       const scaleX = canvas.width / rect.width;
@@ -2333,14 +2336,17 @@ function renderRollDiagram() {
       if (chHit >= minCh && chHit <= maxCh && mouseX >= PAD_L && mouseX <= canvasW - PAD_R) {
         // Find closest row
         let closest = rows[0];
+        let closestIdx = 0;
         let minDist = Infinity;
-        for (const r of rows) {
-          const d = Math.abs(r.chainage - chHit);
+        for (let ri = 0; ri < rows.length; ri++) {
+          const d = Math.abs(rows[ri].chainage - chHit);
           if (d < minDist) {
             minDist = d;
-            closest = r;
+            closest = rows[ri];
+            closestIdx = ri;
           }
         }
+        _hoveredRowIdx = closestIdx;
 
         // Construct Tooltip content
         const isOnBr = bridges.some(b => closest.chainage >= b.startChainage && closest.chainage <= b.endChainage);
@@ -2355,6 +2361,9 @@ function renderRollDiagram() {
             <span style="color:var(--muted)">Toe Dist (Side):</span> <span style="font-weight:600">${isOnBr ? '0 (Bridge)' : r3(w0 / 2)} m</span>
             <span style="color:var(--green)">Fill Vol:</span> <span style="font-weight:600">${r3(closest.fillVol)} m³</span>
             <span style="color:var(--red)">Cut Vol:</span> <span style="font-weight:600">${r3(closest.cutVol)} m³</span>
+          </div>
+          <div style="margin-top:6px; padding-top:4px; border-top:1px solid hsla(222,20%,50%,0.2); font-size:0.7rem; color:hsla(233,100%,75%,0.9); font-weight:600; text-align:center;">
+            Click to view Cross‑Section
           </div>
         `;
 
@@ -2378,15 +2387,28 @@ function renderRollDiagram() {
           crosshair.style.height = canvas.clientHeight + 'px';
         }
 
+        canvas.style.cursor = 'crosshair';
       } else {
         tooltip.style.display = 'none';
         if (crosshair) crosshair.style.display = 'none';
+        canvas.style.cursor = 'grab';
+        _hoveredRowIdx = -1;
       }
     };
 
     canvas.onmouseleave = () => {
       tooltip.style.display = 'none';
       if (crosshair) crosshair.style.display = 'none';
+      canvas.style.cursor = 'grab';
+      _hoveredRowIdx = -1;
+    };
+
+    canvas.onclick = (e) => {
+      if (_hoveredRowIdx >= 0 && _hoveredRowIdx < state.calcRows.length) {
+        drawCrossSection(state.calcRows[_hoveredRowIdx]);
+        tooltip.style.display = 'none';
+        if (crosshair) crosshair.style.display = 'none';
+      }
     };
   }
 }
