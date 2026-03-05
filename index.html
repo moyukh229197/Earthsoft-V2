@@ -14,6 +14,8 @@
   <link rel="stylesheet" href="./styles.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="./background-beams.js" defer></script>
 </head>
 
@@ -111,6 +113,14 @@
             <text x="11" y="15" font-size="6" fill="currentColor" stroke="none" font-weight="700">&#x20B9;</text>
           </svg>
           <span class="nav-text">Estimates</span>
+        </button>
+        <button class="work-nav-btn" data-work-page-btn="alignment-map" type="button">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 7l5-3 4 3 5-3v12l-5 3-4-3-5 3V7z" />
+            <line x1="8" y1="4" x2="8" y2="16" />
+            <line x1="12" y1="7" x2="12" y2="19" />
+          </svg>
+          <span class="nav-text">Alignment Map</span>
         </button>
         <button class="work-nav-btn" data-work-page-btn="information" type="button">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
@@ -762,6 +772,43 @@
           </div>
         </div>
       </section>
+
+      <section class="work-page" data-work-page="alignment-map">
+        <header class="page-header">
+          <div>
+            <h2>Alignment Map</h2>
+            <p class="text-secondary">Geographic view of the railway alignment with earthwork overlay</p>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button id="importKmlBtn" class="btn btn-secondary" type="button"><i class="ri-map-pin-line"
+                style="margin-right:4px;"></i> Import KML</button>
+            <button id="importStationPlanBtn" class="btn btn-secondary" type="button"><i class="ri-image-add-line"
+                style="margin-right:4px;"></i> Add Station Plan</button>
+            <input id="kmlImportInput" type="file" accept=".kml,.KML" hidden />
+            <input id="stationPlanImportInput" type="file" accept=".png,.jpg,.jpeg,.webp" hidden />
+            <select id="mapTileSelect" class="btn btn-secondary"
+              style="padding:6px 10px;font-size:0.8rem;background:var(--card);color:var(--text);border:1px solid var(--stroke);border-radius:var(--radius);cursor:pointer;">
+              <option value="streets">Street Map</option>
+              <option value="satellite">Satellite</option>
+              <option value="terrain">Terrain</option>
+            </select>
+          </div>
+        </header>
+        <div class="card glass" style="margin-top:16px;padding:0;overflow:hidden;position:relative;">
+          <div id="alignmentMapEmpty"
+            style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:500px;gap:12px;opacity:0.55;">
+            <svg viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M6 14l12-8 12 8 12-8v28l-12 8-12-8-12 8V14z" />
+              <line x1="18" y1="6" x2="18" y2="34" />
+              <line x1="30" y1="14" x2="30" y2="42" />
+            </svg>
+            <p style="font-size:14px;margin:0;">Import a KML file to see the alignment on the map.</p>
+          </div>
+          <div id="alignmentMapContainer" style="display:none;width:100%;height:calc(100vh - 220px);min-height:500px;">
+          </div>
+        </div>
+      </section>
+
       <section class="work-page" data-work-page="information">
         <div class="summary-strip" style="gap: 20px;">
           <!-- Left Column: Guide -->
@@ -3041,6 +3088,7 @@
     </div>
   </dialog>
 
+  <script src="./alignment-map.js"></script>
   <script src="./app.js"></script>
   <div id="rollTooltip" style="
     display: none; 

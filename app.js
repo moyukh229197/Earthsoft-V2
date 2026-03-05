@@ -42,6 +42,8 @@ const state = {
   charts: { lSection: null, volume: null },
   crossViewBox: { x: 0, y: 0, w: CROSS_SVG_W, h: CROSS_SVG_H },
   crossPan: { active: false, lastX: 0, lastY: 0 },
+  kmlData: null,
+  stationPlans: {},
 };
 
 const els = {
@@ -59,6 +61,11 @@ const els = {
   bridgeImportInput: document.getElementById("bridgeImportInput"),
   curveImportInput: document.getElementById("curveImportInput"),
   loopImportInput: document.getElementById("loopImportInput"),
+  importKmlBtn: document.getElementById("importKmlBtn"),
+  importStationPlanBtn: document.getElementById("importStationPlanBtn"),
+  kmlImportInput: document.getElementById("kmlImportInput"),
+  stationPlanImportInput: document.getElementById("stationPlanImportInput"),
+  mapTileSelect: document.getElementById("mapTileSelect"),
   importOptionsModal: document.getElementById("importOptionsModal"),
   closeImportOptionsBtn: document.getElementById("closeImportOptionsBtn"),
   importOptionButtons: Array.from(document.querySelectorAll("[data-import-kind]")),
@@ -4669,6 +4676,8 @@ function saveState() {
     loopPlatformRows: state.loopPlatformRows,
     settings: state.settings,
     snapshots: state.snapshots,
+    kmlData: state.kmlData,
+    stationPlans: state.stationPlans,
   };
   localStorage.setItem("earthsoft_saved_work", JSON.stringify(data));
 }
