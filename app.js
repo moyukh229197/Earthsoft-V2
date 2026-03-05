@@ -2318,7 +2318,7 @@ function renderRollDiagram() {
   if (!crosshair && document.getElementById("rollDiagramWrap")) {
     crosshair = document.createElement("div");
     crosshair.id = "rollCrosshair";
-    crosshair.style.cssText = "display:none;position:absolute;top:0;width:1.5px;background:hsla(222, 100%, 75%, 0.8);pointer-events:none;z-index:90;box-shadow:0 0 4px hsla(222,100%,75%,0.5);";
+    crosshair.style.cssText = "display:none;position:absolute;top:0;width:1px;background:hsla(354, 72%, 55%, 0.85);pointer-events:none;z-index:90;box-shadow:0 0 3px hsla(354, 72%, 55%, 0.4);";
     document.getElementById("rollDiagramWrap").appendChild(crosshair);
   }
 
