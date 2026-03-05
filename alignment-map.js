@@ -85,13 +85,47 @@ function handleKmlImport(e) {
     const file = e.target.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-        const kmlText = evt.target.result;
-        parseKMLData(kmlText);
-        e.target.value = ""; // Reset
-    };
-    reader.readAsText(file);
+    const fileName = file.name.toLowerCase();
+
+    if (fileName.endsWith('.kmz')) {
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            try {
+                const jszip = new JSZip();
+                const zip = await jszip.loadAsync(evt.target.result);
+
+                // Find a .kml file inside the zip (usually doc.kml)
+                let kmlFile = null;
+                zip.forEach((relativePath, zipEntry) => {
+                    if (relativePath.toLowerCase().endsWith('.kml')) {
+                        kmlFile = zipEntry;
+                    }
+                });
+
+                if (!kmlFile) {
+                    alert("Could not find a .kml file inside the KMZ archive.");
+                    return;
+                }
+
+                const kmlText = await kmlFile.async("text");
+                parseKMLData(kmlText);
+            } catch (err) {
+                console.error("KMZ Extraction Error:", err);
+                alert("Failed to read KMZ file. Is it corrupted?");
+            } finally {
+                e.target.value = ""; // Reset
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    } else {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const kmlText = evt.target.result;
+            parseKMLData(kmlText);
+            e.target.value = ""; // Reset
+        };
+        reader.readAsText(file);
+    }
 }
 
 function parseKMLData(kmlText) {
@@ -303,7 +337,12 @@ function drawAlignmentMap() {
                 let imgHtml = '';
                 const lowerDesc = String(lp.desc).toLowerCase().trim();
                 if (state.stationPlans[lowerDesc]) {
-                    imgHtml = `<img src="${state.stationPlans[lowerDesc]}" class="station-plan-img" alt="Station Plan"/>`;
+                    const dataUrl = state.stationPlans[lowerDesc];
+                    if (dataUrl.startsWith('data:application/pdf')) {
+                        imgHtml = `<iframe src="${dataUrl}#toolbar=0&navpanes=0&scrollbar=0" class="station-plan-pdf" frameborder="0"></iframe>`;
+                    } else {
+                        imgHtml = `<img src="${dataUrl}" class="station-plan-img" alt="Station Plan"/>`;
+                    }
                 }
 
                 marker.bindPopup(`

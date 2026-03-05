@@ -16,6 +16,7 @@
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="./background-beams.js" defer></script>
 </head>
 
@@ -781,11 +782,11 @@
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <button id="importKmlBtn" class="btn btn-secondary" type="button"><i class="ri-map-pin-line"
-                style="margin-right:4px;"></i> Import KML</button>
+                style="margin-right:4px;"></i> Import KML/KMZ</button>
             <button id="importStationPlanBtn" class="btn btn-secondary" type="button"><i class="ri-image-add-line"
                 style="margin-right:4px;"></i> Add Station Plan</button>
-            <input id="kmlImportInput" type="file" accept=".kml,.KML" hidden />
-            <input id="stationPlanImportInput" type="file" accept=".png,.jpg,.jpeg,.webp" hidden />
+            <input id="kmlImportInput" type="file" accept=".kml,.KML,.kmz,.KMZ" hidden />
+            <input id="stationPlanImportInput" type="file" accept=".png,.jpg,.jpeg,.webp,.pdf,.PDF" hidden />
             <select id="mapTileSelect" class="btn btn-secondary"
               style="padding:6px 10px;font-size:0.8rem;background:var(--card);color:var(--text);border:1px solid var(--stroke);border-radius:var(--radius);cursor:pointer;">
               <option value="streets">Street Map</option>
