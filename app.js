@@ -2311,6 +2311,67 @@ function renderRollDiagram() {
     lx += 15 + ctx.measureText(item.lbl).width + 14;
     if (lx > canvasW - 100) break;
   }
+
+  // ── Tooltip Interaction ──────────────────────────────────────────────────
+  const tooltip = document.getElementById("rollTooltip");
+  if (tooltip) {
+    canvas.onmousemove = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const mouseX = (e.clientX - rect.left) * scaleX;
+
+      const chHit = minCh + (mouseX - PAD_L) / PX_PER_M_X;
+      if (chHit >= minCh && chHit <= maxCh && mouseX >= PAD_L && mouseX <= canvasW - PAD_R) {
+        // Find closest row
+        let closest = rows[0];
+        let minDist = Infinity;
+        for (const r of rows) {
+          const d = Math.abs(r.chainage - chHit);
+          if (d < minDist) {
+            minDist = d;
+            closest = r;
+          }
+        }
+
+        // Construct Tooltip content
+        const isOnBr = bridges.some(b => closest.chainage >= b.startChainage && closest.chainage <= b.endChainage);
+        const w0 = closest.bank > 0 ? closest.fillBottom : (closest.cut > 0 ? closest.cutBottom : (closest.effectiveFormationWidth || 0));
+        let content = `
+          <div style="font-weight:700; border-bottom:1px solid hsla(222,20%,50%,0.3); padding-bottom:4px; margin-bottom:6px;">
+            Chainage: ${closest.chainage.toFixed(3)} m
+          </div>
+          <div style="display:grid; grid-template-columns:auto auto; gap:4px 12px; font-size:0.8rem;">
+            <span style="color:var(--muted)">Ground RL:</span> <span style="font-weight:600">${r3(closest.groundLevel)}</span>
+            <span style="color:var(--muted)">Formation RL:</span> <span style="font-weight:600">${r3(closest.proposedLevel)}</span>
+            <span style="color:var(--muted)">Toe Dist (Side):</span> <span style="font-weight:600">${isOnBr ? '0 (Bridge)' : r3(w0 / 2)} m</span>
+            <span style="color:var(--green)">Fill Vol:</span> <span style="font-weight:600">${r3(closest.fillVol)} m³</span>
+            <span style="color:var(--red)">Cut Vol:</span> <span style="font-weight:600">${r3(closest.cutVol)} m³</span>
+          </div>
+        `;
+
+        tooltip.innerHTML = content;
+        tooltip.style.display = 'block';
+        tooltip.style.left = (e.pageX + 15) + 'px';
+        tooltip.style.top = (e.pageY + 15) + 'px';
+
+        // Ensure tooltip doesn't go off-screen
+        const tRect = tooltip.getBoundingClientRect();
+        if (tRect.right > window.innerWidth) {
+          tooltip.style.left = (e.pageX - tRect.width - 15) + 'px';
+        }
+        if (tRect.bottom > window.innerHeight) {
+          tooltip.style.top = (e.pageY - tRect.height - 15) + 'px';
+        }
+
+      } else {
+        tooltip.style.display = 'none';
+      }
+    };
+
+    canvas.onmouseleave = () => {
+      tooltip.style.display = 'none';
+    };
+  }
 }
 
 function renderSideView() {
