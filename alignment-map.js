@@ -42,13 +42,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // Initialize Map System (called by Google Maps API loader callback)
 window.initMapSystem = function () {
-    if (typeof google === 'undefined') return;
+    console.log("initMapSystem / initMap called!");
+    if (typeof google === 'undefined') {
+        console.warn("Google objects not found in initMapSystem.");
+        return;
+    }
 
     // Initialize Map
     const mapContainer = document.getElementById("alignmentMapContainer");
     const emptyState = document.getElementById("alignmentMapEmpty");
 
-    if (!mapContainer || !emptyState) return;
+    if (!mapContainer || !emptyState) {
+        console.error("Map container or empty state element not found.");
+        return;
+    }
+
+    if (alignmentMap) {
+        console.log("Map already initialized.");
+        return;
+    }
 
     alignmentMap = new google.maps.Map(mapContainer, {
         center: { lat: 20.5937, lng: 78.9629 }, // Default to India center
@@ -67,8 +79,7 @@ window.initMapSystem = function () {
                 featureType: "administrative.locality",
                 elementType: "labels.text.fill",
                 stylers: [{ color: "#d59563" }],
-            },
-            // ... more styles can be added if needed for better dark mode consistency
+            }
         ]
     });
 
@@ -78,20 +89,18 @@ window.initMapSystem = function () {
     if (state.kmlData) {
         drawAlignmentMap();
     }
-
-    // Handle map resize on page reveal
-    const workNavBtns = document.querySelectorAll(".work-nav-btn");
-    workNavBtns.forEach(btn => {
-        btn.addEventListener("click", () => {
-            if (btn.dataset.workPageBtn === "alignment-map") {
-                setTimeout(() => {
-                    google.maps.event.trigger(alignmentMap, "resize");
-                    if (state.kmlData) drawAlignmentMap();
-                }, 300);
-            }
-        });
-    });
 };
+
+// Alias for keyless script compatibility (it hardcodes initMap)
+window.initMap = window.initMapSystem;
+
+// Second Fallback: If the callback doesn't fire, try to init after some time
+setTimeout(() => {
+    if (!alignmentMap && typeof google !== 'undefined' && google.maps) {
+        console.log("Fallback: Initializing map manually as callback didn't fire.");
+        window.initMapSystem();
+    }
+}, 3000);
 
 // ── KML/KMZ Import ─────────────────────────────────────────────────────────
 
