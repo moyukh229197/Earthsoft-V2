@@ -2314,11 +2314,20 @@ function renderRollDiagram() {
 
   // ── Tooltip Interaction ──────────────────────────────────────────────────
   const tooltip = document.getElementById("rollTooltip");
+  let crosshair = document.getElementById("rollCrosshair");
+  if (!crosshair && document.getElementById("rollDiagramWrap")) {
+    crosshair = document.createElement("div");
+    crosshair.id = "rollCrosshair";
+    crosshair.style.cssText = "display:none;position:absolute;top:0;width:1.5px;background:hsla(222, 100%, 75%, 0.8);pointer-events:none;z-index:90;box-shadow:0 0 4px hsla(222,100%,75%,0.5);";
+    document.getElementById("rollDiagramWrap").appendChild(crosshair);
+  }
+
   if (tooltip) {
     canvas.onmousemove = (e) => {
       const rect = canvas.getBoundingClientRect();
       const scaleX = canvas.width / rect.width;
-      const mouseX = (e.clientX - rect.left) * scaleX;
+      const visualX = e.clientX - rect.left;
+      const mouseX = visualX * scaleX;
 
       const chHit = minCh + (mouseX - PAD_L) / PX_PER_M_X;
       if (chHit >= minCh && chHit <= maxCh && mouseX >= PAD_L && mouseX <= canvasW - PAD_R) {
@@ -2363,13 +2372,21 @@ function renderRollDiagram() {
           tooltip.style.top = (e.pageY - tRect.height - 15) + 'px';
         }
 
+        if (crosshair) {
+          crosshair.style.display = 'block';
+          crosshair.style.left = (canvas.offsetLeft + visualX) + 'px';
+          crosshair.style.height = canvas.clientHeight + 'px';
+        }
+
       } else {
         tooltip.style.display = 'none';
+        if (crosshair) crosshair.style.display = 'none';
       }
     };
 
     canvas.onmouseleave = () => {
       tooltip.style.display = 'none';
+      if (crosshair) crosshair.style.display = 'none';
     };
   }
 }
