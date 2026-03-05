@@ -141,33 +141,53 @@ function handleKmlImport(e) {
 }
 
 function parseKMLData(kmlText) {
+    console.log("Parsing KML data...");
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(kmlText, "text/xml");
 
+    // Standard geometries
     const lineStrings = xmlDoc.getElementsByTagName("LineString");
-    if (!lineStrings || lineStrings.length === 0) {
-        alert("No LineString path found in KML file.");
-        return;
-    }
+    const points_extracted = [];
 
-    let points = [];
-    for (let i = 0; i < lineStrings.length; i++) {
-        const coordsNode = lineStrings[i].getElementsByTagName("coordinates")[0];
-        if (coordsNode) {
-            const coordPairs = coordsNode.textContent.trim().split(/\s+/);
-            coordPairs.forEach(pair => {
-                const [lng, lat] = pair.split(',');
-                if (lat && lng) {
-                    points.push({ lat: parseFloat(lat), lng: parseFloat(lng) });
+    // Also look for coordinates tags directly for better coverage
+    const coordsNodes = xmlDoc.getElementsByTagName("coordinates");
+    console.log(`Found ${coordsNodes.length} coordinate blocks.`);
+
+    for (let i = 0; i < coordsNodes.length; i++) {
+        const text = coordsNodes[i].textContent || "";
+        // KML coordinates are typically space or newline separated tuples of lng,lat,alt
+        const tuples = text.trim().split(/[\s\n\r]+/);
+        tuples.forEach(tuple => {
+            const parts = tuple.split(',').map(s => s.trim());
+            if (parts.length >= 2) {
+                const lng = parseFloat(parts[0]);
+                const lat = parseFloat(parts[1]);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    points_extracted.push({ lat, lng });
                 }
-            });
-        }
+            }
+        });
     }
 
-    if (points.length === 0) {
-        alert("Could not parse coordinates from the KML file.");
+    if (points_extracted.length === 0) {
+        console.error("No valid coordinates found in KML.");
+        alert("Could not parse coordinates from the KML file. Please ensure it contains standard Google Earth / KML path data.");
         return;
     }
+
+    console.log(`Successfully parsed ${points_extracted.length} points.`);
+
+    // Remove duplicates
+    const points = [];
+    points_extracted.forEach((p, idx) => {
+        if (idx === 0) points.push(p);
+        else {
+            const last = points[points.length - 1];
+            if (Math.abs(last.lat - p.lat) > 1e-9 || Math.abs(last.lng - p.lng) > 1e-9) {
+                points.push(p);
+            }
+        }
+    });
 
     let cumDist = 0;
     points[0].ch = 0;
@@ -181,7 +201,10 @@ function parseKMLData(kmlText) {
 
     const container = document.querySelector('.work-page[data-work-page="alignment-map"]');
     if (container && container.style.display !== 'none') {
+        console.log("On map page, triggering draw...");
         drawAlignmentMap();
+    } else {
+        console.log("Not on map page, state saved.");
     }
 }
 
@@ -212,41 +235,54 @@ function handleStationPlanImport(e) {
 // ── Map Rendering Core ───────────────────────────────────────────────────
 
 function drawAlignmentMap() {
-    if (!alignmentMap || !state.kmlData || !state.kmlData.points.length) {
+    console.log("Drawing Alignment Map...");
+    if (!alignmentMap) {
+        console.warn("Map not initialized yet. Skipping draw.");
+        return;
+    }
+
+    if (!state.kmlData || !state.kmlData.points || !state.kmlData.points.length) {
+        console.log("No KML data to draw.");
         document.getElementById("alignmentMapContainer").style.display = "none";
         document.getElementById("alignmentMapEmpty").style.display = "flex";
         return;
     }
 
+    // Hide empty state, show map
     document.getElementById("alignmentMapContainer").style.display = "block";
     document.getElementById("alignmentMapEmpty").style.display = "none";
 
-    // Clear previous items
-    mapItems.forEach(item => item.setMap(null));
-    mapItems = [];
+    // Trigger resize is important if the container was hidden
+    google.maps.event.trigger(alignmentMap, "resize");
 
     const points = state.kmlData.points;
     const path = points.map(p => ({ lat: p.lat, lng: p.lng }));
+
+    // Define bounds for the alignment
     const bounds = new google.maps.LatLngBounds();
     path.forEach(p => bounds.extend(p));
 
-    // Base Alignment
+    // Clear previous items
+    if (mapItems && mapItems.length) {
+        mapItems.forEach(item => { if (item && item.setMap) item.setMap(null); });
+    }
+    mapItems = [];
+
+    // Base Alignment Polyline
     const basePoly = new google.maps.Polyline({
         path: path,
         geodesic: true,
         strokeColor: "#ffffff",
-        strokeOpacity: 0.3,
+        strokeOpacity: 0.6,
         strokeWeight: 2,
-        icons: [{
-            icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.5, scale: 2 },
-            offset: '0',
-            repeat: '10px'
-        }]
+        map: alignmentMap
     });
-    basePoly.setMap(alignmentMap);
     mapItems.push(basePoly);
 
-    alignmentMap.fitBounds(bounds);
+    if (!bounds.isEmpty()) {
+        alignmentMap.fitBounds(bounds);
+        console.log("Map bounds fitted to alignment.");
+    }
 
     // Earthwork Overlays
     if (state.calcRows && state.calcRows.length > 1) {
