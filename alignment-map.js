@@ -181,23 +181,21 @@ function handleKmlImport(e) {
     }
 }
 
+// Local fallbacks for utilities (in case app.js is still loading/parsing)
+const _safeNum = (v, fallback = 0) => (typeof safeNum === 'function' ? safeNum(v, fallback) : (isNaN(parseFloat(v)) ? fallback : parseFloat(v)));
+
 function parseKMLData(kmlText) {
-    console.log("Parsing KML data...");
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(kmlText, "text/xml");
+    console.log("Parsing KML data (Regex Mode)...");
 
-    // Standard geometries
-    const lineStrings = xmlDoc.getElementsByTagName("LineString");
+    // Use regex to find coordinate blocks - much more robust against namespaces
+    const coordRegex = /<coordinates>([\s\S]*?)<\/coordinates>/g;
     const points_extracted = [];
+    let match;
 
-    // Also look for coordinates tags directly for better coverage
-    const coordsNodes = xmlDoc.getElementsByTagName("coordinates");
-    console.log(`Found ${coordsNodes.length} coordinate blocks.`);
-
-    for (let i = 0; i < coordsNodes.length; i++) {
-        const text = coordsNodes[i].textContent || "";
-        // KML coordinates are typically space or newline separated tuples of lng,lat,alt
-        const tuples = text.trim().split(/[\s\n\r]+/);
+    while ((match = coordRegex.exec(kmlText)) !== null) {
+        const text = match[1].trim();
+        // Split by whitespace/newlines
+        const tuples = text.split(/[\s\n\r]+/);
         tuples.forEach(tuple => {
             const parts = tuple.split(',').map(s => s.trim());
             if (parts.length >= 2) {
@@ -211,12 +209,32 @@ function parseKMLData(kmlText) {
     }
 
     if (points_extracted.length === 0) {
-        console.error("No valid coordinates found in KML.");
+        console.error("No coordinates found using regex. Falling back to DOM parser...");
+        // Fallback to DOM parser if regex failed (unlikely but safe)
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(kmlText, "text/xml");
+        const coordsNodes = xmlDoc.getElementsByTagName("coordinates");
+        for (let i = 0; i < coordsNodes.length; i++) {
+            const text = coordsNodes[i].textContent || "";
+            const tuples = text.trim().split(/[\s\n\r]+/);
+            tuples.forEach(tuple => {
+                const parts = tuple.split(',').map(s => s.trim());
+                if (parts.length >= 2) {
+                    const lng = parseFloat(parts[0]);
+                    const lat = parseFloat(parts[1]);
+                    if (!isNaN(lat) && !isNaN(lng)) points_extracted.push({ lat, lng });
+                }
+            });
+        }
+    }
+
+    if (points_extracted.length === 0) {
+        console.error("Critical: No valid coordinates found in KML.");
         alert("Could not parse coordinates from the KML file. Please ensure it contains standard Google Earth / KML path data.");
         return;
     }
 
-    console.log(`Successfully parsed ${points_extracted.length} points.`);
+    console.log(`Successfully extracted ${points_extracted.length} points.`);
 
     // Remove duplicates
     const points = [];
@@ -240,12 +258,14 @@ function parseKMLData(kmlText) {
     state.kmlData = { points, totalDistance: cumDist };
     saveState();
 
+    alert(`Successfully imported ${points.length} coordinates and mapped ${cumDist.toFixed(0)}m of alignment.`);
+
     const container = document.querySelector('.work-page[data-work-page="alignment-map"]');
     if (container && container.style.display !== 'none') {
         console.log("On map page, triggering draw...");
         drawAlignmentMap();
     } else {
-        console.log("Not on map page, state saved.");
+        console.log("Not on map page, state saved. Please go to Alignment Map to see results.");
     }
 }
 
@@ -314,8 +334,8 @@ function drawAlignmentMap() {
         path: path,
         geodesic: true,
         strokeColor: "#ffffff",
-        strokeOpacity: 0.6,
-        strokeWeight: 2,
+        strokeOpacity: 0.8, // Increased for visibility
+        strokeWeight: 3,    // Thicker line
         map: alignmentMap
     });
     mapItems.push(basePoly);
@@ -325,6 +345,11 @@ function drawAlignmentMap() {
         console.log("Map bounds fitted to alignment.");
     }
 
+    // Offset Mapping: Most projects don't start at CH 0. 
+    // We assume the first point of the KML matches the first point of our calculations.
+    const startChOffset = (state.calcRows && state.calcRows.length) ? _safeNum(state.calcRows[0].chainage) : 0;
+    console.log(`Using Chainage Offset: ${startChOffset}`);
+
     // Earthwork Overlays
     if (state.calcRows && state.calcRows.length > 1) {
         for (let i = 1; i < state.calcRows.length; i++) {
@@ -332,17 +357,18 @@ function drawAlignmentMap() {
             const isFill = r1.bank > 0.001, isCut = r1.cut > 0.001;
             if (!isFill && !isCut) continue;
 
-            const p0 = getLatLngFromChainage(r0.chainage, points);
-            const p1 = getLatLngFromChainage(r1.chainage, points);
+            // Map project chainage to KML-relative distance
+            const p0 = getLatLngFromChainage(r0.chainage - startChOffset, points);
+            const p1 = getLatLngFromChainage(r1.chainage - startChOffset, points);
 
             if (p0 && p1) {
                 const ewPoly = new google.maps.Polyline({
                     path: [p0, p1],
                     strokeColor: isFill ? "#22c55e" : "#f43f5e",
-                    strokeOpacity: 0.8,
-                    strokeWeight: 5
+                    strokeOpacity: 0.9,
+                    strokeWeight: 6,
+                    map: alignmentMap
                 });
-                ewPoly.setMap(alignmentMap);
                 mapItems.push(ewPoly);
             }
         }
@@ -350,7 +376,8 @@ function drawAlignmentMap() {
 
     // Helper to add titled markers
     const addMarker = (midCh, title, content, color) => {
-        const pt = getLatLngFromChainage(midCh, points);
+        // Map project chainage to KML-relative distance
+        const pt = getLatLngFromChainage(midCh - startChOffset, points);
         if (!pt) return;
 
         const marker = new google.maps.Marker({
@@ -363,7 +390,7 @@ function drawAlignmentMap() {
                 fillOpacity: 0.9,
                 strokeColor: '#ffffff',
                 strokeWeight: 1,
-                scale: 7
+                scale: 8
             }
         });
 
@@ -376,19 +403,19 @@ function drawAlignmentMap() {
 
     // Bridges
     state.bridgeRows.forEach(br => {
-        const mid = (safeNum(br.startChainage) + safeNum(br.endChainage)) / 2;
+        const mid = (_safeNum(br.startChainage) + _safeNum(br.endChainage)) / 2;
         const content = `
       <div class="map-popup-title">Bridge ${br.bridgeNo}</div>
       <div class="map-popup-row"><span class="label">Type:</span> <span class="value">${br.bridgeType}</span></div>
-      <div class="map-popup-row"><span class="label">Start CH:</span> <span class="value">${safeNum(br.startChainage).toFixed(3)}</span></div>
-      <div class="map-popup-row"><span class="label">End CH:</span> <span class="value">${safeNum(br.endChainage).toFixed(3)}</span></div>
+      <div class="map-popup-row"><span class="label">Start:</span> <span class="value">${_safeNum(br.startChainage).toFixed(3)}</span></div>
+      <div class="map-popup-row"><span class="label">End:</span> <span class="value">${_safeNum(br.endChainage).toFixed(3)}</span></div>
     `;
         addMarker(mid, `Bridge ${br.bridgeNo}`, content, "#3b82f6");
     });
 
     // Curves
     state.curveRows.forEach(cr => {
-        const mid = (safeNum(cr.startChainage) + safeNum(cr.endChainage)) / 2;
+        const mid = (_safeNum(cr.startChainage) + _safeNum(cr.endChainage)) / 2;
         const content = `
       <div class="map-popup-title">Curve</div>
       <div class="map-popup-row"><span class="label">Radius:</span> <span class="value">${cr.radius} m</span></div>
@@ -398,7 +425,7 @@ function drawAlignmentMap() {
 
     // Stations
     state.loopPlatformRows.forEach(lp => {
-        const mid = (safeNum(lp.startChainage) + safeNum(lp.endChainage)) / 2;
+        const mid = (_safeNum(lp.startChainage) + _safeNum(lp.endChainage)) / 2;
         let planHtml = '';
         const plan = state.stationPlans[String(lp.desc).toLowerCase().trim()];
         if (plan) {
@@ -411,8 +438,8 @@ function drawAlignmentMap() {
 
         const content = `
       <div class="map-popup-title">${lp.desc}</div>
-      <div class="map-popup-row"><span class="label">Start CH:</span> <span class="value">${safeNum(lp.startChainage).toFixed(3)}</span></div>
-      <div class="map-popup-row"><span class="label">End CH:</span> <span class="value">${safeNum(lp.endChainage).toFixed(3)}</span></div>
+      <div class="map-popup-row"><span class="label">Start CH:</span> <span class="value">${_safeNum(lp.startChainage).toFixed(3)}</span></div>
+      <div class="map-popup-row"><span class="label">End CH:</span> <span class="value">${_safeNum(lp.endChainage).toFixed(3)}</span></div>
       ${planHtml}
     `;
         addMarker(mid, lp.desc, content, "#06b6d4");
