@@ -2149,9 +2149,18 @@ function renderRollDiagram() {
   ctx.beginPath(); ctx.moveTo(getX(minCh), centerY); ctx.lineTo(getX(maxCh), centerY); ctx.stroke();
   ctx.setLineDash([]);
 
+  // ── Bridges ─────────────────────────────────────────────────────────────
+  const bridges = buildBridgeIntervals();
+  function isOnBridge(ch) {
+    return bridges.some(b => ch >= b.startChainage && ch <= b.endChainage);
+  }
+
   // ── Toe width — per-segment coloured trapezoids ─────────────────────────
   for (let i = 1; i < rows.length; i++) {
     const r0 = rows[i - 1], r1 = rows[i];
+    const midCh = (r0.chainage + r1.chainage) / 2;
+    if (isOnBridge(midCh)) continue;
+
     const x0 = getX(r0.chainage), x1g = getX(r1.chainage);
     if (x0 == null || x1g == null) continue;
     const w0 = r0.bank > 0 ? r0.fillBottom : (r0.cut > 0 ? r0.cutBottom : (r0.effectiveFormationWidth || 0));
@@ -2180,8 +2189,7 @@ function renderRollDiagram() {
     ctx.setLineDash([]);
   }
 
-  // ── Bridges ─────────────────────────────────────────────────────────────
-  const bridges = buildBridgeIntervals();
+  // ── Draw Bridge Rectangles ──────────────────────────────────────────────
   for (const b of bridges) {
     const bx1 = getX(b.startChainage), bx2 = getX(b.endChainage);
     if (bx1 == null || bx2 == null) continue;
