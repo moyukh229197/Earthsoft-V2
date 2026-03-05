@@ -4,106 +4,153 @@ function createBackgroundBeams() {
   const container = document.createElement('div');
   container.className = 'background-beams-container';
 
-  const pathsData = [
-    "M-380 -189C-380 -189 -312 216 152 343C616 470 684 875 684 875",
-    "M-373 -197C-373 -197 -305 208 159 335C623 462 691 867 691 867",
-    "M-366 -205C-366 -205 -298 200 166 327C630 454 698 859 698 859",
-    "M-359 -213C-359 -213 -291 192 173 319C637 446 705 851 705 851",
-    "M-352 -221C-352 -221 -284 184 180 311C644 438 712 843 712 843",
-    "M-345 -229C-345 -229 -277 176 187 303C651 430 719 835 719 835",
-    "M-338 -237C-338 -237 -270 168 194 295C658 422 726 827 726 827",
-    "M-331 -245C-331 -245 -263 160 201 287C665 414 733 819 733 819",
-    "M-324 -253C-324 -253 -256 152 208 279C672 406 740 811 740 811",
-    "M-317 -261C-317 -261 -249 144 215 271C679 398 747 803 747 803",
-    "M-310 -269C-310 -269 -242 136 222 263C686 390 754 795 754 795",
-    "M-303 -277C-303 -277 -235 128 229 255C693 382 761 787 761 787",
-    "M-296 -285C-296 -285 -228 120 236 247C700 374 768 779 768 779",
-    "M-289 -293C-289 -293 -221 112 243 239C707 366 775 771 775 771",
-    "M-282 -301C-282 -301 -214 104 250 231C714 358 782 763 782 763",
-    "M-275 -309C-275 -309 -207 96 257 223C721 350 789 755 789 755",
-    "M-268 -317C-268 -317 -200 88 264 215C728 342 796 747 796 747",
-    "M-261 -325C-261 -325 -193 80 271 207C735 334 803 739 803 739",
-    "M-254 -333C-254 -333 -186 72 278 199C742 326 810 731 810 731",
-    "M-247 -341C-247 -341 -179 64 285 191C749 318 817 723 817 723",
-    "M-240 -349C-240 -349 -172 56 292 183C756 310 824 715 824 715",
-    "M-233 -357C-233 -357 -165 48 299 175C763 302 831 707 831 707",
-    "M-226 -365C-226 -365 -158 40 306 167C770 294 838 699 838 699",
-    "M-219 -373C-219 -373 -151 32 313 159C777 286 845 691 845 691",
-    "M-212 -381C-212 -381 -144 24 320 151C784 278 852 683 852 683",
-    "M-205 -389C-205 -389 -137 16 327 143C791 270 859 675 859 675",
-    "M-198 -397C-198 -397 -130 8 334 135C798 262 866 667 866 667",
-    "M-191 -405C-191 -405 -123 0 341 127C805 254 873 659 873 659",
-    "M-184 -413C-184 -413 -116 -8 348 119C812 246 880 651 880 651",
-    "M-177 -421C-177 -421 -109 -16 355 111C819 238 887 643 887 643",
-    "M-170 -429C-170 -429 -102 -24 362 103C826 230 894 635 894 635",
-    "M-163 -437C-163 -437 -95 -32 369 95C833 222 901 627 901 627",
-    "M-156 -445C-156 -445 -88 -40 376 87C840 214 908 619 908 619",
-    "M-149 -453C-149 -453 -81 -48 383 79C847 206 915 611 915 611",
-    "M-142 -461C-142 -461 -74 -56 390 71C854 198 922 603 922 603",
-    "M-135 -469C-135 -469 -67 -64 397 63C861 190 929 595 929 595",
-    "M-128 -477C-128 -477 -60 -72 404 55C868 182 936 587 936 587",
-    "M-121 -485C-121 -485 -53 -80 411 47C875 174 943 579 943 579",
-    "M-114 -493C-114 -493 -46 -88 418 39C882 166 950 571 950 571",
-    "M-107 -501C-107 -501 -39 -96 425 31C889 158 957 563 957 563",
-    "M-100 -509C-100 -509 -32 -104 432 23C896 150 964 555 964 555",
-    "M-93 -517C-93 -517 -25 -112 439 15C903 142 971 547 971 547",
-    "M-86 -525C-86 -525 -18 -120 446 7C910 134 978 539 978 539",
-    "M-79 -533C-79 -533 -11 -128 453 -1C917 126 985 531 985 531",
-    "M-72 -541C-72 -541 -4 -136 460 -9C924 118 992 523 992 523",
-    "M-65 -549C-65 -549 3 -144 467 -17C931 110 999 515 999 515",
-    "M-58 -557C-58 -557 10 -152 474 -25C938 102 1006 507 1006 507",
-    "M-51 -565C-51 -565 17 -160 481 -33C945 94 1013 499 1013 499",
-    "M-44 -573C-44 -573 24 -168 488 -41C952 86 1020 491 1020 491",
-    "M-37 -581C-37 -581 31 -176 495 -49C959 78 1027 483 1027 483"
-  ];
+  // Custom styling that mimics the Animated Grid Pattern demo mask
+  container.style.position = 'absolute';
+  container.style.left = '0';
+  container.style.right = '0';
+  container.style.top = '-30%';
+  container.style.bottom = '-30%';
+  container.style.height = '160%'; // adjusted for better layout
+  container.style.pointerEvents = 'none';
+  container.style.zIndex = '0';
+  container.style.transform = 'skewY(12deg)';
 
-  const allPathStr = pathsData.join("");
+  // We apply the demo mask radial gradient
+  container.style.maskImage = "radial-gradient(ellipse at center, white 10%, transparent 60%)";
+  container.style.webkitMaskImage = "radial-gradient(ellipse at center, white 10%, transparent 70%)";
 
-  let pathsHTML = "";
-  let defsHTML = "<defs>";
+  const width = 45;
+  const height = 45;
+  const numSquares = 40;
+  const maxOpacity = 0.15;
+  const duration = 2.5;
+  const repeatDelay = 0.5;
+  const x = -1;
+  const y = -1;
+  const strokeDasharray = 0;
 
-  pathsData.forEach((p, i) => {
-    pathsHTML += `<path class="beam-path" d="${p}" stroke="url(#gradient-${i})" stroke-opacity="0.8" stroke-width="0.6"></path>\n`;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("aria-hidden", "true");
+  svg.style.position = "absolute";
+  svg.style.inset = "0";
+  svg.style.height = "100%";
+  svg.style.width = "100%";
+  // Subtle grey stroke for grid lines
+  svg.style.fill = "rgba(156, 163, 175, 0.4)";
+  svg.style.stroke = "rgba(156, 163, 175, 0.4)";
 
-    const duration = (Math.random() * 20 + 20).toFixed(2);
-    const delay = (Math.random() * 15).toFixed(2);
-    const y2_target = (0.93 + Math.random() * 0.08).toFixed(2);
+  const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+  const pattern = document.createElementNS("http://www.w3.org/2000/svg", "pattern");
+  const patternId = "grid-pattern-id";
+  pattern.setAttribute("id", patternId);
+  pattern.setAttribute("width", width.toString());
+  pattern.setAttribute("height", height.toString());
+  pattern.setAttribute("patternUnits", "userSpaceOnUse");
+  pattern.setAttribute("x", x.toString());
+  pattern.setAttribute("y", y.toString());
 
-    defsHTML += `
-      <linearGradient id="gradient-${i}" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#18CCFC" stop-opacity="0"></stop>
-        <stop offset="0.2" stop-color="#18CCFC"></stop>
-        <stop offset="0.6" stop-color="#6344F5"></stop>
-        <stop offset="1" stop-color="#AE48FF" stop-opacity="0"></stop>
-        <animate attributeName="x1" values="0;1;0" dur="${duration}s" begin="${delay}s" repeatCount="indefinite" />
-        <animate attributeName="x2" values="0;0.95;0" dur="${duration}s" begin="${delay}s" repeatCount="indefinite" />
-        <animate attributeName="y1" values="0;1;0" dur="${duration}s" begin="${delay}s" repeatCount="indefinite" />
-        <animate attributeName="y2" values="0;${y2_target};0" dur="${duration}s" begin="${delay}s" repeatCount="indefinite" />
-      </linearGradient>
-    `;
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", `M.5 ${height}V.5H${width}`);
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke-dasharray", strokeDasharray.toString());
+  pattern.appendChild(path);
+  defs.appendChild(pattern);
+  svg.appendChild(defs);
+
+  const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  rect.setAttribute("width", "100%");
+  rect.setAttribute("height", "100%");
+  rect.setAttribute("fill", `url(#${patternId})`);
+  svg.appendChild(rect);
+
+  const innerSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  innerSvg.setAttribute("x", x.toString());
+  innerSvg.setAttribute("y", y.toString());
+  innerSvg.style.overflow = "visible";
+
+  let squares = [];
+  let w = window.innerWidth;
+  let h = window.innerHeight * 2; // Approximating due to skew and height multiplier
+
+  function getPos() {
+    return [
+      Math.floor((Math.random() * w) / width),
+      Math.floor((Math.random() * h) / height),
+    ];
+  }
+
+  // Create the animated squares
+  for (let i = 0; i < numSquares; i++) {
+    const sq = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    sq.setAttribute("width", (width - 1).toString());
+    sq.setAttribute("height", (height - 1).toString());
+
+    const pos = getPos();
+    sq.setAttribute("x", (pos[0] * width + 1).toString());
+    sq.setAttribute("y", (pos[1] * height + 1).toString());
+    sq.setAttribute("fill", "currentColor");
+    // In dark themes it will be white, in light maybe dark depending on body color
+    // We force white here for the cool "tech" effect against the dark background
+    sq.style.color = "rgba(255, 255, 255, 1)";
+    sq.setAttribute("stroke-width", "0");
+    sq.style.opacity = "0";
+
+    sq.style.transition = `opacity ${duration}s ease-in-out`;
+
+    innerSvg.appendChild(sq);
+    squares.push({ el: sq, index: i });
+  }
+
+  svg.appendChild(innerSvg);
+  container.appendChild(svg);
+
+  function animateSquares() {
+    squares.forEach((sq) => {
+      const initialDelay = sq.index * 0.1 * 1000; // staggered start
+      setTimeout(() => {
+        const loop = () => {
+          // Fade in
+          sq.el.style.opacity = maxOpacity.toString();
+
+          setTimeout(() => {
+            // Fade out
+            sq.el.style.opacity = "0";
+
+            setTimeout(() => {
+              // Re-position when hidden
+              const pos = getPos();
+              sq.el.setAttribute("x", (pos[0] * width + 1).toString());
+              sq.el.setAttribute("y", (pos[1] * height + 1).toString());
+
+              // Repeat
+              loop();
+            }, duration * 1000 + repeatDelay * 1000);
+
+          }, duration * 1000); // stay visible/animating for `duration`
+        };
+        loop();
+      }, initialDelay);
+    });
+  }
+
+  requestAnimationFrame(() => {
+    animateSquares();
   });
 
-  defsHTML += `
-      <radialGradient id="paint0_radial_bg_beams" cx="0%" cy="0%" r="100%">
-        <stop offset="0%" stop-color="#6344F5" stop-opacity="0.15"></stop>
-        <stop offset="50%" stop-color="#18CCFC" stop-opacity="0.10"></stop>
-        <stop offset="100%" stop-color="#AE48FF" stop-opacity="0.05"></stop>
-      </radialGradient>
-    </defs>`;
+  window.addEventListener('resize', () => {
+    w = window.innerWidth;
+    h = window.innerHeight * 2;
+  });
 
-  const innerSvg = `
-    <svg class="beams-svg" width="100%" height="100%" viewBox="0 0 696 316" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
-      <path class="all-paths" d="${allPathStr}" stroke="url(#paint0_radial_bg_beams)" stroke-opacity="0.75" stroke-width="0.8"></path>
-      ${pathsHTML}
-      ${defsHTML}
-    </svg>
-  `;
-
-  container.innerHTML = innerSvg;
   return container;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  const existing = document.querySelector('.background-beams-container');
+  if (existing) {
+    existing.innerHTML = ''; // Clear if it existed
+  }
   const beams = createBackgroundBeams();
+  // We prepend to the body
   document.body.prepend(beams);
 });
