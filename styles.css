@@ -2139,31 +2139,33 @@ td:first-child {
   background: #0d1117;
 }
 
-.leaflet-popup-content-wrapper {
+/* Google Maps InfoWindow Customization */
+.gm-style-iw-c {
   background: hsla(222, 40%, 12%, 0.95) !important;
   color: #fff !important;
   border: 1px solid hsla(222, 20%, 30%, 0.5) !important;
   border-radius: 8px !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
   font-family: 'Outfit', sans-serif !important;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px) !important;
+  padding: 14px !important;
 }
 
-.leaflet-popup-content {
-  margin: 10px 14px !important;
-  font-size: 0.85rem !important;
-  line-height: 1.5 !important;
+.gm-style-iw-d {
+  overflow: hidden !important;
+  /* Hide scrollbars if content fits */
 }
 
-.leaflet-popup-tip {
+.gm-style .gm-style-iw-tc::after {
   background: hsla(222, 40%, 12%, 0.95) !important;
   border: 1px solid hsla(222, 20%, 30%, 0.5) !important;
   border-top: none !important;
   border-left: none !important;
 }
 
-.leaflet-popup-close-button {
-  color: rgba(255, 255, 255, 0.6) !important;
+.gm-ui-hover-effect {
+  filter: invert(1) !important;
+  /* Make close button white */
 }
 
 .map-popup-title {
