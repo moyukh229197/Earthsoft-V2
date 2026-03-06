@@ -8,8 +8,8 @@ const AUTH_USERNAME = "admin"
 const AUTH_PASSWORD = "earthsoft123"
 
 export default function App() {
-  const [username, setUsername] = useState(AUTH_USERNAME)
-  const [password, setPassword] = useState(AUTH_PASSWORD)
+  const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
