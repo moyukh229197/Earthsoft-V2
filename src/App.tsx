@@ -61,7 +61,7 @@ export default function App() {
               <div className="flex items-center gap-5">
                 <div className="inline-flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/6 shadow-2xl shadow-black/30 backdrop-blur-xl">
                   <img
-                    src="/app/public/workspace/assets/logo_silhouette.png"
+                    src="/workspace/assets/logo_silhouette.png"
                     alt="Earthsoft logo"
                     className="h-full w-full object-cover"
                   />
