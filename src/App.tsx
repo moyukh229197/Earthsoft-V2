@@ -13,7 +13,7 @@ export default function App() {
   const [error, setError] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const destination = useMemo(() => "/app/index.html", [])
+  const destination = useMemo(() => "/workspace/index.html", [])
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
