@@ -55,12 +55,12 @@ export default function App() {
       </div>
 
       <div className="relative z-10 flex min-h-screen items-center justify-center p-4 sm:p-6">
-        <div className="w-full max-w-5xl rounded-[1.75rem] border border-white/8 bg-[linear-gradient(135deg,rgba(8,24,66,0.48),rgba(2,10,28,0.34)_40%,rgba(2,8,20,0.4)_100%)] p-3 shadow-2xl shadow-black/45 backdrop-blur-xl sm:p-4 lg:p-5">
-          <div className="grid gap-5 lg:min-h-[520px] lg:grid-cols-[1.4fr_0.6fr]">
+        <div className="w-full max-w-3xl rounded-[1.75rem] border border-white/8 bg-[linear-gradient(135deg,rgba(8,24,66,0.48),rgba(2,10,28,0.34)_40%,rgba(2,8,20,0.4)_100%)] p-3 shadow-2xl shadow-black/45 backdrop-blur-xl sm:p-4 lg:p-5">
+          <div className="grid gap-5 lg:min-h-[420px] lg:grid-cols-[0.8fr_1.2fr]">
             <section className="flex h-full flex-col justify-between rounded-[1.5rem] px-4 py-4 sm:px-6 sm:py-5 lg:px-7 lg:py-7">
               <div className="space-y-10 lg:space-y-14">
                 <div className="flex items-center gap-5">
-                  <div className="inline-flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[1.5rem] border border-white/12 bg-white/8 shadow-[0_0_30px_rgba(37,99,235,0.16)] backdrop-blur-xl sm:h-20 sm:w-20">
+                  <div className="inline-flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[1.25rem] border border-white/12 bg-white/8 shadow-[0_0_30px_rgba(37,99,235,0.16)] backdrop-blur-xl sm:h-16 sm:w-16">
                     <img
                       src="/workspace/assets/logo_silhouette.png"
                       alt="Earthsoft logo"
@@ -68,38 +68,38 @@ export default function App() {
                     />
                   </div>
                   <div className="min-w-0">
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.36em] text-sky-300/90 sm:text-sm">
+                    <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.36em] text-sky-300/90 sm:text-xs">
                       Earthwork Suite
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-4xl font-bold leading-none tracking-[-0.07em] text-white sm:text-5xl lg:text-6xl">
+                      <span className="text-3xl font-bold leading-none tracking-[-0.07em] text-white sm:text-4xl">
                         Earthsoft
                       </span>
-                      <span className="mt-1.5 text-xs font-medium tracking-[0.02em] text-white/68 sm:text-sm">
+                      <span className="mt-1 text-[10px] font-medium tracking-[0.02em] text-white/68 sm:text-xs">
                         The Railway earthwork workspace.
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <p className="max-w-2xl text-base leading-[1.8] text-white/72 sm:text-lg lg:text-xl">
-                  Sign in to open the project workspace and continue with earthwork design, verification, and estimates.
+                <p className="max-w-2xl text-sm leading-[1.7] text-white/72 sm:text-base">
+                  Sign in to open the project workspace and continue with earthwork design.
                 </p>
               </div>
 
-              <div className="flex flex-wrap gap-4">
-                <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/3 px-4 py-3 text-white/78 backdrop-blur-md">
-                  <ShieldCheck className="h-4 w-4 text-white/70" />
-                  <span className="text-xs sm:text-sm">Session-based local access</span>
+              <div className="flex flex-wrap gap-3">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/3 px-3 py-2 text-white/78 backdrop-blur-md">
+                  <ShieldCheck className="h-3.5 w-3.5 text-white/70" />
+                  <span className="text-[10px] sm:text-xs">Session access</span>
                 </div>
-                <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/3 px-4 py-3 text-white/78 backdrop-blur-md">
-                  <ChartNoAxesColumn className="h-4 w-4 text-white/70" />
-                  <span className="text-xs sm:text-sm">Railway earthwork workspace</span>
+                <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/3 px-3 py-2 text-white/78 backdrop-blur-md">
+                  <ChartNoAxesColumn className="h-3.5 w-3.5 text-white/70" />
+                  <span className="text-[10px] sm:text-xs">Railway suite</span>
                 </div>
               </div>
             </section>
 
-            <section className="rounded-[1.75rem] border border-white/8 bg-[rgba(1,8,24,0.34)] p-4 shadow-2xl shadow-black/20 backdrop-blur-lg sm:p-5 lg:mx-10 lg:max-w-[480px] lg:justify-self-end lg:p-5">
+            <section className="rounded-[1.75rem] border border-white/8 bg-[rgba(1,8,24,0.34)] p-4 shadow-2xl shadow-black/20 backdrop-blur-lg sm:p-5 lg:p-5">
               <form className="space-y-6" onSubmit={handleSubmit}>
                 <div className="space-y-2">
                   <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.24em] text-white/55">
