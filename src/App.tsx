@@ -132,18 +132,6 @@ export default function App() {
 
                 <div className="min-h-6 text-sm text-red-300">{error}</div>
 
-                <div className="rounded-[1.5rem] border border-blue-500/20 bg-[rgba(7,23,63,0.14)] p-4 text-white/80">
-                  <div className="text-lg font-semibold text-white">Demo Login</div>
-                  <div className="mt-3 space-y-2 text-sm">
-                    <p>
-                      Username: <span className="font-semibold text-white">{AUTH_USERNAME}</span>
-                    </p>
-                    <p>
-                      Password: <span className="font-semibold text-white">{AUTH_PASSWORD}</span>
-                    </p>
-                  </div>
-                </div>
-
                 <button
                   type="submit"
                   disabled={isSubmitting}
