@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { LockKeyhole, LogIn } from "lucide-react"
+import { ChartNoAxesColumn, LockKeyhole, LogIn, ShieldCheck } from "lucide-react"
 
 import { HeroGeometric } from "@/components/ui/shape-landing-hero"
 
@@ -54,35 +54,52 @@ export default function App() {
         />
       </div>
 
-      <div className="relative z-10 flex min-h-screen items-center justify-center p-6">
-        <div className="w-full max-w-6xl rounded-[2rem] border border-white/10 bg-black/45 p-6 shadow-2xl shadow-black/50 backdrop-blur-2xl sm:p-8 lg:p-10">
-          <div className="grid gap-8 lg:grid-cols-[1.08fr_0.92fr] lg:items-start">
-            <section className="space-y-6">
-              <div className="flex items-center gap-5">
-                <div className="inline-flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-white/6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-                  <img
-                    src="/workspace/assets/logo_silhouette.png"
-                    alt="Earthsoft logo"
-                    className="h-full w-full object-cover"
-                  />
+      <div className="relative z-10 flex min-h-screen items-center justify-center p-4 sm:p-6">
+        <div className="w-full max-w-7xl rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,rgba(8,24,66,0.88),rgba(2,10,28,0.78)_40%,rgba(2,8,20,0.84)_100%)] p-4 shadow-2xl shadow-black/60 backdrop-blur-2xl sm:p-6 lg:p-8">
+          <div className="grid gap-6 lg:min-h-[760px] lg:grid-cols-[1.18fr_0.82fr]">
+            <section className="flex h-full flex-col justify-between rounded-[1.75rem] px-5 py-5 sm:px-8 sm:py-7 lg:px-10 lg:py-10">
+              <div className="space-y-10 lg:space-y-14">
+                <div className="flex items-center gap-5">
+                  <div className="inline-flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-[2rem] border border-white/12 bg-white/8 shadow-[0_0_40px_rgba(37,99,235,0.2)] backdrop-blur-xl">
+                    <img
+                      src="/workspace/assets/logo_silhouette.png"
+                      alt="Earthsoft logo"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="mb-3 text-sm font-semibold uppercase tracking-[0.42em] text-sky-300/90">
+                      Earthwork Suite
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-5xl font-bold leading-none tracking-[-0.07em] text-white sm:text-6xl lg:text-7xl">
+                        Earthsoft
+                      </span>
+                      <span className="mt-2 text-sm font-medium tracking-[0.02em] text-white/68 sm:text-base">
+                        The Railway earthwork workspace.
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex flex-col justify-center">
-                  <span className="text-5xl font-bold leading-none tracking-[-0.06em] text-white sm:text-6xl lg:text-7xl">
-                    Earthsoft
-                  </span>
-                  <span className="mt-2 text-sm font-medium tracking-[0.02em] text-white/68 sm:text-base lg:text-lg">
-                    The Railway earthwork workspace.
-                  </span>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <p className="max-w-2xl text-base leading-7 text-white/68 sm:text-lg">
-                  Review quantities, verify project data, and continue estimate preparation from one dashboard.
+
+                <p className="max-w-3xl text-xl leading-[1.8] text-white/72 sm:text-2xl">
+                  Sign in to open the project workspace and continue with earthwork design, verification, and estimates.
                 </p>
+              </div>
+
+              <div className="flex flex-wrap gap-4">
+                <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/3 px-5 py-4 text-white/78 backdrop-blur-md">
+                  <ShieldCheck className="h-5 w-5 text-white/70" />
+                  <span className="text-sm sm:text-base">Session-based local access</span>
+                </div>
+                <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/3 px-5 py-4 text-white/78 backdrop-blur-md">
+                  <ChartNoAxesColumn className="h-5 w-5 text-white/70" />
+                  <span className="text-sm sm:text-base">Railway earthwork workspace</span>
+                </div>
               </div>
             </section>
 
-            <section className="rounded-[1.75rem] border border-white/10 bg-black/55 p-6 shadow-2xl shadow-black/40 backdrop-blur-2xl sm:p-8">
+            <section className="rounded-[2rem] border border-white/10 bg-[rgba(1,8,24,0.86)] p-6 shadow-2xl shadow-black/40 backdrop-blur-2xl sm:p-8 lg:p-10">
               <form className="space-y-6" onSubmit={handleSubmit}>
                 <div className="space-y-2">
                   <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.24em] text-white/55">
@@ -99,7 +116,7 @@ export default function App() {
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-white/70">Username</span>
                     <input
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-orange-400/60 focus:bg-white/10"
+                      className="w-full rounded-2xl border border-white/10 bg-[rgba(5,17,48,0.72)] px-4 py-3 text-white outline-none transition focus:border-blue-400/80 focus:bg-[rgba(7,23,63,0.9)] focus:ring-4 focus:ring-blue-500/20"
                       value={username}
                       onChange={(event) => setUsername(event.target.value)}
                       autoComplete="username"
@@ -110,7 +127,7 @@ export default function App() {
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-white/70">Password</span>
                     <input
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-orange-400/60 focus:bg-white/10"
+                      className="w-full rounded-2xl border border-white/10 bg-[rgba(5,17,48,0.72)] px-4 py-3 text-white outline-none transition focus:border-blue-400/80 focus:bg-[rgba(7,23,63,0.9)] focus:ring-4 focus:ring-blue-500/20"
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       autoComplete="current-password"
@@ -122,13 +139,25 @@ export default function App() {
 
                 <div className="min-h-6 text-sm text-red-300">{error}</div>
 
+                <div className="rounded-[1.75rem] border border-blue-500/35 bg-[rgba(7,23,63,0.45)] p-6 text-white/80">
+                  <div className="text-xl font-semibold text-white">Demo Login</div>
+                  <div className="mt-3 space-y-2 text-base">
+                    <p>
+                      Username: <span className="font-semibold text-white">{AUTH_USERNAME}</span>
+                    </p>
+                    <p>
+                      Password: <span className="font-semibold text-white">{AUTH_PASSWORD}</span>
+                    </p>
+                  </div>
+                </div>
+
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 font-semibold text-black transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#3147ff] px-4 py-3 font-semibold text-white transition hover:bg-[#4156ff] disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   <LogIn className="h-4 w-4" />
-                  {isSubmitting ? "Opening Workspace..." : "Enter Earthsoft"}
+                  {isSubmitting ? "Opening Workspace..." : "Sign In"}
                 </button>
               </form>
             </section>
