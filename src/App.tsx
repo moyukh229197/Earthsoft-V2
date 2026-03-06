@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { LockKeyhole, LogIn } from "lucide-react"
+import { LockKeyhole, LogIn, ShieldCheck, ChartNoAxesColumn } from "lucide-react"
 
 import { HeroGeometric } from "@/components/ui/shape-landing-hero"
 
@@ -80,6 +80,16 @@ export default function App() {
                   Review quantities, verify project data, and continue estimate preparation.
                 </p>
               </div>
+              <div className="flex flex-wrap gap-3">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/3 px-3 py-2 text-white/78 backdrop-blur-md">
+                  <ShieldCheck className="h-3.5 w-3.5 text-white/70" />
+                  <span className="text-[10px] sm:text-xs">Session access</span>
+                </div>
+                <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/3 px-3 py-2 text-white/78 backdrop-blur-md">
+                  <ChartNoAxesColumn className="h-3.5 w-3.5 text-white/70" />
+                  <span className="text-[10px] sm:text-xs">Railway suite</span>
+                </div>
+              </div>
             </section>
 
             <section className="rounded-[1.75rem] border border-white/10 bg-black/55 p-6 shadow-2xl shadow-black/40 backdrop-blur-2xl sm:p-8">
@@ -121,6 +131,18 @@ export default function App() {
                 </div>
 
                 <div className="min-h-6 text-sm text-red-300">{error}</div>
+
+                <div className="rounded-[1.5rem] border border-blue-500/20 bg-[rgba(7,23,63,0.14)] p-4 text-white/80">
+                  <div className="text-lg font-semibold text-white">Demo Login</div>
+                  <div className="mt-3 space-y-2 text-sm">
+                    <p>
+                      Username: <span className="font-semibold text-white">{AUTH_USERNAME}</span>
+                    </p>
+                    <p>
+                      Password: <span className="font-semibold text-white">{AUTH_PASSWORD}</span>
+                    </p>
+                  </div>
+                </div>
 
                 <button
                   type="submit"

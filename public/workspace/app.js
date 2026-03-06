@@ -1,0 +1,5913 @@
+const r3 = (v) => (Number.isFinite(v) ? Number(v).toFixed(3) : "0.000");
+function formatVolume(v) {
+  if (!Number.isFinite(v)) return "0.000 m³";
+  if (v >= 10000000) {
+    return `${(v / 10000000).toFixed(3)} Cr m³`;
+  } else if (v >= 100000) {
+    return `${(v / 100000).toFixed(3)} Lk m³`;
+  }
+  return `${Number(v).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³`;
+}
+const CROSS_SVG_W = 1700;
+const CROSS_SVG_H = 980;
+
+const BRIDGE_CATEGORIES = ["Minor", "Major", "Viaduct", "Important", "RoR", "Tunnel", "ROB", "MIBOR", "Aqueduct"];
+const BRIDGE_TYPES = ["Box", "PSC Slab", "Composite Girder", "OWG", "Other"];
+const AUTH_STORAGE_KEY = "earthsoft_auth_session";
+const AUTH_USERNAME = "admin";
+const AUTH_PASSWORD = "earthsoft123";
+
+const state = {
+  meta: null,
+  rawRows: [],
+  bridgeRows: [],
+  curveRows: [],
+  loopPlatformRows: [],
+  seedRows: [],
+  seedMeta: null,
+  calcRows: [],
+  settings: {},
+  defaultSettings: {},
+  seedDefaultSettings: {},
+  project: {
+    active: false,
+    verified: false,
+    name: "",
+    uploads: {
+      levels: false,
+      curves: false,
+      bridges: false,
+      loops: false,
+      kml: false,
+    },
+  },
+  activeWorkPage: "overview",
+  activeResultTab: "inputs",
+  charts: { lSection: null, volume: null },
+  crossViewBox: { x: 0, y: 0, w: CROSS_SVG_W, h: CROSS_SVG_H },
+  crossPan: { active: false, lastX: 0, lastY: 0 },
+  kmlData: null,
+  stationPlans: {},
+  projectFileHandle: null,
+  auth: {
+    authenticated: false,
+    user: "",
+  },
+};
+
+const els = {
+  loginScreen: document.getElementById("loginScreen"),
+  loginForm: document.getElementById("loginForm"),
+  loginUsername: document.getElementById("loginUsername"),
+  loginPassword: document.getElementById("loginPassword"),
+  loginError: document.getElementById("loginError"),
+  loginSubmitBtn: document.getElementById("loginSubmitBtn"),
+  logoutBtn: document.getElementById("logoutBtn"),
+  loginUserChip: document.getElementById("loginUserChip"),
+  projectMeta: document.getElementById("projectMeta"),
+  rollDiagramCanvas: document.getElementById("rollDiagramCanvas"),
+  rollDiagramWrap: document.getElementById("rollDiagramWrap"),
+  rollDiagramEmpty: document.getElementById("rollDiagramEmpty"),
+  sideViewCanvas: document.getElementById("sideViewCanvas"),
+  sideViewWrap: document.getElementById("sideViewWrap"),
+  tableBody: document.getElementById("tableBody"),
+  totalFilling: document.getElementById("totalFilling"),
+  totalCutting: document.getElementById("totalCutting"),
+  fillLength: document.getElementById("fillLength"),
+  cutLength: document.getElementById("cutLength"),
+  bridgeImportInput: document.getElementById("bridgeImportInput"),
+  curveImportInput: document.getElementById("curveImportInput"),
+  loopImportInput: document.getElementById("loopImportInput"),
+  importKmlBtn: document.getElementById("importKmlBtn"),
+  importStationPlanBtn: document.getElementById("importStationPlanBtn"),
+  kmlImportInput: document.getElementById("kmlImportInput"),
+  stationPlanImportInput: document.getElementById("stationPlanImportInput"),
+  importOptionsModal: document.getElementById("importOptionsModal"),
+  closeImportOptionsBtn: document.getElementById("closeImportOptionsBtn"),
+  importOptionButtons: Array.from(document.querySelectorAll("[data-import-kind]")),
+  projectWizardModal: document.getElementById("projectWizardModal"),
+  closeProjectWizardBtn: document.getElementById("closeProjectWizardBtn"),
+  projectNameInput: document.getElementById("projectNameInput"),
+  wizardStatus: document.getElementById("wizardStatus"),
+  wizardTickLevels: document.getElementById("wizardTickLevels"),
+  wizardTickCurves: document.getElementById("wizardTickCurves"),
+  wizardTickBridges: document.getElementById("wizardTickBridges"),
+  wizardTickLoops: document.getElementById("wizardTickLoops"),
+  wizardTickKml: document.getElementById("wizardTickKml"),
+  wizardSaveBtn: document.getElementById("wizardSaveBtn"),
+  wizardCalculateBtn: document.getElementById("wizardCalculateBtn"),
+  wizardUploadButtons: Array.from(document.querySelectorAll("[data-wizard-upload]")),
+  bridgeAddBtn: document.getElementById("bridgeAddBtn"),
+  bridgeApplyBtn: document.getElementById("bridgeApplyBtn"),
+  bridgeTableBody: document.getElementById("bridgeTableBody"),
+  bridgeMeta: document.getElementById("bridgeMeta"),
+  curveTableBody: document.getElementById("curveTableBody"),
+  curveMeta: document.getElementById("curveMeta"),
+  loopTableBody: document.getElementById("loopTableBody"),
+  loopMeta: document.getElementById("loopMeta"),
+  curveAddBtn: document.getElementById("curveAddBtn"),
+  curveApplyBtn: document.getElementById("curveApplyBtn"),
+  loopAddBtn: document.getElementById("loopAddBtn"),
+  loopApplyBtn: document.getElementById("loopApplyBtn"),
+  workNav: document.getElementById("workNav"),
+  workPageButtons: Array.from(document.querySelectorAll("[data-work-page-btn]")),
+  workPages: Array.from(document.querySelectorAll("[data-work-page]")),
+  resultTabs: document.getElementById("resultTabs"),
+  resultTabButtons: Array.from(document.querySelectorAll("[data-result-tab]")),
+  resultTabPanes: Array.from(document.querySelectorAll("[data-result-pane]")),
+  resultInputBody: document.getElementById("resultInputBody"),
+  resultFillBody: document.getElementById("resultFillBody"),
+  resultCutBody: document.getElementById("resultCutBody"),
+  resultQtyBody: document.getElementById("resultQtyBody"),
+  importInput: document.getElementById("importInput"),
+  projectImportInput: document.getElementById("projectImportInput"),
+  importBtn: document.getElementById("importBtn"),
+  createProjectBtn: document.getElementById("createProjectBtn"),
+  themeToggleCheckbox: document.getElementById("themeToggleCheckbox"),
+  importProjectBtn: document.getElementById("importProjectBtn"),
+  saveProjectBtn: document.getElementById("saveProjectBtn"),
+  resetProjectBtn: document.getElementById("resetProjectBtn"),
+  snapshotsBtn: document.getElementById("snapshotsBtn"),
+  snapshotsModal: document.getElementById("snapshotsModal"),
+  closeSnapshotsBtn: document.getElementById("closeSnapshotsBtn"),
+  takeSnapshotBtn: document.getElementById("takeSnapshotBtn"),
+  snapshotNameInput: document.getElementById("snapshotNameInput"),
+  snapshotList: document.getElementById("snapshotList"),
+  openSettingsBtn: document.getElementById("openSettingsBtn"),
+  settingsModal: document.getElementById("settingsModal"),
+  settingsForm: document.getElementById("settingsForm"),
+  closeSettingsBtn: document.getElementById("closeSettingsBtn"),
+  settingsGrid: document.getElementById("settingsGrid"),
+  resetDefaultsBtn: document.getElementById("resetDefaultsBtn"),
+  lSectionChart: document.getElementById("lSectionChart"),
+  volumeChart: document.getElementById("volumeChart"),
+  crossSectionModal: document.getElementById("crossSectionModal"),
+  crossTitle: document.getElementById("crossTitle"),
+  closeCrossBtn: document.getElementById("closeCrossBtn"),
+  crossSvg: document.getElementById("crossSvg"),
+  rateClearing: document.getElementById("rateClearing"),
+  rateBenching: document.getElementById("rateBenching"),
+  rateFilling: document.getElementById("rateFilling"),
+  rateBlanketing: document.getElementById("rateBlanketing"),
+  rateCutSoil: document.getElementById("rateCutSoil"),
+  rateCutSoft: document.getElementById("rateCutSoft"),
+  rateCutHardBlast: document.getElementById("rateCutHardBlast"),
+  rateCutHardChisel: document.getElementById("rateCutHardChisel"),
+  rateExtraLead: document.getElementById("rateExtraLead"),
+  rateTurfing: document.getElementById("rateTurfing"),
+  pctSoil: document.getElementById("pctSoil"),
+  pctSoftRock: document.getElementById("pctSoftRock"),
+  pctHardBlast: document.getElementById("pctHardBlast"),
+  pctHardChisel: document.getElementById("pctHardChisel"),
+  pctReusableSpoil: document.getElementById("pctReusableSpoil"),
+  leadKm: document.getElementById("leadKm"),
+  recalcEstimatesBtn: document.getElementById("recalcEstimatesBtn"),
+  estimatesBody: document.getElementById("estimatesBody"),
+  estimateGrandTotal: document.getElementById("estimateGrandTotal"),
+  crossGraphicWrap: document.getElementById("crossGraphicWrap"),
+  zoomInBtn: document.getElementById("zoomInBtn"),
+  zoomOutBtn: document.getElementById("zoomOutBtn"),
+  zoomResetBtn: document.getElementById("zoomResetBtn"),
+  layerTbody: document.getElementById("layerTbody"),
+  dimTbody: document.getElementById("dimTbody"),
+  actualFilling: document.getElementById("actualFilling"),
+  reusableFilling: document.getElementById("reusableFilling"),
+  fillReusableHatch: document.getElementById("fillReusableHatch"),
+  fillReusablePctLabel: document.getElementById("fillReusablePctLabel"),
+  actualCutting: document.getElementById("actualCutting"),
+  crossMeta: document.getElementById("crossMeta"),
+  graphModal: document.getElementById("graphModal"),
+  graphModalTitle: document.getElementById("graphModalTitle"),
+  closeGraphModalBtn: document.getElementById("closeGraphModalBtn"),
+  expandedGraphCanvas: document.getElementById("expandedGraphCanvas"),
+  fillWaterNode: document.getElementById("fillWaterNode"),
+  cutWaterNode: document.getElementById("cutWaterNode"),
+  sidebarToggle: document.getElementById("sidebarToggle"),
+  appLayout: document.querySelector(".app-layout"),
+  openExportModalBtn: document.getElementById("openExportModalBtn"),
+  exportModal: document.getElementById("exportModal"),
+  confirmExportBtn: document.getElementById("confirmExportBtn"),
+  cancelExportBtn: document.getElementById("cancelExportBtn"),
+};
+
+function loadAuthState() {
+  try {
+    const saved = sessionStorage.getItem(AUTH_STORAGE_KEY);
+    if (!saved) return;
+    const parsed = JSON.parse(saved);
+    state.auth = {
+      authenticated: Boolean(parsed?.authenticated),
+      user: String(parsed?.user || "").trim(),
+    };
+  } catch (error) {
+    console.warn("Failed to load auth session:", error);
+  }
+}
+
+function saveAuthState() {
+  try {
+    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(state.auth));
+  } catch (error) {
+    console.warn("Failed to save auth session:", error);
+  }
+}
+
+function updateAuthUI() {
+  const authenticated = Boolean(state.auth?.authenticated);
+  document.body.classList.toggle("is-authenticated", authenticated);
+
+  if (!authenticated && !els.loginForm) {
+    window.location.replace("./login.html");
+    return;
+  }
+
+  if (els.logoutBtn) els.logoutBtn.style.display = authenticated ? "inline-flex" : "none";
+  if (els.loginUserChip) {
+    els.loginUserChip.style.display = authenticated ? "inline-flex" : "none";
+    els.loginUserChip.textContent = authenticated && state.auth.user ? `Signed in: ${state.auth.user}` : "";
+  }
+  if (els.loginError) els.loginError.textContent = "";
+
+  if (!authenticated) {
+    requestAnimationFrame(() => {
+      els.loginUsername?.focus();
+    });
+  }
+}
+
+function setAuthState(authenticated, user = "") {
+  state.auth = {
+    authenticated: Boolean(authenticated),
+    user: authenticated ? String(user || "").trim() : "",
+  };
+  saveAuthState();
+  updateAuthUI();
+
+  if (!authenticated && !els.loginForm) {
+    window.location.replace("./login.html");
+  }
+}
+
+function logout() {
+  state.auth = {
+    authenticated: false,
+    user: "",
+  };
+  try {
+    sessionStorage.removeItem(AUTH_STORAGE_KEY);
+  } catch (error) {
+    console.warn("Failed to clear auth session:", error);
+  }
+  window.location.replace("./login.html");
+}
+
+function attemptLogin() {
+  const username = String(els.loginUsername?.value || "").trim();
+  const password = String(els.loginPassword?.value || "").trim();
+
+  if (!username || !password) {
+    if (els.loginError) els.loginError.textContent = "Enter both username and password to continue.";
+    return;
+  }
+
+  if (username.toLowerCase() !== AUTH_USERNAME || password !== AUTH_PASSWORD) {
+    if (els.loginError) els.loginError.textContent = "Invalid username or password.";
+    if (els.loginPassword) els.loginPassword.value = "";
+    els.loginPassword?.focus();
+    return;
+  }
+
+  setAuthState(true, AUTH_USERNAME);
+  if (els.loginPassword) els.loginPassword.value = "";
+  setWorkPage("overview");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function formatDashboardChainage(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "-";
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  const km = Math.floor(abs / 1000);
+  const m = Math.round(abs - (km * 1000));
+  return `${sign}${km}+${String(m).padStart(3, "0")}`;
+}
+
+function formatCompactVolume(v) {
+  return Number.isFinite(v)
+    ? Number(v).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+    : "0";
+}
+
+function getMedianInterval(rows) {
+  const diffs = [];
+  for (let i = 1; i < rows.length; i += 1) {
+    const diff = safeNum(rows[i].chainage) - safeNum(rows[i - 1].chainage);
+    if (diff > 0) diffs.push(diff);
+  }
+  if (!diffs.length) return NaN;
+  diffs.sort((a, b) => a - b);
+  const mid = Math.floor(diffs.length / 2);
+  return diffs.length % 2 ? diffs[mid] : (diffs[mid - 1] + diffs[mid]) / 2;
+}
+
+function getGroupedStations(rows = state.loopPlatformRows || []) {
+  const groups = new Map();
+  rows.forEach((lp) => {
+    const stationName = String(lp.station || "").trim();
+    if (!stationName) return;
+    const key = stationName.toLowerCase();
+    const existing = groups.get(key) || {
+      station: stationName,
+      csb: Number.isFinite(parseChainage(lp.csb)) ? parseChainage(lp.csb) : NaN,
+      tc: 0,
+      pfWidth: 0,
+      loopStartCh: Number.POSITIVE_INFINITY,
+      loopEndCh: Number.NEGATIVE_INFINITY,
+      remarks: [],
+    };
+    const loopStart = parseChainage(lp.loopStartCh);
+    const loopEnd = parseChainage(lp.loopEndCh);
+    if (Number.isFinite(loopStart)) existing.loopStartCh = Math.min(existing.loopStartCh, loopStart);
+    if (Number.isFinite(loopEnd)) existing.loopEndCh = Math.max(existing.loopEndCh, loopEnd);
+    existing.tc = Math.max(existing.tc, safeNum(lp.tc, 0));
+    existing.pfWidth = Math.max(existing.pfWidth, safeNum(lp.pfWidth, 0));
+    if (lp.remarks) existing.remarks.push(String(lp.remarks).trim());
+    groups.set(key, existing);
+  });
+  return Array.from(groups.values()).map((station) => ({
+    ...station,
+    loopStartCh: Number.isFinite(station.loopStartCh) ? station.loopStartCh : NaN,
+    loopEndCh: Number.isFinite(station.loopEndCh) ? station.loopEndCh : NaN,
+  }));
+}
+
+const settingSchema = [
+  ["formationWidthFill", "Formation Width (Fill) m"],
+  ["cuttingWidth", "Formation Width (Cut) m"],
+  ["blanketThickness", "Blanket Thickness m"],
+  ["preparedSubgradeThickness", "Prepared Subgrade Thickness m"],
+  ["bermWidth", "Berm Width m"],
+  ["sideSlopeFactor", "Side Slope Factor (H:V)"],
+  ["ballastCushionThickness", "Ballast Cushion Thickness m"],
+  ["topLayerThickness", "Top Layer of Embankment Fill m"],
+  ["activeSqCategory", "Active Soil Category (1=SQ1,2=SQ2,3=SQ3)"],
+];
+
+function parseChainage(value) {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string") return NaN;
+  const t = value.trim();
+  if (!t) return NaN;
+  if (t.startsWith("=")) {
+    const expr = t.slice(1).trim();
+    if (/^[0-9+\-*/().\s]+$/.test(expr)) {
+      try {
+        const v = Function(`"use strict"; return (${expr});`)();
+        return Number.isFinite(v) ? Number(v) : NaN;
+      } catch (_) {
+        return NaN;
+      }
+    }
+    return NaN;
+  }
+  if (t.includes("+")) {
+    const [km, m] = t.split("+");
+    const k = Number(km.replace(/[^\d.-]/g, ""));
+    const mm = Number((m || "0").replace(/[^\d.-]/g, ""));
+    if (Number.isFinite(k) && Number.isFinite(mm)) return (k * 1000) + mm;
+  }
+  const stripped = t.replace(/[^\d.-]/g, "");
+  if (!stripped) return NaN;
+  const n = Number(stripped);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function safeNum(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function parseLooseNumber(v, fallback = NaN) {
+  if (typeof v === "number") return Number.isFinite(v) ? v : fallback;
+  if (typeof v !== "string") return fallback;
+  const t = v.trim().replace(/,/g, "");
+  if (!t) return fallback;
+  if (t.startsWith("=")) {
+    const expr = t.slice(1).trim();
+    if (/^[0-9+\-*/().\s]+$/.test(expr)) {
+      try {
+        const result = Function(`"use strict"; return (${expr});`)();
+        return Number.isFinite(result) ? Number(result) : fallback;
+      } catch (_) {
+        return fallback;
+      }
+    }
+    return fallback;
+  }
+  const n = Number(t);
+  if (Number.isFinite(n)) return n;
+  const m = t.match(/-?\d+(?:\.\d+)?/);
+  if (!m) return fallback;
+  const parsed = Number(m[0]);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeHeaderToken(v) {
+  return String(v || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function findColByAliases(headers, aliases) {
+  for (const a of aliases) {
+    const idx = headers.findIndex((h) => {
+      const n = normalizeHeaderToken(h);
+      return n === a || n.includes(a);
+    });
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
+
+function resolveImportColumns(headerCells) {
+  const cols = {
+    chainage: findColByAliases(headerCells, ["chainage", "ch", "km", "chainagem"]),
+    groundLevel: findColByAliases(headerCells, ["groundlevel", "groundrl", "existinglevel", "existingrl", "naturalgroundlevel", "naturalground", "gl", "ngrl", "ngl"]),
+    proposedLevel: findColByAliases(headerCells, ["proposedlevel", "proposedrl", "formationlevel", "formationrl", "frl", "finishedlevel", "finallevel", "fl", "pl", "prl"]),
+    station: findColByAliases(headerCells, ["station", "stn"]),
+    structureNo: findColByAliases(headerCells, ["structureno", "structure", "bridge", "strno"]),
+  };
+  return cols;
+}
+
+function detectImportHeaderRow(aoa) {
+  const scanRows = Math.min(aoa.length, 30);
+  let best = { rowIndex: -1, score: -1, cols: null };
+  for (let i = 0; i < scanRows; i += 1) {
+    const row = Array.isArray(aoa[i]) ? aoa[i] : [];
+    if (!row.length) continue;
+    const cols = resolveImportColumns(row);
+    const score = (cols.groundLevel >= 0 ? 3 : 0)
+      + (cols.proposedLevel >= 0 ? 3 : 0)
+      + (cols.chainage >= 0 ? 2 : 0)
+      + (cols.station >= 0 ? 1 : 0)
+      + (cols.structureNo >= 0 ? 1 : 0);
+    if (score > best.score) {
+      best = { rowIndex: i, score, cols };
+    }
+  }
+  if (best.rowIndex < 0) return null;
+  if (best.cols.groundLevel < 0 || best.cols.proposedLevel < 0) return null;
+  return best;
+}
+
+function updateDashboard() {
+  const dashChRange = document.getElementById("dashChRange");
+  const dashLength = document.getElementById("dashLength");
+  const dashPoints = document.getElementById("dashPoints");
+  const dashStructures = document.getElementById("dashStructures");
+  const heroTitle = document.getElementById("overviewHeroTitle");
+  const heroText = document.getElementById("overviewHeroText");
+  const healthGrid = document.getElementById("projectHealthGrid");
+  const criticalList = document.getElementById("criticalChainagesList");
+  const corridor = document.getElementById("corridorIntelligence");
+  const balanceGrid = document.getElementById("volumeBalanceGrid");
+  const alertsList = document.getElementById("designAlertsList");
+
+  const projectName = state.project?.name || "No active project";
+  const active = Boolean(state.project?.active);
+  const uploads = state.project?.uploads || {};
+  const rawRows = Array.isArray(state.rawRows) ? state.rawRows : [];
+  const calcRows = Array.isArray(state.calcRows) ? state.calcRows : [];
+  const groupedStations = getGroupedStations();
+  const stationPlanCount = Object.keys(state.stationPlans || {}).length;
+  const validBridges = Array.isArray(state.bridgeRows) ? state.bridgeRows.length : 0;
+  const validCurves = Array.isArray(state.curveRows) ? state.curveRows.length : 0;
+  const savedAt = state.meta?.lastSavedAt ? new Date(state.meta.lastSavedAt) : null;
+  const fillTotal = calcRows.reduce((s, r) => s + safeNum(r.fillVol, 0), 0);
+  const cutTotal = calcRows.reduce((s, r) => s + safeNum(r.cutVol, 0), 0);
+  const reusablePct = parseLooseNumber(els.pctReusableSpoil?.value, 60);
+  const reusableSpoil = cutTotal * (safeNum(reusablePct, 60) / 100);
+  const netBalance = reusableSpoil - fillTotal;
+
+  if (!calcRows || calcRows.length === 0) {
+    if (dashChRange) dashChRange.textContent = "0.000 to 0.000";
+    if (dashLength) dashLength.textContent = "0.000 km";
+    if (dashPoints) dashPoints.textContent = "0 Cross-Sections";
+    if (dashStructures) dashStructures.textContent = "0 Bridges, 0 Curves";
+  } else {
+    const minCh = calcRows[0].chainage;
+    const maxCh = calcRows[calcRows.length - 1].chainage;
+    const totalL = Math.max(maxCh - minCh, 0);
+    if (dashChRange) {
+      dashChRange.textContent = `${formatDashboardChainage(minCh)} to ${formatDashboardChainage(maxCh)}`;
+    }
+    if (dashLength) {
+      dashLength.textContent = `${r3(totalL / 1000)} km`;
+    }
+    if (dashPoints) {
+      dashPoints.textContent = `${calcRows.length.toLocaleString()} Cross-Sections`;
+    }
+    if (dashStructures) {
+      dashStructures.textContent = `${validBridges} Bridges, ${validCurves} Curves`;
+    }
+  }
+
+  if (heroTitle) {
+    heroTitle.textContent = active ? projectName : "No active project";
+  }
+  if (heroText) {
+    if (!active) {
+      heroText.textContent = "Create or open a project to begin importing levels, structures, loops, and map alignment.";
+    } else if (!state.project.verified) {
+      heroText.textContent = uploads.kml
+        ? "Project is active with mapped alignment. Complete review and verify before export."
+        : "Project is active. Core datasets can be verified now; add KML/KMZ to unlock geographic intelligence.";
+    } else {
+      heroText.textContent = uploads.kml
+        ? "Project is verified and geographically mapped. Review chainage hotspots, alerts, and export readiness."
+        : "Project is verified. Add KML/KMZ alignment to unlock full corridor intelligence and station mapping.";
+    }
+  }
+
+  if (healthGrid) {
+    const importCount = ["levels", "curves", "bridges", "loops"].filter((k) => uploads[k]).length;
+    healthGrid.innerHTML = [
+      ["Project", projectName, active ? (state.project.verified ? "Verified workspace" : "Draft workspace") : "No workspace loaded", active ? (state.project.verified ? "success" : "warning") : "danger"],
+      ["Core Inputs", `${importCount}/4 loaded`, uploads.kml ? "KML/KMZ alignment loaded" : "KML/KMZ optional", importCount === 4 ? "success" : (importCount > 0 ? "warning" : "danger")],
+      ["Map Readiness", uploads.kml ? "Ready" : "Pending", uploads.kml && state.kmlData?.totalDistance ? `${r3(state.kmlData.totalDistance / 1000)} km mapped` : "No geographic alignment", uploads.kml ? "info" : "warning"],
+      ["Stations", `${groupedStations.length}`, `${stationPlanCount} plans attached`, groupedStations.length > 0 ? (stationPlanCount > 0 ? "info" : "warning") : "danger"],
+      ["Verification", state.project?.verified ? "Passed" : "Pending", active ? "Use Verify before export" : "Create project first", state.project?.verified ? "success" : (active ? "warning" : "danger")],
+      ["Last Saved", savedAt ? savedAt.toLocaleString() : "Local draft", savedAt ? "Persisted in browser/project file" : "Not saved in this session", savedAt ? "neutral" : "warning"],
+    ].map(([label, value, sub, tone]) => `
+      <div class="mission-chip mission-chip-${tone}">
+        <div class="mission-chip-label">${label}</div>
+        <div class="mission-chip-value">${value}</div>
+        <div class="mission-chip-sub">${sub}</div>
+      </div>
+    `).join("");
+  }
+
+  if (criticalList) {
+    const highestFill = calcRows.reduce((best, row) => safeNum(row.bank) > safeNum(best?.bank, -1) ? row : best, null);
+    const highestCut = calcRows.reduce((best, row) => safeNum(row.cut) > safeNum(best?.cut, -1) ? row : best, null);
+    const firstBridge = [...(state.bridgeRows || [])]
+      .sort((a, b) => safeNum(a.startChainage) - safeNum(b.startChainage))[0];
+    const sharpestCurve = [...(state.curveRows || [])]
+      .filter((c) => safeNum(c.radius, NaN) > 0)
+      .sort((a, b) => safeNum(a.radius) - safeNum(b.radius))[0];
+    const stationComplexity = [...groupedStations]
+      .sort((a, b) => (safeNum(b.tc) + safeNum(b.pfWidth)) - (safeNum(a.tc) + safeNum(a.pfWidth)))[0];
+    const criticalItems = [
+      highestFill ? ["Highest Fill", `Bank ${r3(highestFill.bank)} m`, formatDashboardChainage(highestFill.chainage)] : null,
+      highestCut ? ["Highest Cut", `Cut ${r3(highestCut.cut)} m`, formatDashboardChainage(highestCut.chainage)] : null,
+      firstBridge ? ["First Bridge Deduction", `${firstBridge.bridgeNo || "Bridge"} • ${firstBridge.bridgeType || "-"}`, formatDashboardChainage(firstBridge.startChainage)] : null,
+      sharpestCurve ? ["Sharpest Curve", `${sharpestCurve.curve || "Curve"} • R=${r3(sharpestCurve.radius)} m`, formatDashboardChainage(sharpestCurve.chainage)] : null,
+      stationComplexity ? ["Station Yard Complexity", `${stationComplexity.station} • TC ${r3(stationComplexity.tc)} m`, Number.isFinite(stationComplexity.csb) ? formatDashboardChainage(stationComplexity.csb) : "No CSB"] : null,
+    ].filter(Boolean);
+    criticalList.innerHTML = criticalItems.length
+      ? criticalItems.map(([title, subtitle, value]) => `
+        <div class="mission-list-item">
+          <div>
+            <strong>${title}</strong>
+            <small>${subtitle}</small>
+          </div>
+          <div class="mission-list-value">${value}</div>
+        </div>
+      `).join("")
+      : `<div class="mission-list-empty">Import and calculate project data to surface critical chainages and structural hotspots.</div>`;
+  }
+
+  if (corridor) {
+    if (calcRows.length < 2) {
+      corridor.innerHTML = `<div class="mission-list-empty">Import levels and calculate the project to generate the corridor intelligence strip.</div>`;
+    } else {
+      const minCh = safeNum(calcRows[0].chainage);
+      const maxCh = safeNum(calcRows[calcRows.length - 1].chainage);
+      const range = Math.max(maxCh - minCh, 1);
+      const bandHtml = [];
+      for (let i = 1; i < calcRows.length; i += 1) {
+        const prev = calcRows[i - 1];
+        const row = calcRows[i];
+        const startPct = ((safeNum(prev.chainage) - minCh) / range) * 100;
+        const widthPct = Math.max(((safeNum(row.chainage) - safeNum(prev.chainage)) / range) * 100, 0.3);
+        if (safeNum(row.bank) > 0.001) {
+          bandHtml.push(`<span class="corridor-band fill" style="left:${startPct}%; width:${widthPct}%;"></span>`);
+        } else if (safeNum(row.cut) > 0.001) {
+          bandHtml.push(`<span class="corridor-band cut" style="left:${startPct}%; width:${widthPct}%;"></span>`);
+        }
+      }
+      const markerItems = [
+        ...(state.bridgeRows || []).map((b) => ({ type: "bridge", at: safeNum(b.startChainage) })),
+        ...(state.curveRows || []).map((c) => ({ type: "curve", at: safeNum(c.chainage) })),
+        ...groupedStations.map((s) => ({ type: "station", at: Number.isFinite(s.csb) ? s.csb : safeNum(s.loopStartCh, NaN) })),
+      ].filter((item) => Number.isFinite(item.at));
+      const markersHtml = markerItems.map((item) => {
+        const left = ((item.at - minCh) / range) * 100;
+        return `<span class="corridor-marker ${item.type}" style="left:${Math.min(100, Math.max(0, left))}%;"></span>`;
+      }).join("");
+      corridor.innerHTML = `
+        <div class="corridor-scale">${bandHtml.join("")}${markersHtml}</div>
+        <div class="corridor-legend">
+          <span><i style="background:#22c55e"></i> Fill zones</span>
+          <span><i style="background:#f43f5e"></i> Cut zones</span>
+          <span><i style="background:#3b82f6"></i> Bridges</span>
+          <span><i style="background:#eab308"></i> Curves</span>
+          <span><i style="background:#06b6d4"></i> Stations</span>
+        </div>
+        <div class="mission-chip-grid">
+          <div class="mission-chip">
+            <div class="mission-chip-label">Corridor Start</div>
+            <div class="mission-chip-value">${formatDashboardChainage(minCh)}</div>
+            <div class="mission-chip-sub">Start of calculated chainage</div>
+          </div>
+          <div class="mission-chip">
+            <div class="mission-chip-label">Corridor End</div>
+            <div class="mission-chip-value">${formatDashboardChainage(maxCh)}</div>
+            <div class="mission-chip-sub">End of calculated chainage</div>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  if (balanceGrid) {
+    const ratioDen = fillTotal + cutTotal;
+    const fillRatio = ratioDen > 0 ? Math.round((fillTotal / ratioDen) * 100) : 0;
+    balanceGrid.innerHTML = [
+      ["Total Fill", `${formatCompactVolume(fillTotal)} m³`, "Required embankment volume"],
+      ["Total Cut", `${formatCompactVolume(cutTotal)} m³`, "Excavated volume"],
+      ["Reusable Spoil", `${formatCompactVolume(reusableSpoil)} m³`, `${safeNum(reusablePct, 60).toFixed(0)}% of cut volume`],
+      ["Net Balance", `${netBalance >= 0 ? "+" : ""}${formatCompactVolume(netBalance)} m³`, `${fillRatio}% of total volume is fill`],
+    ].map(([label, value, sub]) => `
+      <div class="balance-card">
+        <small>${label}</small>
+        <strong>${value}</strong>
+        <small>${sub}</small>
+      </div>
+    `).join("");
+  }
+
+  if (alertsList) {
+    const alerts = [];
+    if (!active) alerts.push(["No active project", "Create or open a project to begin the calculation workflow.", "Action required"]);
+    if (active && !uploads.levels) alerts.push(["Levels missing", "Import levels to unlock calculation, graphs, and corridor intelligence.", "Required"]);
+    if (active && !uploads.curves) alerts.push(["Curve list missing", "Curve widening and curve intelligence are unavailable.", "Required"]);
+    if (active && !uploads.bridges) alerts.push(["Bridge list missing", "Bridge deductions and structure highlights are incomplete.", "Required"]);
+    if (active && !uploads.loops) alerts.push(["Loops & Platforms missing", "Station yard widths and platform offsets are not applied.", "Required"]);
+    if (active && !uploads.kml) alerts.push(["KML/KMZ missing", "Map alignment and geographic overlays are unavailable.", "Optional"]);
+    if (active && uploads.loops && stationPlanCount === 0) alerts.push(["No station plans attached", "Station conceptual plans can be attached from the Alignment Map popups.", "Optional"]);
+    if (active && !state.project.verified) alerts.push(["Project not verified", "Run Verify before export to confirm structural calculations.", "Review"]);
+    const medianGap = getMedianInterval(calcRows);
+    if (Number.isFinite(medianGap)) {
+      const suspicious = [];
+      for (let i = 1; i < calcRows.length; i += 1) {
+        const gap = safeNum(calcRows[i].chainage) - safeNum(calcRows[i - 1].chainage);
+        if (gap > medianGap * 1.75) suspicious.push(`${formatDashboardChainage(calcRows[i - 1].chainage)}–${formatDashboardChainage(calcRows[i].chainage)}`);
+      }
+      if (suspicious.length) {
+        alerts.push(["Suspicious chainage gaps", suspicious.slice(0, 3).join(", "), `${suspicious.length} segment${suspicious.length === 1 ? "" : "s"}`]);
+      }
+    }
+    const badCsb = groupedStations.filter((station) => !Number.isFinite(station.csb)).length;
+    if (badCsb > 0) alerts.push(["Stations missing CSB", `${badCsb} station${badCsb === 1 ? "" : "s"} do not have a usable CSB chainage.`, "Check loop import"]);
+
+    alertsList.innerHTML = alerts.length
+      ? alerts.map(([title, text, value]) => `
+        <div class="mission-list-item">
+          <div>
+            <strong>${title}</strong>
+            <small>${text}</small>
+          </div>
+          <div class="mission-list-value">${value}</div>
+        </div>
+      `).join("")
+      : `<div class="mission-list-empty">No critical design alerts. The current dataset is complete enough for review and export.</div>`;
+  }
+}
+
+function parseImportedRows(aoa, startCh, interval) {
+  const header = detectImportHeaderRow(aoa);
+  if (!header) {
+    return { rows: [], error: "Ground Level and Proposed/Form. Level columns were not found in the import file." };
+  }
+
+  const rows = [];
+  const cols = header.cols;
+  let rowNo = 0;
+  for (let i = header.rowIndex + 1; i < aoa.length; i += 1) {
+    const row = Array.isArray(aoa[i]) ? aoa[i] : [];
+    const groundLevel = parseLooseNumber(row[cols.groundLevel], NaN);
+    const proposedLevel = parseLooseNumber(row[cols.proposedLevel], NaN);
+    if (!Number.isFinite(groundLevel) || !Number.isFinite(proposedLevel)) continue;
+
+    let chainage = NaN;
+    if (cols.chainage >= 0) {
+      chainage = parseChainage(row[cols.chainage]);
+    }
+    if (!Number.isFinite(chainage)) {
+      chainage = startCh + (rowNo * interval);
+    }
+    if (!Number.isFinite(chainage)) continue;
+
+    rows.push({
+      station: cols.station >= 0 ? String(row[cols.station] || "") : "",
+      structureNo: cols.structureNo >= 0 ? String(row[cols.structureNo] || "") : "",
+      chainage,
+      groundLevel,
+      proposedLevel,
+    });
+    rowNo += 1;
+  }
+
+  return { rows, headerRow: header.rowIndex, cols };
+}
+
+function resolveBridgeColumns(headerCells) {
+  return {
+    bridgeNo: findColByAliases(headerCells, ["bridgeno", "bridgenumber", "tunnelno", "tunnelname", "structureno", "slno", "sl.no", "serialno", "sno", "sn", "structure", "bridge", "tunnel"]),
+    startChainage: findColByAliases(headerCells, ["bridgestartchainage", "startchainage", "fromchainage", "chfrom", "startch", "fromkm"]),
+    endChainage: findColByAliases(headerCells, ["bridgeendchainage", "endchainage", "tochainage", "chto", "endch", "tokm"]),
+    length: findColByAliases(headerCells, ["totalspanlength", "bridgelength", "length", "spanm", "totallength", "len"]),
+    chainage: findColByAliases(headerCells, ["chainage", "ch", "centerchainage", "location", "km"]),
+    category: findColByAliases(headerCells, ["category", "purpose", "bridgecategory", "typeofobstruction", "typeofcrossing"]),
+    type: findColByAliases(headerCells, ["bridgetype", "structuretype", "typeofspan", "typeofsuperstructure", "superstructure", "purpose"]),
+    size: findColByAliases(headerCells, ["bridgesize", "size", "dimensions", "proposedspan", "proposedspanarrangement"]),
+    spans: findColByAliases(headerCells, ["noofspans", "numberofspans", "spanarrangement", "arrangement"]),
+    spanLength: findColByAliases(headerCells, ["spanlength", "individualspan", "unitsize", "spanarrangement", "arrangement"]),
+  };
+}
+
+// Parse size strings like "10x9.15", "1x7.5x5.5" to extract span count and individual span length
+function parseBridgeSpanSize(sizeStr) {
+  if (!sizeStr) return { spans: NaN, spanLength: NaN, totalLength: NaN };
+  const s = String(sizeStr).trim();
+  // Pattern: NxL or NxLxH (e.g. 10x9.15 or 1x7.5x5.5)
+  const m = s.match(/^(\d+)\s*[xX×]\s*([\d.]+)/);
+  if (!m) return { spans: NaN, spanLength: NaN, totalLength: NaN };
+  const spans = parseInt(m[1], 10);
+  const spanLength = parseFloat(m[2]);
+  if (!Number.isFinite(spans) || !Number.isFinite(spanLength)) return { spans: NaN, spanLength: NaN, totalLength: NaN };
+  return { spans, spanLength, totalLength: spans * spanLength };
+}
+
+function detectBridgeHeaderRow(aoa) {
+  const scanRows = Math.min(aoa.length, 40);
+  let best = { rowIndex: -1, score: -1, cols: null };
+  for (let i = 0; i < scanRows; i += 1) {
+    const row = Array.isArray(aoa[i]) ? aoa[i] : [];
+    if (!row.length) continue;
+    const cols = resolveBridgeColumns(row);
+    const score = (cols.bridgeNo >= 0 ? 2 : 0)
+      + (cols.startChainage >= 0 ? 3 : 0)
+      + (cols.endChainage >= 0 ? 3 : 0)
+      + (cols.length >= 0 ? 2 : 0)
+      + (cols.chainage >= 0 ? 1 : 0)
+      + (cols.size >= 0 ? 1 : 0);
+    if (score > best.score) {
+      best = { rowIndex: i, score, cols };
+    }
+  }
+  if (best.rowIndex < 0) return null;
+  const c = best.cols;
+  const hasCore = (c.startChainage >= 0 && c.endChainage >= 0)
+    || (c.chainage >= 0 && c.length >= 0)
+    || (c.startChainage >= 0 && c.length >= 0)
+    || (c.endChainage >= 0 && c.length >= 0)
+    || (c.chainage >= 0 && c.size >= 0);  // chainage + size (length derived from span size)
+  return hasCore ? best : null;
+}
+
+function normalizeBridgeEntry(raw, index = 0) {
+  const bridgeNo = String(raw.bridgeNo || `BR-${index + 1}`).trim();
+  let start = parseChainage(raw.startChainage);
+  let end = parseChainage(raw.endChainage);
+  let lengthRaw = parseLooseNumber(raw.length, NaN);
+  const center = parseChainage(raw.chainage);
+
+  // Derive parameters from size string if possible
+  const sizeParsed = parseBridgeSpanSize(raw.bridgeSize);
+
+  // Spans
+  let spansVal = String(raw.bridgeSpans || "");
+  if (!spansVal || spansVal === "1") {
+    if (Number.isFinite(sizeParsed.spans)) spansVal = String(sizeParsed.spans);
+  }
+
+  // Individual Span Length
+  let spanLen = parseLooseNumber(raw.bridgeSpanLength, NaN);
+  if (!Number.isFinite(spanLen)) {
+    if (Number.isFinite(sizeParsed.spanLength)) spanLen = sizeParsed.spanLength;
+  }
+
+  // Total Length
+  if (!Number.isFinite(lengthRaw)) {
+    if (Number.isFinite(spanLen) && Number.isFinite(parseInt(spansVal, 10))) {
+      lengthRaw = spanLen * parseInt(spansVal, 10);
+    } else if (Number.isFinite(sizeParsed.totalLength)) {
+      lengthRaw = sizeParsed.totalLength;
+    }
+  }
+
+  if (!Number.isFinite(start) && Number.isFinite(end) && Number.isFinite(lengthRaw)) start = end - lengthRaw;
+  if (!Number.isFinite(end) && Number.isFinite(start) && Number.isFinite(lengthRaw)) end = start + lengthRaw;
+  if ((!Number.isFinite(start) || !Number.isFinite(end)) && Number.isFinite(center) && Number.isFinite(lengthRaw)) {
+    start = center - (lengthRaw / 2);
+    end = center + (lengthRaw / 2);
+  }
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  if (end < start) [start, end] = [end, start];
+  if (end <= start) return null;
+
+  const length = Number.isFinite(lengthRaw) && lengthRaw > 0 ? lengthRaw : (end - start);
+
+  // Derive Category/Type if missing or generic
+  let cat = String(raw.bridgeCategory || "").trim();
+  if (!cat || cat === "-" || cat === "Minor" || cat === "undefined") {
+    const dCat = detectCategoryFromText(bridgeNo) || detectCategoryFromText(raw.bridgeType) || detectCategoryFromText(raw.bridgeSize);
+    if (dCat) cat = dCat;
+  }
+  if (!cat || cat === "undefined") cat = "Minor";
+
+  let bType = String(raw.bridgeType || "").trim();
+  if (!bType || bType === "-" || bType === "Box" || bType === "undefined") {
+    const dType = detectBridgeTypeFromText(cat) || detectBridgeTypeFromText(bridgeNo) || detectBridgeTypeFromText(raw.bridgeSize);
+    if (dType) bType = dType;
+  }
+  if (!bType && cat === "Tunnel") bType = "Box";
+  if (!bType || bType === "undefined") bType = "Box";
+
+  const DEDUCTIBLE_CATEGORIES = ["Major", "Important", "RoR", "Viaduct", "Tunnel"];
+  const shouldDeduct = DEDUCTIBLE_CATEGORIES.some(c => cat.toLowerCase() === c.toLowerCase());
+
+  return {
+    bridgeNo,
+    bridgeCategory: cat,
+    bridgeType: bType,
+    bridgeSize: String(raw.bridgeSize || "-"),
+    bridgeSpans: spansVal || "1",
+    bridgeSpanLength: Number.isFinite(spanLen) ? spanLen : "",
+    startChainage: start,
+    endChainage: end,
+    length,
+    shouldDeduct,
+  };
+}
+
+function detectCategoryFromText(text) {
+  if (!text) return null;
+  const s = String(text).toLowerCase();
+  if (s.includes("minor")) return "Minor";
+  if (s.includes("major")) return "Major";
+  if (s.includes("viaduct")) return "Viaduct";
+  if (s.includes("tunnel") || s.includes("tinnel")) return "Tunnel";
+  if (s.includes("important")) return "Important";
+  if (s.includes("ror") || s.includes("road over rail")) return "RoR";
+  if (s.includes("rob") || s.includes("road over bridge")) return "ROB";
+  if (s.includes("mibor") || s.includes("missing bridge")) return "MIBOR";
+  if (s.includes("aqueduct") || s.includes("aquiduct")) return "Aqueduct";
+  return null;
+}
+
+function detectBridgeTypeFromText(text) {
+  if (!text) return null;
+  const s = String(text).toLowerCase();
+  if (s.includes("box")) return "Box";
+  if (s.includes("psc") || s.includes("slab")) return "PSC Slab";
+  if (s.includes("composite") || s.includes("girder")) return "Composite Girder";
+  if (s.includes("owg") || s.includes("open web")) return "OWG";
+  return null;
+}
+
+function parseBridgeRowsFromAoa(aoa, sheetName = '') {
+  const header = detectBridgeHeaderRow(aoa);
+  if (!header) return { rows: [], error: "Bridge sheet must include Start/End chainage or Chainage+Length columns." };
+
+  // Clue from sheet name or header rows above
+  let inferredCategory = detectCategoryFromText(sheetName);
+  if (!inferredCategory) {
+    // Scan rows above the header for categories (often in sheet title rows)
+    for (let j = 0; j < header.rowIndex; j++) {
+      const rowText = (aoa[j] || []).join(" ").trim();
+      if (!rowText) continue;
+      const found = detectCategoryFromText(rowText);
+      if (found) { inferredCategory = found; break; }
+    }
+  }
+  const defaultCategory = inferredCategory || "Minor";
+
+  const rows = [];
+  const cols = header.cols;
+  for (let i = header.rowIndex + 1; i < aoa.length; i += 1) {
+    const row = Array.isArray(aoa[i]) ? aoa[i] : [];
+
+    // Read category from cell
+    let cellCategory = cols.category >= 0 ? String(row[cols.category] || "").trim() : "";
+    let cellType = cols.type >= 0 ? String(row[cols.type] || "").trim() : "";
+
+    // Auto-detect category if possible
+    const purpose = cols.category >= 0 ? String(row[cols.category] || "").toLowerCase() : "";
+    const typeStr = cols.type >= 0 ? String(row[cols.type] || "").toLowerCase() : "";
+    const bridgeNoStr = cols.bridgeNo >= 0 ? String(row[cols.bridgeNo] || "").toLowerCase() : "";
+
+    if (!cellCategory) {
+      cellCategory = detectCategoryFromText(purpose) || detectCategoryFromText(typeStr) || detectCategoryFromText(bridgeNoStr);
+    }
+
+    if (!cellCategory) cellCategory = defaultCategory;
+
+    let detectedType = detectBridgeTypeFromText(cellType) || detectBridgeTypeFromText(purpose) || detectBridgeTypeFromText(bridgeNoStr);
+    if (!detectedType) {
+      if (cellCategory === "Tunnel") detectedType = "Box"; // Default for tunnel
+    }
+    const finalType = detectedType || cellType || "Box";
+
+    const raw = {
+      bridgeNo: cols.bridgeNo >= 0 ? row[cols.bridgeNo] : "",
+      bridgeCategory: cellCategory,
+      bridgeType: finalType,
+      bridgeSize: cols.size >= 0 ? (String(row[cols.size] || "").trim() || "-") : "-",
+      bridgeSpans: cols.spans >= 0 ? (String(row[cols.spans] || "").trim() || "1") : "1",
+      bridgeSpanLength: cols.spanLength >= 0 ? row[cols.spanLength] : "",
+      startChainage: cols.startChainage >= 0 ? row[cols.startChainage] : "",
+      endChainage: cols.endChainage >= 0 ? row[cols.endChainage] : "",
+      length: cols.length >= 0 ? row[cols.length] : "",
+      chainage: cols.chainage >= 0 ? row[cols.chainage] : "",
+    };
+    const normalized = normalizeBridgeEntry(raw, rows.length);
+    if (normalized) rows.push(normalized);
+  }
+  return { rows };
+}
+
+function detectSimpleHeaderRow(aoa, requiredAliases = []) {
+  const scanRows = Math.min(aoa.length, 30);
+  let best = { rowIndex: -1, score: -1, header: [] };
+  for (let i = 0; i < scanRows; i += 1) {
+    const row = Array.isArray(aoa[i]) ? aoa[i] : [];
+    if (!row.length) continue;
+    const norm = row.map((c) => normalizeHeaderToken(c));
+    const score = requiredAliases.reduce((acc, alias) => (
+      acc + (norm.some((h) => h.includes(alias)) ? 1 : 0)
+    ), 0);
+    if (score > best.score) best = { rowIndex: i, score, header: row };
+  }
+  if (best.rowIndex < 0) return null;
+  return best;
+}
+
+function parseCurveRowsFromAoa(aoa) {
+  const headerPick = detectSimpleHeaderRow(aoa, ["chainage", "curve", "radius", "length"]);
+  const headerRow = headerPick ? headerPick.rowIndex : 0;
+  const header = Array.isArray(aoa[headerRow]) ? aoa[headerRow] : [];
+  const norm = header.map((h) => normalizeHeaderToken(h));
+  const cChainage = norm.findIndex((h) => h.includes("chainage") || h === "ch");
+  const cCurve = norm.findIndex((h) => h.includes("curve"));
+  const cRadius = norm.findIndex((h) => h.includes("radius") || h === "r");
+  const cLength = norm.findIndex((h) => h.includes("length") || h.includes("len"));
+  const rows = [];
+  for (let i = headerRow + 1; i < aoa.length; i += 1) {
+    const row = Array.isArray(aoa[i]) ? aoa[i] : [];
+    if (!row.length) continue;
+    const chainage = cChainage >= 0 ? parseChainage(row[cChainage]) : NaN;
+    const curve = cCurve >= 0 ? String(row[cCurve] || "").trim() : "";
+    const radius = cRadius >= 0 ? parseLooseNumber(row[cRadius], NaN) : NaN;
+    const length = cLength >= 0 ? parseLooseNumber(row[cLength], NaN) : NaN;
+    if (!curve && !Number.isFinite(chainage) && !Number.isFinite(radius) && !Number.isFinite(length)) continue;
+    rows.push({
+      chainage: Number.isFinite(chainage) ? chainage : null,
+      curve: curve || `Curve-${rows.length + 1}`,
+      radius: Number.isFinite(radius) ? radius : null,
+      length: Number.isFinite(length) ? length : null,
+    });
+  }
+  return { rows };
+}
+
+function parseLoopPlatformRowsFromAoa(aoa) {
+  const headerPick = detectSimpleHeaderRow(aoa, ["stations", "csb", "loopstart", "loopend", "pfstart", "pfend", "width"]);
+  const headerRow = headerPick ? headerPick.rowIndex : 0;
+  const header = Array.isArray(aoa[headerRow]) ? aoa[headerRow] : [];
+  const norm = header.map((h) => normalizeHeaderToken(h));
+  const cStation = norm.findIndex((h) => h === "stations" || h.includes("station"));
+  const cCsb = norm.findIndex((h) => h === "csb");
+  const cLoopStart = norm.findIndex((h) => h.includes("loopstartch") || h.includes("loopstartchain"));
+  const cLoopEnd = norm.findIndex((h) => h.includes("loopendch") || h.includes("loopendchain"));
+  const cTc = norm.findIndex((h) => h === "tc" || h.includes("trackcentre") || h.includes("trackcenter"));
+  const cPfStart = norm.findIndex((h) => h.includes("pfstartch") || h.includes("pfstartchain"));
+  const cPfEnd = norm.findIndex((h) => h.includes("pfendch") || h.includes("pfendchain"));
+  const cWidth = norm.findIndex((h) => h === "width" || h.includes("platformwidth"));
+  const cRemarks = norm.findIndex((h) => h.includes("remark"));
+
+  // Fallback to fixed template columns from provided workbook:
+  // B Station, C CSB, D Loop Start(off), E Loop End(off), F T/C, G Loop Start Ch, H Loop End Ch,
+  // I PF Start(off), J PF End(off), K Width, L PF Start Ch, M PF End Ch, N Remarks
+  const idx = {
+    station: cStation >= 0 ? cStation : 1,
+    csb: cCsb >= 0 ? cCsb : 2,
+    tc: cTc >= 0 ? cTc : 5,
+    loopStartCh: cLoopStart >= 0 ? cLoopStart : 6,
+    loopEndCh: cLoopEnd >= 0 ? cLoopEnd : 7,
+    pfStartCh: cPfStart >= 0 ? cPfStart : 11,
+    pfEndCh: cPfEnd >= 0 ? cPfEnd : 12,
+    width: cWidth >= 0 ? cWidth : 10,
+    remarks: cRemarks >= 0 ? cRemarks : 13,
+    loopStartOff: 3,
+    loopEndOff: 4,
+    pfStartOff: 8,
+    pfEndOff: 9,
+  };
+
+  const rows = [];
+  let currentStation = "";
+  let currentCsb = NaN;
+  for (let i = headerRow + 1; i < aoa.length; i += 1) {
+    const row = Array.isArray(aoa[i]) ? aoa[i] : [];
+    if (!row.length) continue;
+
+    const stationRaw = String(row[idx.station] ?? "").trim();
+    if (stationRaw && !/example|target chainage|add here/i.test(stationRaw)) currentStation = stationRaw;
+
+    const csbCandidate = parseChainage(row[idx.csb]);
+    if (Number.isFinite(csbCandidate)) currentCsb = csbCandidate;
+
+    let loopStartCh = parseChainage(row[idx.loopStartCh]);
+    let loopEndCh = parseChainage(row[idx.loopEndCh]);
+    let pfStartCh = parseChainage(row[idx.pfStartCh]);
+    let pfEndCh = parseChainage(row[idx.pfEndCh]);
+
+    // If absolute chainage columns are unavailable, derive using CSB + offsets.
+    if (!Number.isFinite(loopStartCh) && Number.isFinite(currentCsb)) {
+      const off = parseLooseNumber(row[idx.loopStartOff], NaN);
+      if (Number.isFinite(off)) loopStartCh = currentCsb + off;
+    }
+    if (!Number.isFinite(loopEndCh) && Number.isFinite(currentCsb)) {
+      const off = parseLooseNumber(row[idx.loopEndOff], NaN);
+      if (Number.isFinite(off)) loopEndCh = currentCsb + off;
+    }
+    if (!Number.isFinite(pfStartCh) && Number.isFinite(currentCsb)) {
+      const off = parseLooseNumber(row[idx.pfStartOff], NaN);
+      if (Number.isFinite(off)) pfStartCh = currentCsb + off;
+    }
+    if (!Number.isFinite(pfEndCh) && Number.isFinite(currentCsb)) {
+      const off = parseLooseNumber(row[idx.pfEndOff], NaN);
+      if (Number.isFinite(off)) pfEndCh = currentCsb + off;
+    }
+
+    if (Number.isFinite(loopStartCh) && Number.isFinite(loopEndCh) && loopEndCh < loopStartCh) {
+      [loopStartCh, loopEndCh] = [loopEndCh, loopStartCh];
+    }
+    if (Number.isFinite(pfStartCh) && Number.isFinite(pfEndCh) && pfEndCh < pfStartCh) {
+      [pfStartCh, pfEndCh] = [pfEndCh, pfStartCh];
+    }
+
+    const tc = parseLooseNumber(row[idx.tc], NaN);
+    const width = parseLooseNumber(row[idx.width], NaN);
+    const remarks = String(row[idx.remarks] ?? "").trim();
+
+    const hasLoop = Number.isFinite(loopStartCh) && Number.isFinite(loopEndCh) && loopEndCh > loopStartCh && Number.isFinite(tc) && tc > 0;
+    const hasPf = Number.isFinite(pfStartCh) && Number.isFinite(pfEndCh) && pfEndCh > pfStartCh && Number.isFinite(width) && width > 0;
+    const hasStationIdentity = Boolean(stationRaw) || Number.isFinite(csbCandidate) || Boolean(remarks);
+    if (!hasLoop && !hasPf && !hasStationIdentity) continue;
+
+    rows.push({
+      station: currentStation || `LP-${rows.length + 1}`,
+      csb: Number.isFinite(currentCsb) ? currentCsb : null,
+      tc: Number.isFinite(tc) ? tc : 0,
+      loopStartCh: Number.isFinite(loopStartCh) ? loopStartCh : null,
+      loopEndCh: Number.isFinite(loopEndCh) ? loopEndCh : null,
+      pfWidth: Number.isFinite(width) ? width : 0,
+      pfStartCh: Number.isFinite(pfStartCh) ? pfStartCh : null,
+      pfEndCh: Number.isFinite(pfEndCh) ? pfEndCh : null,
+      remarks,
+    });
+  }
+  return { rows };
+}
+
+function getLoopPlatformAtChainage(chainage) {
+  if (!Number.isFinite(chainage) || !state.loopPlatformRows.length) {
+    return { loopTc: 0, platformWidth: 0 };
+  }
+  let loopTc = 0;
+  let platformWidth = 0;
+  for (const r of state.loopPlatformRows) {
+    if (Number.isFinite(r.loopStartCh) && Number.isFinite(r.loopEndCh) && chainage >= r.loopStartCh && chainage <= r.loopEndCh) {
+      loopTc += safeNum(r.tc, 0);
+    }
+    if (Number.isFinite(r.pfStartCh) && Number.isFinite(r.pfEndCh) && chainage >= r.pfStartCh && chainage <= r.pfEndCh) {
+      platformWidth += safeNum(r.pfWidth, 0);
+    }
+  }
+  return { loopTc, platformWidth };
+}
+
+
+
+async function readSheetAoaFromFile(file) {
+  const ext = file.name.toLowerCase();
+  if (!(ext.endsWith(".csv") || ext.endsWith(".xlsx") || ext.endsWith(".xls"))) {
+    throw new Error("Supported files are .csv, .xlsx, .xls");
+  }
+  const data = await file.arrayBuffer();
+  const wb = XLSX.read(data, { type: "array", cellDates: false });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false, blankrows: false });
+  if (!aoa.length) throw new Error("File has no data rows.");
+  return aoa;
+}
+
+// Read ALL sheets from an Excel file, returning [{name, aoa}]
+async function readAllSheetsFromFile(file) {
+  const ext = file.name.toLowerCase();
+  if (!(ext.endsWith(".csv") || ext.endsWith(".xlsx") || ext.endsWith(".xls"))) {
+    throw new Error("Supported files are .csv, .xlsx, .xls");
+  }
+  const data = await file.arrayBuffer();
+  const wb = XLSX.read(data, { type: "array", cellDates: false });
+  return wb.SheetNames.map((name) => {
+    const ws = wb.Sheets[name];
+    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false, blankrows: false });
+    return { name, aoa };
+  });
+}
+
+function buildBridgeIntervals() {
+  return state.bridgeRows
+    .map((b, i) => normalizeBridgeEntry(b, i))
+    .filter(Boolean)
+    .sort((a, b) => a.startChainage - b.startChainage);
+}
+
+function getSegmentBridgeInfo(start, end, bridges) {
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || !bridges.length) {
+    return { deductedLen: 0, refs: [] };
+  }
+  const overlaps = [];
+  const refs = new Set();
+  for (const b of bridges) {
+    if (b.endChainage <= start || b.startChainage >= end) continue;
+    const ovStart = Math.max(start, b.startChainage);
+    const ovEnd = Math.min(end, b.endChainage);
+    if (ovEnd > ovStart) {
+      if (b.shouldDeduct) overlaps.push([ovStart, ovEnd]);
+      refs.add(b.bridgeNo);
+    }
+  }
+  if (!overlaps.length) return { deductedLen: 0, refs: [] };
+  overlaps.sort((a, b) => a[0] - b[0]);
+  let [curS, curE] = overlaps[0];
+  let total = 0;
+  for (let i = 1; i < overlaps.length; i += 1) {
+    const [s, e] = overlaps[i];
+    if (s <= curE) {
+      curE = Math.max(curE, e);
+    } else {
+      total += (curE - curS);
+      curS = s;
+      curE = e;
+    }
+  }
+  total += (curE - curS);
+  return { deductedLen: total, refs: Array.from(refs) };
+}
+
+function getBridgeRefsAtChainage(chainage, bridges) {
+  if (!Number.isFinite(chainage) || !bridges.length) return [];
+  return bridges
+    .filter((b) => chainage >= b.startChainage && chainage <= b.endChainage)
+    .map((b) => b.bridgeNo);
+}
+
+function getBridgeStyleInfo(category, type) {
+  const typeLC = (String(category || "") + " " + String(type || "")).toLowerCase();
+  if (typeLC.includes("tunnel")) return { bg: "rgba(168, 85, 247, 0.15)", col: "#d8b4fe", border: "1px solid rgba(168, 85, 247, 0.3)" };
+  if (typeLC.includes("major")) return { bg: "rgba(239, 68, 68, 0.15)", col: "#fca5a5", border: "1px solid rgba(239, 68, 68, 0.3)" };
+  if (typeLC.includes("minor")) return { bg: "rgba(16, 185, 129, 0.15)", col: "#6ee7b7", border: "1px solid rgba(16, 185, 129, 0.3)" };
+  if (typeLC.includes("rub") || typeLC.includes("rob")) return { bg: "rgba(245, 158, 11, 0.15)", col: "#fcd34d", border: "1px solid rgba(245, 158, 11, 0.3)" };
+  return { bg: "rgba(59, 130, 246, 0.15)", col: "#93c5fd", border: "1px solid rgba(59, 130, 246, 0.3)" };
+}
+
+function renderBridgeInputs() {
+  if (!els.bridgeTableBody) return;
+  if (!state.bridgeRows.length) {
+    els.bridgeTableBody.innerHTML = `
+      <tr>
+        <td colspan="10" class="muted">No bridge rows loaded. Use Import Data > Import Bridge List or Add Bridge Row.</td>
+      </tr>
+    `;
+    if (els.bridgeMeta) els.bridgeMeta.textContent = "No bridge deduction applied.";
+    return;
+  }
+  els.bridgeTableBody.innerHTML = state.bridgeRows.map((b, i) => {
+    const bColor = getBridgeStyleInfo(b.bridgeCategory, b.bridgeType);
+    return `
+    <tr data-bridge-row="${i}">
+      <td><input data-bridge-field="bridgeNo" value="${String(b.bridgeNo || "")}" style="background: ${bColor.bg}; color: ${bColor.col}; border: ${bColor.border}; border-radius: 4px; font-weight: 600; padding: 4px 6px;" /></td>
+      <td>
+        <select data-bridge-field="bridgeCategory">
+          ${BRIDGE_CATEGORIES.map(cat => `<option value="${cat}" ${b.bridgeCategory === cat ? 'selected' : ''}>${cat}</option>`).join("")}
+        </select>
+      </td>
+      <td>
+        <select data-bridge-field="bridgeType">
+          ${BRIDGE_TYPES.map(type => `<option value="${type}" ${b.bridgeType === type ? 'selected' : ''}>${type}</option>`).join("")}
+        </select>
+      </td>
+      <td><input data-bridge-field="bridgeSize" value="${String(b.bridgeSize || "")}" style="width: 80px;" placeholder="e.g. 6.1m" /></td>
+      <td><input data-bridge-field="bridgeSpans" type="number" min="1" value="${String(b.bridgeSpans || "1")}" style="width: 50px;" /></td>
+      <td><input data-bridge-field="bridgeSpanLength" value="${Number.isFinite(b.bridgeSpanLength) ? r3(b.bridgeSpanLength) : String(b.bridgeSpanLength ?? "")}" style="width: 70px;" /></td>
+      <td><input data-bridge-field="startChainage" value="${Number.isFinite(parseChainage(b.startChainage)) ? r3(parseChainage(b.startChainage)) : String(b.startChainage ?? "")}" /></td>
+      <td><input data-bridge-field="endChainage" value="${Number.isFinite(parseChainage(b.endChainage)) ? r3(parseChainage(b.endChainage)) : String(b.endChainage ?? "")}" /></td>
+      <td><input data-bridge-field="length" value="${Number.isFinite(parseLooseNumber(b.length, NaN)) ? r3(parseLooseNumber(b.length, NaN)) : String(b.length ?? "")}" /></td>
+      <td><button type="button" class="bridge-del" data-bridge-del="${i}">Delete</button></td>
+    </tr>
+  `;
+  }).join("");
+  const allValidBridges = buildBridgeIntervals();
+  const deductibleBridges = allValidBridges.filter(b => b.shouldDeduct);
+  const totalLength = allValidBridges.reduce((acc, b) => acc + safeNum(b.length), 0);
+  const deductibleLength = deductibleBridges.reduce((acc, b) => acc + safeNum(b.length), 0);
+
+  if (els.bridgeMeta) {
+    const invalidCount = Math.max(state.bridgeRows.length - allValidBridges.length, 0);
+    els.bridgeMeta.textContent = `Bridge rows: ${state.bridgeRows.length} | Valid: ${allValidBridges.length} | Total Length: ${r3(totalLength)}m | Deductible (Major/RoR/etc): ${r3(deductibleLength)}m${invalidCount ? ` | Invalid: ${invalidCount}` : ""}`;
+  }
+}
+
+function renderCurveInputs() {
+  if (!els.curveTableBody) return;
+  const rows = Array.isArray(state.curveRows) ? state.curveRows : [];
+  if (!rows.length) {
+    els.curveTableBody.innerHTML = `<tr><td colspan="5" class="muted">No curve rows loaded. Use Import Data > Import Curve List.</td></tr>`;
+    if (els.curveMeta) els.curveMeta.textContent = "No curve list imported.";
+    return;
+  }
+  els.curveTableBody.innerHTML = rows.map((r, i) => `
+    <tr data-curve-row="${i}">
+      <td><input data-curve-field="curve" value="${String(r.curve || "")}" /></td>
+      <td><input data-curve-field="chainage" value="${Number.isFinite(r.chainage) ? r3(r.chainage) : ""}" /></td>
+      <td><input data-curve-field="radius" value="${Number.isFinite(r.radius) ? r3(r.radius) : ""}" /></td>
+      <td><input data-curve-field="length" value="${Number.isFinite(r.length) ? r3(r.length) : ""}" /></td>
+      <td><button type="button" class="bridge-del" data-curve-del="${i}">Delete</button></td>
+    </tr>
+  `).join("");
+  const validLen = rows.reduce((acc, r) => acc + (Number.isFinite(r.length) ? r.length : 0), 0);
+  if (els.curveMeta) els.curveMeta.textContent = `Curve rows: ${rows.length} | Total curve length: ${r3(validLen)} m`;
+}
+
+function renderLoopInputs() {
+  if (!els.loopTableBody) return;
+  const rows = Array.isArray(state.loopPlatformRows) ? state.loopPlatformRows : [];
+  if (!rows.length) {
+    els.loopTableBody.innerHTML = `<tr><td colspan="10" class="muted">No station/loop rows loaded. Use Import Data > Import Loops & Platforms.</td></tr>`;
+    if (els.loopMeta) els.loopMeta.textContent = "No station/loops data imported.";
+    return;
+  }
+
+  const stations = [...new Set(rows.map(r => r.station).filter(Boolean))];
+  const stationColors = {};
+  stations.forEach((s, idx) => {
+    stationColors[s] = `hsl(${(idx * 137.508) % 360}, 65%, 50%)`;
+  });
+
+  els.loopTableBody.innerHTML = rows.map((r, i) => {
+    const sColor = stationColors[r.station] || 'transparent';
+    const bgStyle = sColor !== 'transparent' ? sColor.replace('hsl', 'hsla').replace(')', ', 0.08)') : 'transparent';
+    return `
+    <tr data-loop-row="${i}" style="border-left: 4px solid ${sColor}; background: ${bgStyle};">
+      <td><input data-loop-field="station" value="${String(r.station || "")}" /></td>
+      <td><input data-loop-field="csb" value="${Number.isFinite(r.csb) ? r3(r.csb) : ""}" /></td>
+      <td><input data-loop-field="tc" value="${Number.isFinite(r.tc) ? r3(r.tc) : ""}" /></td>
+      <td><input data-loop-field="loopStartCh" value="${Number.isFinite(r.loopStartCh) ? r3(r.loopStartCh) : ""}" /></td>
+      <td><input data-loop-field="loopEndCh" value="${Number.isFinite(r.loopEndCh) ? r3(r.loopEndCh) : ""}" /></td>
+      <td><input data-loop-field="pfWidth" value="${Number.isFinite(r.pfWidth) ? r3(r.pfWidth) : ""}" /></td>
+      <td><input data-loop-field="pfStartCh" value="${Number.isFinite(r.pfStartCh) ? r3(r.pfStartCh) : ""}" /></td>
+      <td><input data-loop-field="pfEndCh" value="${Number.isFinite(r.pfEndCh) ? r3(r.pfEndCh) : ""}" /></td>
+      <td><input data-loop-field="remarks" value="${String(r.remarks || "")}" /></td>
+      <td><button type="button" class="bridge-del" data-loop-del="${i}">Delete</button></td>
+    </tr>
+  `}).join("");
+  const loopRanges = rows.filter((r) => Number.isFinite(r.loopStartCh) && Number.isFinite(r.loopEndCh)).length;
+  const pfRanges = rows.filter((r) => Number.isFinite(r.pfStartCh) && Number.isFinite(r.pfEndCh)).length;
+  if (els.loopMeta) els.loopMeta.textContent = `Stations: ${stations.length} | Rows: ${rows.length} | Loop ranges: ${loopRanges} | Platform ranges: ${pfRanges}`;
+}
+
+function syncCurveStateFromTable() {
+  if (!els.curveTableBody) return;
+  const rows = Array.from(els.curveTableBody.querySelectorAll("tr"));
+  const next = [];
+  rows.forEach((tr, i) => {
+    if (!tr.querySelector('[data-curve-field="curve"]')) return;
+    const curve = String(tr.querySelector('[data-curve-field="curve"]')?.value || "").trim();
+    const chainage = parseChainage(tr.querySelector('[data-curve-field="chainage"]')?.value ?? "");
+    const radius = parseLooseNumber(tr.querySelector('[data-curve-field="radius"]')?.value ?? "", NaN);
+    const length = parseLooseNumber(tr.querySelector('[data-curve-field="length"]')?.value ?? "", NaN);
+    if (!curve && !Number.isFinite(chainage) && !Number.isFinite(radius) && !Number.isFinite(length)) return;
+    next.push({
+      curve: curve || `Curve-${i + 1}`,
+      chainage: Number.isFinite(chainage) ? chainage : null,
+      radius: Number.isFinite(radius) ? radius : null,
+      length: Number.isFinite(length) ? length : null,
+    });
+  });
+  state.curveRows = next;
+}
+
+function syncLoopStateFromTable() {
+  if (!els.loopTableBody) return;
+  const rows = Array.from(els.loopTableBody.querySelectorAll("tr"));
+  const next = [];
+  rows.forEach((tr) => {
+    if (!tr.querySelector('[data-loop-field="station"]')) return;
+    const station = String(tr.querySelector('[data-loop-field="station"]')?.value || "").trim();
+    const csb = parseChainage(tr.querySelector('[data-loop-field="csb"]')?.value ?? "");
+    const tc = parseLooseNumber(tr.querySelector('[data-loop-field="tc"]')?.value ?? "", NaN);
+    const loopStartCh = parseChainage(tr.querySelector('[data-loop-field="loopStartCh"]')?.value ?? "");
+    const loopEndCh = parseChainage(tr.querySelector('[data-loop-field="loopEndCh"]')?.value ?? "");
+    const pfWidth = parseLooseNumber(tr.querySelector('[data-loop-field="pfWidth"]')?.value ?? "", NaN);
+    const pfStartCh = parseChainage(tr.querySelector('[data-loop-field="pfStartCh"]')?.value ?? "");
+    const pfEndCh = parseChainage(tr.querySelector('[data-loop-field="pfEndCh"]')?.value ?? "");
+    const remarks = String(tr.querySelector('[data-loop-field="remarks"]')?.value || "").trim();
+    if (!station
+      && !Number.isFinite(csb)
+      && !Number.isFinite(tc)
+      && !Number.isFinite(loopStartCh)
+      && !Number.isFinite(loopEndCh)
+      && !Number.isFinite(pfWidth)
+      && !Number.isFinite(pfStartCh)
+      && !Number.isFinite(pfEndCh)
+      && !remarks) return;
+    next.push({
+      station: station || `LP-${next.length + 1}`,
+      csb: Number.isFinite(csb) ? csb : null,
+      tc: Number.isFinite(tc) ? tc : 0,
+      loopStartCh: Number.isFinite(loopStartCh) ? loopStartCh : null,
+      loopEndCh: Number.isFinite(loopEndCh) ? loopEndCh : null,
+      pfWidth: Number.isFinite(pfWidth) ? pfWidth : 0,
+      pfStartCh: Number.isFinite(pfStartCh) ? pfStartCh : null,
+      pfEndCh: Number.isFinite(pfEndCh) ? pfEndCh : null,
+      remarks,
+    });
+  });
+  state.loopPlatformRows = next;
+}
+
+function syncBridgeStateFromTable() {
+  if (!els.bridgeTableBody) return;
+  const rows = Array.from(els.bridgeTableBody.querySelectorAll("tr"));
+  const parsed = [];
+  rows.forEach((tr, i) => {
+    if (tr.querySelectorAll("[data-bridge-field]").length === 0) return;
+    const raw = {
+      bridgeNo: tr.querySelector('[data-bridge-field="bridgeNo"]')?.value ?? "",
+      bridgeCategory: tr.querySelector('[data-bridge-field="bridgeCategory"]')?.value ?? "Minor",
+      bridgeType: tr.querySelector('[data-bridge-field="bridgeType"]')?.value ?? "Box",
+      bridgeSize: tr.querySelector('[data-bridge-field="bridgeSize"]')?.value ?? "-",
+      bridgeSpans: tr.querySelector('[data-bridge-field="bridgeSpans"]')?.value ?? "1",
+      bridgeSpanLength: tr.querySelector('[data-bridge-field="bridgeSpanLength"]')?.value ?? "",
+      startChainage: tr.querySelector('[data-bridge-field="startChainage"]')?.value ?? "",
+      endChainage: tr.querySelector('[data-bridge-field="endChainage"]')?.value ?? "",
+      length: tr.querySelector('[data-bridge-field="length"]')?.value ?? "",
+    };
+    if (!raw.bridgeNo && !raw.startChainage && !raw.endChainage && !raw.length) return;
+    if (!raw.bridgeNo) raw.bridgeNo = `BR-${i + 1}`;
+    parsed.push(raw);
+  });
+  state.bridgeRows = parsed;
+}
+
+function inferImportInterval() {
+  if (!Array.isArray(state.rawRows) || state.rawRows.length < 2) return 20;
+  const ch = state.rawRows
+    .map((r) => Number(r.chainage))
+    .filter((v) => Number.isFinite(v))
+    .sort((a, b) => a - b);
+  if (ch.length < 2) return 20;
+  const diffs = [];
+  for (let i = 1; i < ch.length; i += 1) {
+    const d = ch[i] - ch[i - 1];
+    if (d > 0) diffs.push(d);
+  }
+  if (!diffs.length) return 20;
+  const avg = diffs.reduce((s, d) => s + d, 0) / diffs.length;
+  return Number.isFinite(avg) && avg > 0 ? avg : 20;
+}
+
+function inferImportStartChainage() {
+  if (Array.isArray(state.rawRows) && state.rawRows.length > 0) {
+    const values = state.rawRows.map((r) => Number(r.chainage)).filter((v) => Number.isFinite(v));
+    if (values.length) return Math.min(...values);
+  }
+  return 0;
+}
+
+function clamp(v, min, max) {
+  return Math.min(max, Math.max(min, v));
+}
+
+function setCrossViewBox(vb) {
+  const minW = CROSS_SVG_W * 0.08;
+  const maxW = CROSS_SVG_W * 5.5;
+  const minH = CROSS_SVG_H * 0.08;
+  const maxH = CROSS_SVG_H * 5.5;
+  const w = Math.min(maxW, Math.max(minW, vb.w));
+  const h = Math.min(maxH, Math.max(minH, vb.h));
+  const panPadX = w * 0.24;
+  const panPadY = h * 0.24;
+  const minX = -panPadX;
+  const minY = -panPadY;
+  const maxX = CROSS_SVG_W - w + panPadX;
+  const maxY = CROSS_SVG_H - h + panPadY;
+  const x = minX <= maxX ? clamp(vb.x, minX, maxX) : (minX + maxX) / 2;
+  const y = minY <= maxY ? clamp(vb.y, minY, maxY) : (minY + maxY) / 2;
+  state.crossViewBox = { x, y, w, h };
+  if (els.crossSvg) {
+    els.crossSvg.setAttribute("viewBox", `${state.crossViewBox.x} ${state.crossViewBox.y} ${state.crossViewBox.w} ${state.crossViewBox.h}`);
+  }
+}
+
+function resetCrossView() {
+  setCrossViewBox({ x: 0, y: 0, w: CROSS_SVG_W, h: CROSS_SVG_H });
+}
+
+function zoomCrossAt(clientX, clientY, factor) {
+  if (!els.crossSvg || !Number.isFinite(factor) || factor <= 0) return;
+  const rect = els.crossSvg.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const rx = (clientX - rect.left) / rect.width;
+  const ry = (clientY - rect.top) / rect.height;
+  const curr = state.crossViewBox;
+  const newW = curr.w * factor;
+  const newH = curr.h * factor;
+  const newX = curr.x + ((curr.w - newW) * rx);
+  const newY = curr.y + ((curr.h - newH) * ry);
+  setCrossViewBox({ x: newX, y: newY, w: newW, h: newH });
+}
+
+function wheelToZoomFactor(e) {
+  const modeScale = e.deltaMode === 1 ? 16 : (e.deltaMode === 2 ? 320 : 1);
+  const normalized = clamp((e.deltaY * modeScale) / 120, -8, 8);
+  const sensitivity = e.ctrlKey ? 0.12 : 0.085;
+  return Math.exp(normalized * sensitivity);
+}
+
+function bindCrossCanvasInteraction() {
+  if (!els.crossSvg || !els.crossGraphicWrap) return;
+  els.crossSvg.style.cursor = "grab";
+  els.crossGraphicWrap.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const factor = wheelToZoomFactor(e);
+    zoomCrossAt(e.clientX, e.clientY, factor);
+  }, { passive: false });
+  els.crossSvg.addEventListener("mousedown", (e) => {
+    if (e.button !== 0 && e.button !== 1) return;
+    e.preventDefault();
+    state.crossPan.active = true;
+    state.crossPan.lastX = e.clientX;
+    state.crossPan.lastY = e.clientY;
+    els.crossSvg.style.cursor = "grabbing";
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!state.crossPan.active || !els.crossSvg) return;
+    const rect = els.crossSvg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const dxPx = e.clientX - state.crossPan.lastX;
+    const dyPx = e.clientY - state.crossPan.lastY;
+    state.crossPan.lastX = e.clientX;
+    state.crossPan.lastY = e.clientY;
+    const dx = (dxPx / rect.width) * state.crossViewBox.w;
+    const dy = (dyPx / rect.height) * state.crossViewBox.h;
+    setCrossViewBox({
+      x: state.crossViewBox.x - dx,
+      y: state.crossViewBox.y - dy,
+      w: state.crossViewBox.w,
+      h: state.crossViewBox.h,
+    });
+  });
+  window.addEventListener("mouseup", () => {
+    if (!state.crossPan.active || !els.crossSvg) return;
+    state.crossPan.active = false;
+    els.crossSvg.style.cursor = "grab";
+  });
+
+  const tooltip = document.getElementById("svgTooltip");
+  els.crossSvg.addEventListener("mousemove", (e) => {
+    if (state.crossPan.active || !state.crossMatrix) {
+      if (tooltip) tooltip.style.opacity = 0;
+      return;
+    }
+    const rect = els.crossSvg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const ratioX = (e.clientX - rect.left) / rect.width;
+    const ratioY = (e.clientY - rect.top) / rect.height;
+
+    // Scale view coordinates
+    const mx = state.crossMatrix;
+    const svgX = state.crossViewBox.x + ratioX * state.crossViewBox.w;
+    const svgY = state.crossViewBox.y + ratioY * state.crossViewBox.h;
+
+    // Reverse Engineering map
+    const dist = (svgX - mx.centerX) / mx.pxPerM;
+    const elev = mx.fl + (mx.topY - svgY) / mx.pxPerM;
+
+    if (tooltip) {
+      tooltip.style.left = `${e.clientX + 15}px`;
+      tooltip.style.top = `${e.clientY + 15}px`;
+      const sign = dist > 0 ? "+" : "";
+      tooltip.innerHTML = `<strong>Dist:</strong> ${sign}${dist.toFixed(2)}m<br/><strong>Elev:</strong> ${elev.toFixed(2)} RL`;
+      tooltip.style.opacity = 1;
+    }
+  });
+
+  els.crossSvg.addEventListener("mouseleave", () => {
+    if (tooltip) tooltip.style.opacity = 0;
+  });
+}
+
+function updateEstimates() {
+  if (!els.estimatesBody) return;
+  if (!state.project.verified) {
+    els.estimatesBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--muted); padding: 24px;">Please Verify & Calculate the project first.</td></tr>';
+    if (els.estimateGrandTotal) els.estimateGrandTotal.textContent = "₹0.00";
+    return;
+  }
+
+  const rates = {
+    clearing: parseFloat(els.rateClearing?.value || 0),
+    benching: parseFloat(els.rateBenching?.value || 0),
+    fill: parseFloat(els.rateFilling?.value || 0),
+    blanket: parseFloat(els.rateBlanketing?.value || 0),
+    cutSoil: parseFloat(els.rateCutSoil?.value || 0),
+    cutSoft: parseFloat(els.rateCutSoft?.value || 0),
+    cutHardBlast: parseFloat(els.rateCutHardBlast?.value || 0),
+    cutHardChisel: parseFloat(els.rateCutHardChisel?.value || 0),
+    extraLead: parseFloat(els.rateExtraLead?.value || 0),
+    turf: parseFloat(els.rateTurfing?.value || 0)
+  };
+
+  const pcts = {
+    soil: parseFloat(els.pctSoil?.value || 0) / 100,
+    soft: parseFloat(els.pctSoftRock?.value || 0) / 100,
+    blast: parseFloat(els.pctHardBlast?.value || 0) / 100,
+    chisel: parseFloat(els.pctHardChisel?.value || 0) / 100,
+    reuse: parseFloat(els.pctReusableSpoil?.value || 0) / 100,
+    lead: parseFloat(els.leadKm?.value || 3)
+  };
+
+  const rawFillTotal = state.calcRows.reduce((s, r) => s + r.fillVol, 0);
+  const rawCutTotal = state.calcRows.reduce((s, r) => s + r.cutVol, 0);
+
+  const cutBlanketTotal = state.calcRows.reduce((s, r) => s + (r.type === 'CUTTING' && r.blanketingVol ? parseLooseNumber(r.blanketingVol) : 0), 0);
+  const fillBlanketTotal = state.calcRows.reduce((s, r) => s + (r.bank > 0 && r.blanketingVol ? parseLooseNumber(r.blanketingVol) : 0), 0);
+  const cutTurfTotal = state.calcRows.reduce((s, r) => s + (r.type === 'CUTTING' && r.turfingSqM ? parseLooseNumber(r.turfingSqM) : 0), 0);
+  const fillTurfTotal = state.calcRows.reduce((s, r) => s + (r.bank > 0 && r.turfingSqM ? parseLooseNumber(r.turfingSqM) : 0), 0);
+
+  const fillLenM = state.calcRows.reduce((s, r) => s + ((r.bank > 0 ? safeNum(r.ewDiff) : 0)), 0);
+  const cutLenM = state.calcRows.reduce((s, r) => s + ((r.type === 'CUTTING' ? safeNum(r.ewDiff) : 0)), 0);
+
+  const topWidthFill = safeNum(state.settings?.formationWidthFill) || 7.85;
+  const bottomWidthCut = safeNum(state.settings?.cuttingWidth) || 7.85;
+
+  const clearingSqm = (fillLenM * topWidthFill) + (cutLenM * bottomWidthCut); // simplified footprint roughly
+  const benchingKm = fillLenM / 1000;
+
+  const cutSoil = rawCutTotal * pcts.soil;
+  const reusableSpoil = cutSoil * pcts.reuse;
+  const extraLeadQty = Math.max(0, cutSoil - reusableSpoil); // Assume unused soil taken offsite
+  const extraLeadKm = Math.max(0, pcts.lead - 2); // IR generally gives 2km free lead
+
+  const sq3Required = Math.max(0, rawFillTotal - reusableSpoil);
+  const turfing100Sqm = (cutTurfTotal + fillTurfTotal) / 100;
+
+  let html = "";
+  let grandTotal = 0;
+
+  const items = [
+    { sn: "1", ussr: "011010", desc: "Preparation of foundation by clearing, grubbing & stripping", qty: clearingSqm / 100, unit: "100 Sqm", rate: rates.clearing },
+    { sn: "2", ussr: "011020", desc: "Benching of existing embankment manually", qty: benchingKm, unit: "Km", rate: rates.benching },
+    { sn: "3", ussr: "NS Item", desc: "Earthwork with contractor's earth in embankment SQ3 (after deducting reusable cut spoil)", qty: sq3Required, unit: "Cum", rate: rates.fill },
+    { sn: "4", ussr: "012040", desc: "Providing blanketing on top of formation", qty: cutBlanketTotal + fillBlanketTotal, unit: "Cum", rate: rates.blanket },
+    { sn: "5", ussr: "012011", desc: "Earthwork in cutting in formation in all soils", qty: cutSoil, unit: "Cum", rate: rates.cutSoil },
+    { sn: "6", ussr: "012012", desc: "Earthwork in cutting in soft rock not required blasting", qty: rawCutTotal * pcts.soft, unit: "Cum", rate: rates.cutSoft },
+    { sn: "7", ussr: "012013", desc: "In hard rock with Blasting", qty: rawCutTotal * pcts.blast, unit: "Cum", rate: rates.cutHardBlast },
+    { sn: "8", ussr: "012014", desc: "In hard rock with hammer / chisel", qty: rawCutTotal * pcts.chisel, unit: "Cum", rate: rates.cutHardChisel },
+    { sn: "9", ussr: "012015", desc: `Extra for leading of Cut spoil beyond 2km (${pcts.lead}km total - 2km base = ${extraLeadKm}km lead)`, qty: extraLeadQty * extraLeadKm, unit: "Cum-Km", rate: rates.extraLead },
+    { sn: "10", ussr: "013023", desc: "Turfing / planting, including watering until properly rooted", qty: turfing100Sqm, unit: "100 Sqm", rate: rates.turf }
+  ];
+
+  items.forEach(item => {
+    if (item.qty <= 0) return;
+    const cost = item.qty * item.rate;
+    grandTotal += cost;
+    html += `
+      <tr>
+        <td style="text-align: center; color: var(--muted);">${item.sn}</td>
+        <td style="color: var(--blue); font-family: monospace; font-weight: 500;">${item.ussr}</td>
+        <td>${item.desc}</td>
+        <td style="text-align: right;">${item.qty.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td style="text-align: center; color: var(--muted);">${item.unit}</td>
+        <td style="text-align: right;">₹${item.rate.toFixed(2)}</td>
+        <td style="text-align: right; font-weight: 600;">₹${cost.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+      </tr>
+    `;
+  });
+
+  if (html === "") {
+    html = '<tr><td colspan="7" style="text-align: center; color: var(--muted); padding: 24px;">No quantities generated to estimate.</td></tr>';
+  }
+
+  els.estimatesBody.innerHTML = html;
+  if (els.estimateGrandTotal) {
+    els.estimateGrandTotal.textContent = "₹" + grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+}
+
+function recalculate() {
+  const settings = state.settings;
+  const sorted = [...state.rawRows].sort((a, b) => a.chainage - b.chainage);
+  const bridgeIntervals = buildBridgeIntervals();
+  let prev = null;
+  const rows = [];
+
+  for (const row of sorted) {
+    const diff = prev ? Math.max(row.chainage - prev.chainage, 0) : 0;
+    const segmentBridgeInfo = prev
+      ? getSegmentBridgeInfo(prev.chainage, row.chainage, bridgeIntervals)
+      : { deductedLen: 0, refs: [] };
+    const bridgeRefsAtPoint = getBridgeRefsAtChainage(row.chainage, bridgeIntervals);
+    const bridgeRefs = Array.from(new Set([...segmentBridgeInfo.refs, ...bridgeRefsAtPoint]));
+    const bridgeDeductLen = Math.min(diff, segmentBridgeInfo.deductedLen);
+    const ewDiff = Math.max(diff - bridgeDeductLen, 0);
+    const gl = safeNum(row.groundLevel);
+    const fl = safeNum(row.proposedLevel);
+    const rlDiff = fl - gl;
+    const lp = getLoopPlatformAtChainage(row.chainage);
+    const loopTc = safeNum(lp.loopTc, 0);
+    const platformWidth = safeNum(lp.platformWidth, 0);
+    const effectiveFormationWidth = settings.formationWidthFill + loopTc + platformWidth;
+
+    const bank = diff <= 0 ? 0 : Math.max(rlDiff, 0);
+    const minCover = settings.blanketThickness + settings.preparedSubgradeThickness;
+    const cut = diff <= 0 ? 0 : (rlDiff < 0 ? (-rlDiff + minCover) : Math.max(minCover - bank, 0));
+
+    const turfing = bank > 0 ? settings.sideSlopeFactor * bank : 0;
+    const fillTop = effectiveFormationWidth;
+    const fillBottom = fillTop + (2 * settings.sideSlopeFactor * bank);
+    const cutTop = settings.cuttingWidth;
+    const cutBottom = cutTop + (2 * settings.sideSlopeFactor * cut);
+
+    const fillArea = bank > 0 ? ((fillTop + fillBottom) * 0.5 * bank) : 0;
+    const cutArea = cut > 0 ? ((cutTop + cutBottom) * 0.5 * cut) : 0;
+
+    const fillVol = prev ? ((prev.fillArea + fillArea) * 0.5 * ewDiff) : 0;
+    const cutVol = prev ? ((prev.cutArea + cutArea) * 0.5 * ewDiff) : 0;
+
+    let type = "NEUTRAL";
+    if (ewDiff <= 0.001 && bridgeDeductLen > 0) type = "BRIDGE";
+    else if (bank > 0.001) type = "FILLING";
+    else if (cut > 0.001) type = "CUTTING";
+
+    const calc = {
+      ...row,
+      diff,
+      ewDiff,
+      rlDiff,
+      bank,
+      cut,
+      turfing,
+      fillArea,
+      cutArea,
+      fillVol,
+      cutVol,
+      loopTc,
+      platformWidth,
+      effectiveFormationWidth,
+      bridgeRefs,
+      bridgeDeductLen,
+      type,
+      fillBottom,
+      cutBottom,
+    };
+    rows.push(calc);
+    prev = calc;
+  }
+
+  state.calcRows = rows;
+  renderBridgeInputs();
+  renderCurveInputs();
+  renderLoopInputs();
+  renderSummary();
+  renderTable();
+  renderCharts();
+  renderRollDiagram();
+  renderSideView();
+  updateEstimates();
+  updateDashboard();
+
+  if (state.kmlData && typeof drawAlignmentMap === "function") {
+    requestAnimationFrame(() => drawAlignmentMap());
+  }
+}
+
+function renderSummary() {
+  const fillTotal = state.calcRows.reduce((s, r) => s + r.fillVol, 0);
+  const cutTotal = state.calcRows.reduce((s, r) => s + r.cutVol, 0);
+  const fillLen = state.calcRows.reduce((s, r) => s + ((r.bank > 0 ? safeNum(r.ewDiff) : 0)), 0) / 1000;
+  const cutLen = state.calcRows.reduce((s, r) => s + ((r.type === "CUTTING" ? safeNum(r.ewDiff) : 0)), 0) / 1000;
+  const reusablePct = parseLooseNumber(els.pctReusableSpoil?.value, 60);
+  const reusableSpoil = cutTotal * (safeNum(reusablePct, 60) / 100);
+  const grossFillEquivalent = fillTotal + reusableSpoil;
+
+  els.totalFilling.textContent = formatVolume(fillTotal);
+  els.totalCutting.textContent = formatVolume(cutTotal);
+
+  if (els.actualFilling) {
+    els.actualFilling.textContent = fillTotal >= 100000 ? `${Number(fillTotal).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³` : "";
+    els.actualFilling.style.opacity = fillTotal >= 100000 ? "0.8" : "0";
+  }
+  if (els.reusableFilling) {
+    els.reusableFilling.textContent = reusableSpoil > 0
+      ? `Reusable Earth Deducted: ${Number(reusableSpoil).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³`
+      : "";
+    els.reusableFilling.style.opacity = reusableSpoil > 0 ? "0.92" : "0";
+  }
+  if (els.actualCutting) {
+    els.actualCutting.textContent = cutTotal >= 100000 ? `${Number(cutTotal).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³` : "";
+    els.actualCutting.style.opacity = cutTotal >= 100000 ? "0.8" : "0";
+  }
+
+  els.fillLength.textContent = `Length: ${r3(fillLen)} km`;
+  els.cutLength.textContent = `Length: ${r3(cutLen)} km`;
+
+  // Compute Fluid Animation Fill Levels
+  const grandVol = fillTotal + cutTotal;
+  const fillCapEl = document.getElementById("fillCapacity");
+  const cutCapEl = document.getElementById("cutCapacity");
+  if (grandVol > 0) {
+    const fillPct = Math.round((fillTotal / grandVol) * 100);
+    const cutPct = Math.round((cutTotal / grandVol) * 100);
+    if (els.fillWaterNode) els.fillWaterNode.style.height = `${Math.min(fillPct, 100)}%`;
+    if (els.fillReusableHatch) {
+      const reusableShare = grossFillEquivalent > 0 ? (reusableSpoil / grossFillEquivalent) * 100 : 0;
+      els.fillReusableHatch.style.height = `${Math.max(0, Math.min(reusableShare, 100))}%`;
+      els.fillReusableHatch.style.opacity = reusableSpoil > 0 ? "0.95" : "0";
+      if (els.fillReusablePctLabel) {
+        els.fillReusablePctLabel.textContent = `${Math.round(reusableShare)}% reduced`;
+        els.fillReusablePctLabel.style.display = reusableSpoil > 0 ? "inline-flex" : "none";
+      }
+    }
+    if (els.cutWaterNode) els.cutWaterNode.style.height = `${Math.min(cutPct, 100)}%`;
+    if (fillCapEl) fillCapEl.textContent = `${fillPct}% capacity`;
+    if (cutCapEl) cutCapEl.textContent = `${cutPct}% capacity`;
+  } else {
+    if (els.fillWaterNode) els.fillWaterNode.style.height = "0%";
+    if (els.fillReusableHatch) {
+      els.fillReusableHatch.style.height = "0%";
+      els.fillReusableHatch.style.opacity = "0";
+      if (els.fillReusablePctLabel) els.fillReusablePctLabel.style.display = "none";
+    }
+    if (els.cutWaterNode) els.cutWaterNode.style.height = "0%";
+    if (fillCapEl) fillCapEl.textContent = "0% capacity";
+    if (cutCapEl) cutCapEl.textContent = "0% capacity";
+  }
+  renderFormulaSummary();
+
+  // Enable/disable the global verify button
+  const vBtn = document.getElementById("verifyCalcBtn");
+  if (vBtn) vBtn.disabled = !state.calcRows.length;
+
+  saveState();
+}
+
+function setResultTab(tabName) {
+  const selected = tabName || "inputs";
+  state.activeResultTab = selected;
+  els.resultTabButtons.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.resultTab === selected);
+  });
+  els.resultTabPanes.forEach((pane) => {
+    pane.classList.toggle("active", pane.dataset.resultPane === selected);
+  });
+}
+
+function setWorkPage(pageName) {
+  const selected = pageName || "overview";
+  state.activeWorkPage = selected;
+  els.workPageButtons.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.workPageBtn === selected);
+  });
+  els.workPages.forEach((page) => {
+    page.classList.toggle("active", page.dataset.workPage === selected);
+  });
+  if (selected === "roll-diagram" && state.calcRows.length) {
+    requestAnimationFrame(() => { renderRollDiagram(); renderSideView(); });
+  }
+  if (selected === "graphs" && state.calcRows.length) {
+    requestAnimationFrame(() => renderCharts());
+  }
+  if (selected === "bridges") {
+    renderBridgeInputs();
+  }
+  if (selected === "curves") {
+    renderCurveInputs();
+  }
+  if (selected === "loops") {
+    renderLoopInputs();
+  }
+}
+
+function isProjectReadyForVerification() {
+  const u = state.project.uploads;
+  return Boolean(state.project.name && u.levels && u.curves && u.bridges && u.loops);
+}
+
+function updateWizardUI() {
+  if (!els.projectNameInput) return;
+  if (document.activeElement !== els.projectNameInput) {
+    els.projectNameInput.value = state.project.name || "";
+  }
+  const tickMap = {
+    levels: els.wizardTickLevels,
+    curves: els.wizardTickCurves,
+    bridges: els.wizardTickBridges,
+    loops: els.wizardTickLoops,
+    kml: els.wizardTickKml,
+  };
+  Object.entries(tickMap).forEach(([k, el]) => {
+    if (!el) return;
+    el.classList.toggle("done", Boolean(state.project.uploads[k]));
+  });
+  const ready = isProjectReadyForVerification();
+  if (els.wizardCalculateBtn) els.wizardCalculateBtn.disabled = !ready;
+  if (els.wizardStatus) {
+    if (ready) {
+      els.wizardStatus.textContent = state.project.uploads.kml
+        ? "All core files and KML/KMZ alignment uploaded. Project is verified and ready for calculation."
+        : "All four core files uploaded. Project is verified and ready for calculation. KML/KMZ alignment is optional.";
+    } else {
+      const missing = [];
+      if (!state.project.name) missing.push("Project Name");
+      if (!state.project.uploads.levels) missing.push("Levels");
+      if (!state.project.uploads.curves) missing.push("Curve List");
+      if (!state.project.uploads.bridges) missing.push("Bridge List");
+      if (!state.project.uploads.loops) missing.push("Loops & Platforms");
+      const optional = state.project.uploads.kml ? "" : " | Optional: KML/KMZ Alignment";
+      els.wizardStatus.textContent = `Pending: ${missing.join(", ")}${optional}`;
+    }
+  }
+}
+
+function applyProjectGate() {
+  const active = Boolean(state.project.active);
+  if (els.importBtn) els.importBtn.disabled = !active;
+  if (els.openSettingsBtn) els.openSettingsBtn.disabled = !active;
+  if (els.saveProjectBtn) els.saveProjectBtn.disabled = !active;
+  if (els.projectMeta) {
+    els.projectMeta.textContent = "Earthwork Calculations";
+  }
+}
+
+function collectProjectPayload() {
+  return {
+    version: "1.0",
+    savedAt: new Date().toISOString(),
+    project: {
+      ...state.project,
+      uploads: { ...state.project.uploads },
+    },
+    settings: { ...state.settings },
+    rawRows: state.rawRows,
+    bridgeRows: state.bridgeRows,
+    curveRows: state.curveRows,
+    loopPlatformRows: state.loopPlatformRows,
+    kmlData: state.kmlData,
+    stationPlans: state.stationPlans,
+  };
+}
+
+function loadProjectFromPayload(data, options = {}) {
+  const { silent = false, fileHandle = null } = options;
+  if (!data || typeof data !== "object") {
+    alert("Project file is invalid.");
+    return;
+  }
+  state.project = {
+    active: true,
+    verified: Boolean(data?.project?.verified),
+    name: String(data?.project?.name || "Imported Project").trim(),
+    uploads: {
+      levels: Boolean(data?.project?.uploads?.levels),
+      curves: Boolean(data?.project?.uploads?.curves),
+      bridges: Boolean(data?.project?.uploads?.bridges),
+      loops: Boolean(data?.project?.uploads?.loops),
+      kml: Boolean(data?.project?.uploads?.kml) || Boolean(data?.kmlData),
+    },
+  };
+  state.settings = { ...state.seedDefaultSettings, ...(data?.settings || {}) };
+  state.rawRows = Array.isArray(data?.rawRows) && data.rawRows.length ? data.rawRows : [...state.seedRows];
+  state.bridgeRows = Array.isArray(data?.bridgeRows) ? data.bridgeRows : [];
+  state.curveRows = Array.isArray(data?.curveRows) ? data.curveRows : [];
+  const rawLoopRows = Array.isArray(data?.loopPlatformRows) ? data.loopPlatformRows : [];
+  state.loopPlatformRows = rawLoopRows.map((r, i) => ({
+    station: String(r?.station || r?.name || `LP-${i + 1}`),
+    csb: Number.isFinite(parseChainage(r?.csb)) ? parseChainage(r.csb) : null,
+    tc: Number.isFinite(parseLooseNumber(r?.tc, NaN)) ? parseLooseNumber(r.tc, NaN) : 0,
+    loopStartCh: Number.isFinite(parseChainage(r?.loopStartCh))
+      ? parseChainage(r.loopStartCh)
+      : (Number.isFinite(parseChainage(r?.startChainage)) ? parseChainage(r.startChainage) : null),
+    loopEndCh: Number.isFinite(parseChainage(r?.loopEndCh))
+      ? parseChainage(r.loopEndCh)
+      : (Number.isFinite(parseChainage(r?.endChainage)) ? parseChainage(r.endChainage) : null),
+    pfWidth: Number.isFinite(parseLooseNumber(r?.pfWidth, NaN)) ? parseLooseNumber(r.pfWidth, NaN) : 0,
+    pfStartCh: Number.isFinite(parseChainage(r?.pfStartCh)) ? parseChainage(r.pfStartCh) : null,
+    pfEndCh: Number.isFinite(parseChainage(r?.pfEndCh)) ? parseChainage(r.pfEndCh) : null,
+    remarks: String(r?.remarks || r?.type || ""),
+  }));
+  state.kmlData = data?.kmlData && Array.isArray(data.kmlData?.points) ? data.kmlData : null;
+  state.stationPlans = data?.stationPlans && typeof data.stationPlans === "object" ? data.stationPlans : {};
+  state.projectFileHandle = fileHandle;
+  renderBridgeInputs();
+  renderCurveInputs();
+  renderLoopInputs();
+  recalculate();
+  updateWizardUI();
+  applyProjectGate();
+  if (!silent) alert(`Loaded project: ${state.project.name}`);
+}
+
+function escapeAttr(v) {
+  return escapeHtml(v).replace(/'/g, "&#39;");
+}
+
+async function saveCurrentProject() {
+  if (!state.project.active || !state.project.name) {
+    alert("Create and name a project before saving.");
+    return;
+  }
+  const payload = collectProjectPayload();
+  const fileBase = String(state.project.name || "project")
+    .replace(/[^\w.-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    || "project";
+  const jsonStr = JSON.stringify(payload, null, 2);
+
+  try {
+    if (state.projectFileHandle) {
+      const writable = await state.projectFileHandle.createWritable();
+      await writable.write(jsonStr);
+      await writable.close();
+      state.meta = { ...(state.meta || {}), lastSavedAt: new Date().toISOString() };
+      alert(`Project updated: ${state.project.name}`);
+    } else if ("showSaveFilePicker" in window) {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: `${fileBase}.EW`,
+        types: [{
+          description: "Earthwork Project File",
+          accept: { "application/json": [".EW"] },
+        }],
+      });
+      state.projectFileHandle = handle;
+      const writable = await handle.createWritable();
+      await writable.write(jsonStr);
+      await writable.close();
+      state.meta = { ...(state.meta || {}), lastSavedAt: new Date().toISOString() };
+      alert(`Project saved: ${state.project.name}`);
+    } else {
+      // Fallback for unsupported browsers
+      const blob = new Blob([jsonStr], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${fileBase}.EW`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      state.meta = { ...(state.meta || {}), lastSavedAt: new Date().toISOString() };
+      alert(`Project saved: ${state.project.name}`);
+    }
+  } catch (err) {
+    if (err.name !== "AbortError") {
+      console.error("Save project error:", err);
+      alert("Failed to save the project. " + err.message);
+    }
+  }
+}
+
+function resetForNewProject() {
+  localStorage.removeItem("earthsoft_saved_work");
+  state.project = {
+    active: false,
+    verified: false,
+    name: "",
+    uploads: {
+      levels: false,
+      curves: false,
+      bridges: false,
+      loops: false,
+      kml: false,
+    },
+  };
+  state.rawRows = [];
+  state.bridgeRows = [];
+  state.curveRows = [];
+  state.loopPlatformRows = [];
+  state.kmlData = null;
+  state.stationPlans = {};
+  state.projectFileHandle = null;
+  state.settings = { ...state.seedDefaultSettings };
+  if (els.projectNameInput) els.projectNameInput.value = "";
+  if (els.importInput) els.importInput.value = "";
+  if (els.bridgeImportInput) els.bridgeImportInput.value = "";
+  if (els.curveImportInput) els.curveImportInput.value = "";
+  if (els.loopImportInput) els.loopImportInput.value = "";
+  if (els.kmlImportInput) els.kmlImportInput.value = "";
+  if (els.projectImportInput) els.projectImportInput.value = "";
+  renderBridgeInputs();
+  recalculate();
+  updateWizardUI();
+  applyProjectGate();
+}
+
+function escapeHtml(v) {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+
+
+function renderFormulaSummary() {
+  if (!els.resultInputBody || !els.resultFillBody || !els.resultCutBody || !els.resultQtyBody) return;
+  const rows = state.calcRows;
+  const s = state.settings;
+  if (!rows.length) {
+    els.resultInputBody.innerHTML = "";
+    els.resultFillBody.innerHTML = "";
+    els.resultCutBody.innerHTML = "";
+    els.resultQtyBody.innerHTML = "";
+    return;
+  }
+
+  const minCover = s.blanketThickness + s.preparedSubgradeThickness;
+  const sumLen = (pred) => rows.reduce((acc, r) => acc + ((safeNum(r.ewDiff) > 0 && pred(r)) ? safeNum(r.ewDiff) : 0), 0);
+  const sumVol = (pred, key) => rows.reduce((acc, r) => acc + (pred(r) ? safeNum(r[key]) : 0), 0);
+  const avg = (arr) => (arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length) : 0);
+  const max = (arr) => (arr.length ? Math.max(...arr) : 0);
+  const cutDepth = (r) => Math.max(r.cut - minCover, 0);
+
+  const fillLenM = sumLen((r) => r.bank > 0);
+  const fillLt5M = sumLen((r) => r.bank > 0 && r.bank <= 5);
+  const fill5To10M = sumLen((r) => r.bank > 5 && r.bank <= 10);
+  const fillGt10M = sumLen((r) => r.bank > 10);
+  const fillValues = rows.filter((r) => safeNum(r.ewDiff) > 0 && r.bank > 0).map((r) => r.bank);
+
+  const cutLenM = sumLen((r) => cutDepth(r) > 0);
+  const cutLt5M = sumLen((r) => cutDepth(r) > 0 && cutDepth(r) <= 5);
+  const cut5To10M = sumLen((r) => cutDepth(r) > 5 && cutDepth(r) <= 10);
+  const cutGt10M = sumLen((r) => cutDepth(r) > 10);
+  const cutValues = rows.filter((r) => safeNum(r.ewDiff) > 0).map((r) => cutDepth(r));
+
+  const fillVolLt5 = sumVol((r) => r.bank > 0 && r.bank <= 5, "fillVol");
+  const fillVol5To10 = sumVol((r) => r.bank > 5 && r.bank <= 10, "fillVol");
+  const fillVolGt10 = sumVol((r) => r.bank > 10, "fillVol");
+  const cutVolInCut = sumVol((r) => cutDepth(r) > 0, "cutVol");
+  const cutVolLt5 = sumVol((r) => cutDepth(r) > 0 && cutDepth(r) <= 5, "cutVol");
+  const cutVol5To10 = sumVol((r) => cutDepth(r) > 5 && cutDepth(r) <= 10, "cutVol");
+  const cutVolGt10 = sumVol((r) => cutDepth(r) > 10, "cutVol");
+
+  const blanketArea = s.formationWidthFill * s.blanketThickness;
+  const preparedArea = s.formationWidthFill * (s.blanketThickness + s.preparedSubgradeThickness);
+  const fmtSummary = (v) => Number(v).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+  const fmtM3 = (v) => fmtSummary(v);
+  const fmtKm = (m) => fmtSummary(m / 1000);
+  const firstCh = safeNum(rows[0]?.chainage, 0);
+  const lastCh = safeNum(rows[rows.length - 1]?.chainage, firstCh);
+  const totalLength = Math.max(lastCh - firstCh, 0);
+  const exgTrack = parseLooseNumber(state.meta?.defaults?.trackBySideExgTrack, NaN);
+  const validBridges = buildBridgeIntervals();
+  const totalBridgeLen = validBridges.reduce((acc, b) => acc + safeNum(b.length), 0);
+  const loopRows = Array.isArray(state.loopPlatformRows) ? state.loopPlatformRows : [];
+  const totalLoopLen = loopRows.reduce((acc, r) => (
+    acc + (Number.isFinite(r.loopStartCh) && Number.isFinite(r.loopEndCh) ? Math.max(r.loopEndCh - r.loopStartCh, 0) : 0)
+  ), 0);
+  const totalPfLen = loopRows.reduce((acc, r) => (
+    acc + (Number.isFinite(r.pfStartCh) && Number.isFinite(r.pfEndCh) ? Math.max(r.pfEndCh - r.pfStartCh, 0) : 0)
+  ), 0);
+
+  const inputRows = [
+    ["Formation Width (Fill)", fmtSummary(s.formationWidthFill), "m"],
+    ["Formation Width (Cut)", fmtSummary(s.cuttingWidth), "m"],
+    ["Blanket Thickness", fmtSummary(s.blanketThickness), "m"],
+    ["Prepared Subgrade Thickness", fmtSummary(s.preparedSubgradeThickness), "m"],
+    ["Berm Width", fmtSummary(s.bermWidth), "m"],
+    ["Track by side of ExgTrack", Number.isFinite(exgTrack) ? fmtSummary(exgTrack) : "-", Number.isFinite(exgTrack) ? "m" : ""],
+    ["Total Length", fmtSummary(totalLength), "m"],
+    ["Bridge Deduction Length", fmtSummary(totalBridgeLen), "m"],
+    ["Bridge Count", String(validBridges.length), ""],
+    ["Loop/PF Rows", String(loopRows.length), ""],
+    ["Total Loop Range", fmtSummary(totalLoopLen), "m"],
+    ["Total Platform Range", fmtSummary(totalPfLen), "m"],
+  ];
+  const fillRows = [
+    ["Fill Length", fmtKm(fillLenM), "km"],
+    ["Fill Ht <5.0m", fmtKm(fillLt5M), "km"],
+    ["Fill Ht 5.0m to 10.0m", fmtKm(fill5To10M), "km"],
+    ["Fill Ht >10.0m", fmtKm(fillGt10M), "km"],
+    ["Max Fill Ht", fmtSummary(max(fillValues)), "m"],
+    ["Average Fill Height", fmtSummary(avg(fillValues)), "m"],
+  ];
+  const cutRows = [
+    ["Cut Length", fmtKm(cutLenM), "km"],
+    ["Cut depth <5.0m", fmtKm(cutLt5M), "km"],
+    ["Cut 5.0m to 10.0m", fmtKm(cut5To10M), "km"],
+    ["Cut >10.0m", fmtKm(cutGt10M), "km"],
+    ["Max Cut depth", fmtSummary(max(cutValues)), "m"],
+    ["Min Cover (Blanket+Subgrade)", fmtSummary(minCover), "m"],
+  ];
+
+  const qtyRows = [
+    {
+      label: "QTY in Cut",
+      prepared: cutLenM * preparedArea,
+      blanket: cutLenM * blanketArea,
+      fill: 0,
+      cut: cutVolInCut,
+    },
+    {
+      label: "Bank <5.0m",
+      prepared: fillLt5M * preparedArea,
+      blanket: fillLt5M * blanketArea,
+      fill: fillVolLt5,
+      cut: cutVolLt5,
+    },
+    {
+      label: "Bank 5.0m to 10.0m",
+      prepared: fill5To10M * preparedArea,
+      blanket: fill5To10M * blanketArea,
+      fill: fillVol5To10,
+      cut: cutVol5To10,
+    },
+    {
+      label: "Bank >10.0m",
+      prepared: fillGt10M * preparedArea,
+      blanket: fillGt10M * blanketArea,
+      fill: fillVolGt10,
+      cut: cutVolGt10,
+    },
+  ];
+  const qtyTotal = qtyRows.reduce((acc, r) => ({
+    prepared: acc.prepared + r.prepared,
+    blanket: acc.blanket + r.blanket,
+    fill: acc.fill + r.fill,
+    cut: acc.cut + r.cut,
+  }), { prepared: 0, blanket: 0, fill: 0, cut: 0 });
+
+  const renderRows = (list, colorClass = "") => list.map(([label, value, unit]) => `
+    <tr class="${colorClass}">
+      <td>${label}</td>
+      <td>${value}</td>
+      <td class="unit">${unit}</td>
+    </tr>
+  `).join("");
+  els.resultInputBody.innerHTML = renderRows(inputRows);
+  els.resultFillBody.innerHTML = renderRows(fillRows, "t-fill");
+  els.resultCutBody.innerHTML = renderRows(cutRows, "t-cut");
+  els.resultQtyBody.innerHTML = `
+    ${qtyRows.map((r) => `
+      <tr>
+        <td>${r.label}</td>
+        <td>${fmtM3(r.prepared)}</td>
+        <td>${fmtM3(r.blanket)}</td>
+        <td class="t-fill">${fmtM3(r.fill)}</td>
+        <td class="t-cut">${fmtM3(r.cut)}</td>
+      </tr>
+    `).join("")}
+    <tr>
+      <td><strong>Total qty</strong></td>
+      <td><strong>${fmtM3(qtyTotal.prepared)}</strong></td>
+      <td><strong>${fmtM3(qtyTotal.blanket)}</strong></td>
+      <td class="t-fill"><strong>${fmtM3(qtyTotal.fill)}</strong></td>
+      <td class="t-cut"><strong>${fmtM3(qtyTotal.cut)}</strong></td>
+    </tr>
+  `;
+}
+
+function volumeCapsule(value, kind, active) {
+  const v = r3(value);
+  if (!active) return `<span>${v}</span>`;
+  return `<span class="volume-pill ${kind}">${v}</span>`;
+}
+
+function renderTable() {
+  const html = state.calcRows.map((r, idx) => {
+    const structureNo = r.structureNo ? String(r.structureNo).replace(/\n/g, " ").trim() : "-";
+    const station = r.station ? String(r.station).replace(/\n/g, " ") : "-";
+
+    let bridgeRefs = "-";
+    if (r.bridgeRefs && r.bridgeRefs.length) {
+      bridgeRefs = r.bridgeRefs.map(ref => {
+        const b = state.bridgeRows.find(br => String(br.bridgeNo) === String(ref));
+        if (!b) return ref;
+        const bColor = getBridgeStyleInfo(b.bridgeCategory, b.bridgeType);
+        return `<span style="display:inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; color: ${bColor.col}; background: ${bColor.bg}; border: ${bColor.border}; white-space: nowrap; margin: 2px;">${ref}</span>`;
+      }).join(" ");
+    }
+    const rowClass = (r.bridgeRefs && r.bridgeRefs.length) ? "bridge-row" : "";
+    return `
+      <tr class="${rowClass}">
+        <td>${bridgeRefs}</td>
+        <td>${station}</td>
+        <td><button class="chainage-link theme-ch" data-cross-index="${idx}" title="Open cross-section">${(r.chainage < 0 ? "-" : "") + Math.floor(Math.abs(r.chainage) / 1000) + "+" + (Math.abs(r.chainage) % 1000).toFixed(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1").padStart(3, "0")}</button></td>
+        <td>${r.diff ? r3(r.diff) : "—"}</td>
+        <td>${r3(r.groundLevel)}</td>
+        <td class="t-pro">${r3(r.proposedLevel)}</td>
+        <td>${r.loopTc ? r3(r.loopTc) : "—"}</td>
+        <td>${r.platformWidth ? r3(r.platformWidth) : "—"}</td>
+        <td>${r.bridgeDeductLen ? r3(r.bridgeDeductLen) : "—"}</td>
+        <td>${r.ewDiff ? r3(r.ewDiff) : "—"}</td>
+        <td>${r.rlDiff ? r3(r.rlDiff) : "—"}</td>
+        <td class="t-fill">${r.bank > 0.0001 ? r3(r.bank) : "—"}</td>
+        <td class="t-cut">${r.cut > 0.0001 ? r3(r.cut) : "—"}</td>
+        <td class="t-fill">${r.fillArea > 0.0001 ? r3(r.fillArea) : "—"}</td>
+        <td class="t-cut">${r.cutArea > 0.0001 ? r3(r.cutArea) : "—"}</td>
+        <td class="t-fill">${r.fillVol > 0.0001 ? r3(r.fillVol) : "—"}</td>
+        <td class="t-cut">${r.cutVol > 0.0001 ? r3(r.cutVol) : "—"}</td>
+      </tr>
+    `;
+  }).join("");
+
+  els.tableBody.innerHTML = html;
+}
+
+function renderCharts() {
+  // Force destruction of any existing charts bound to the canvas via Chart.js globals.
+  Chart.getChart("lSectionChart")?.destroy();
+  Chart.getChart("volumeChart")?.destroy();
+
+  if (!state.calcRows.length) {
+    if (state.charts.lSection) {
+      state.charts.lSection.destroy();
+      state.charts.lSection = null;
+    }
+    if (state.charts.volume) {
+      state.charts.volume.destroy();
+      state.charts.volume = null;
+    }
+    return;
+  }
+  const labels = state.calcRows.map((r) => r3((r.chainage - state.calcRows[0].chainage) / 1000));
+  const gl = state.calcRows.map((r) => Number(r3(r.groundLevel)));
+  const fl = state.calcRows.map((r) => Number(r3(r.proposedLevel)));
+  const diff = state.calcRows.map((r) => Number(r3(r.rlDiff)));
+
+  // Lovable design colors
+  const groundColor = "hsl(354, 72%, 55%)";   // red
+  const proposedColor = "hsl(233, 100%, 57%)"; // blue
+  const gridColor = "hsla(222, 20%, 25%, 0.3)";
+  const tickColor = "hsl(215, 20%, 55%)";
+
+  if (state.charts.lSection) state.charts.lSection.destroy();
+
+  const lCtx = els.lSectionChart.getContext("2d");
+  // Ground gradient fill
+  const groundGrad = lCtx.createLinearGradient(0, 0, 0, els.lSectionChart.height);
+  groundGrad.addColorStop(0, "hsla(354, 72%, 55%, 0.3)");
+  groundGrad.addColorStop(1, "hsla(354, 72%, 55%, 0)");
+  // Proposed gradient fill
+  const proposedGrad = lCtx.createLinearGradient(0, 0, 0, els.lSectionChart.height);
+  proposedGrad.addColorStop(0, "hsla(233, 100%, 57%, 0.3)");
+  proposedGrad.addColorStop(1, "hsla(233, 100%, 57%, 0)");
+
+  state.charts.lSection = new Chart(els.lSectionChart, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Ground RL",
+          data: gl,
+          borderColor: groundColor,
+          backgroundColor: groundGrad,
+          tension: 0.35,
+          fill: true,
+          pointRadius: 0,
+          pointBackgroundColor: groundColor,
+          pointBorderWidth: 0,
+          pointHoverRadius: 4,
+          pointHoverBackgroundColor: "hsl(222, 47%, 6%)",
+          pointHoverBorderColor: groundColor,
+          pointHoverBorderWidth: 1.5,
+          borderWidth: 1.5,
+        },
+        {
+          label: "Proposed RL",
+          data: fl,
+          borderColor: proposedColor,
+          backgroundColor: proposedGrad,
+          tension: 0.35,
+          fill: true,
+          pointRadius: 0,
+          pointBackgroundColor: proposedColor,
+          pointBorderWidth: 0,
+          pointHoverRadius: 4,
+          pointHoverBackgroundColor: "hsl(222, 47%, 6%)",
+          pointHoverBorderColor: proposedColor,
+          pointHoverBorderWidth: 1.5,
+          borderWidth: 1.5,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: {
+          labels: {
+            boxWidth: 12,
+            boxHeight: 2,
+            usePointStyle: false,
+            color: tickColor,
+            font: { size: 10, family: "Outfit", weight: 500 },
+            padding: 16,
+          },
+          position: "top",
+          align: "end",
+        },
+        tooltip: {
+          backgroundColor: "hsla(222, 40%, 12%, 0.9)",
+          titleColor: "#fff",
+          bodyColor: "hsl(215, 20%, 75%)",
+          borderColor: "hsla(222, 20%, 30%, 0.5)",
+          borderWidth: 1,
+          padding: 10,
+          titleFont: { family: "Outfit", weight: 600, size: 12 },
+          bodyFont: { family: "Outfit", size: 11 },
+          callbacks: {
+            afterBody: (ctx) => {
+              const i = ctx[0].dataIndex;
+              return `RL Difference: ${r3(diff[i])} m`;
+            },
+          },
+        },
+        zoom: {
+          pan: { enabled: true, mode: "x" },
+          zoom: {
+            wheel: { enabled: true, speed: 0.1 },
+            pinch: { enabled: true },
+            mode: "x",
+          },
+        },
+      },
+      scales: {
+        x: {
+          title: { display: false },
+          ticks: { color: tickColor, font: { size: 10, family: "Outfit" }, maxTicksLimit: 10 },
+          grid: { color: gridColor, drawBorder: false },
+          border: { color: gridColor },
+        },
+        y: {
+          title: { display: false },
+          ticks: { color: tickColor, font: { size: 10, family: "Outfit" } },
+          grid: { color: gridColor, drawBorder: false },
+          border: { color: gridColor },
+        },
+      },
+    },
+  });
+
+  // Double-click to reset zoom
+  els.lSectionChart.ondblclick = () => {
+    state.charts.lSection?.resetZoom();
+  };
+
+  if (state.charts.volume) state.charts.volume.destroy();
+  state.charts.volume = new Chart(els.volumeChart, {
+    data: {
+      labels,
+      datasets: [
+        {
+          type: "bar",
+          label: "Fill Vol (m³)",
+          data: state.calcRows.map((r) => Number(r3(r.fillVol))),
+          backgroundColor: "hsla(152, 69%, 37%, 0.55)",
+          borderRadius: 4,
+        },
+        {
+          type: "bar",
+          label: "Cut Vol (m³)",
+          data: state.calcRows.map((r) => -Number(r3(r.cutVol))),
+          backgroundColor: "hsla(354, 72%, 55%, 0.55)",
+          borderRadius: 4,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: "top",
+          align: "end",
+          labels: {
+            boxWidth: 12,
+            color: tickColor,
+            font: { size: 10, family: "Outfit", weight: 500 },
+          },
+        },
+        tooltip: {
+          backgroundColor: "hsla(222, 40%, 12%, 0.9)",
+          titleColor: "#fff",
+          bodyColor: "hsl(215, 20%, 75%)",
+          borderColor: "hsla(222, 20%, 30%, 0.5)",
+          borderWidth: 1,
+          padding: 10,
+          titleFont: { family: "Outfit", weight: 600, size: 12 },
+          bodyFont: { family: "Outfit", size: 11 },
+        },
+        zoom: {
+          pan: { enabled: true, mode: "x" },
+          zoom: {
+            wheel: { enabled: true, speed: 0.1 },
+            pinch: { enabled: true },
+            mode: "x",
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: { maxTicksLimit: 9, color: tickColor, font: { size: 10, family: "Outfit" } },
+          grid: { color: gridColor, drawBorder: false },
+          border: { color: gridColor },
+        },
+        y: {
+          title: { display: false },
+          ticks: { color: tickColor, font: { size: 10, family: "Outfit" } },
+          grid: { color: gridColor, drawBorder: false },
+          border: { color: gridColor },
+        },
+      },
+    },
+  });
+
+  // Double-click to reset zoom
+  els.volumeChart.ondblclick = () => {
+    state.charts.volume?.resetZoom();
+  };
+}
+
+function renderRollDiagram() {
+  const canvas = els.rollDiagramCanvas;
+  const wrap = els.rollDiagramWrap;
+  const empty = els.rollDiagramEmpty;
+  if (!canvas) return;
+
+  const noData = !state.calcRows || state.calcRows.length === 0;
+  if (empty) { empty.style.display = noData ? "flex" : "none"; }
+  if (wrap) { wrap.style.display = noData ? "none" : "block"; }
+  if (noData) return;
+
+  const rows = state.calcRows;
+  const minCh = rows[0].chainage;
+  const maxCh = rows[rows.length - 1].chainage;
+  const totalL = Math.max(maxCh - minCh, 1);
+
+  const PAD_L = 60, PAD_R = 40, PAD_T = 70, PAD_B = 45; // Reduced paddings
+  const MAX_SAFE_W = 32000;
+  const maxScaleLimit = (MAX_SAFE_W - PAD_L - PAD_R) / (totalL * 0.4);
+
+  const baseScale = Math.max(0.05, Math.min(maxScaleLimit, window._planScale || 1));
+  window._planScale = baseScale; // Update state inline
+
+  const PX_PER_M_X = 0.4 * baseScale;
+  const PX_PER_M_Y = 2.8; // Fixed vertical scale, height remains constant
+
+  const maxHalfW = rows.reduce((m, r) => {
+    const w = r.bank > 0 ? r.fillBottom : (r.cut > 0 ? r.cutBottom : (r.effectiveFormationWidth || 0));
+    return Math.max(m, w / 2);
+  }, 0);
+  const loopMaxTc = (state.loopPlatformRows || []).reduce((m, lp) => Math.max(m, Math.abs(safeNum(lp.tc, 0))), 0);
+  const loopPxH = (loopMaxTc + 10) * PX_PER_M_Y;
+  const bodyHalf = Math.max(maxHalfW * PX_PER_M_Y, 28); // Reduced min from 40
+  const canvasH = Math.ceil(PAD_T + bodyHalf * 2 + loopPxH + PAD_B);
+  const canvasW = Math.ceil(PAD_L + totalL * PX_PER_M_X + PAD_R);
+  const centerY = PAD_T + bodyHalf + loopPxH * 0.5;
+
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvasW, canvasH);
+
+  function getX(ch) {
+    return Number.isFinite(ch) ? PAD_L + (ch - minCh) * PX_PER_M_X : null;
+  }
+
+  // ── Background ─────────────────────────────────────────────────────────
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, canvasH);
+  bgGrad.addColorStop(0, "#0d1117");
+  bgGrad.addColorStop(1, "#141d2e");
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  // ── X & Y Grid lines (Major & Minor) ───────────────────────────────────
+  const minSpacPx = 25; // Minimum px spacing for minor grid lines
+
+  // X-axis divisions (Chainage)
+  let xMajor = 1000, xMinor = 500;
+  if (PX_PER_M_X * 10 >= minSpacPx) { xMajor = 50; xMinor = 10; }
+  else if (PX_PER_M_X * 25 >= minSpacPx) { xMajor = 100; xMinor = 25; }
+  else if (PX_PER_M_X * 50 >= minSpacPx) { xMajor = 250; xMinor = 50; }
+  else if (PX_PER_M_X * 100 >= minSpacPx) { xMajor = 500; xMinor = 100; }
+  else if (PX_PER_M_X * 500 >= minSpacPx) { xMajor = 2000; xMinor = 500; }
+  else { xMajor = 10000; xMinor = 2000; }
+
+  ctx.lineWidth = 1;
+  const startX = Math.ceil(minCh / xMinor) * xMinor;
+  for (let ch = startX; ch <= maxCh; ch += xMinor) {
+    const gx = getX(ch);
+    if (gx == null) continue;
+    const isMajor = (ch % xMajor === 0);
+    ctx.strokeStyle = isMajor ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.035)";
+    ctx.beginPath(); ctx.moveTo(gx, PAD_T); ctx.lineTo(gx, canvasH - PAD_B); ctx.stroke();
+  }
+
+  // Y-axis divisions (Width from Centerline)
+  let yMajor = 20, yMinor = 5;
+  if (PX_PER_M_Y * 2 >= minSpacPx) { yMajor = 10; yMinor = 2; }
+  else if (PX_PER_M_Y * 5 >= minSpacPx) { yMajor = 20; yMinor = 5; }
+  else if (PX_PER_M_Y * 10 >= minSpacPx) { yMajor = 50; yMinor = 10; }
+  else { yMajor = 100; yMinor = 20; }
+
+  const maxYMetres = Math.ceil(Math.max(centerY - PAD_T, canvasH - PAD_B - centerY) / PX_PER_M_Y);
+  ctx.fillStyle = "rgba(255,255,255,0.4)";
+  ctx.font = `9px Outfit,sans-serif`;
+  ctx.textAlign = "left";
+
+  for (let ym = 0; ym <= maxYMetres; ym += yMinor) {
+    if (ym === 0) continue; // Skip centerline
+    const isMajor = (ym % yMajor === 0);
+    ctx.strokeStyle = isMajor ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.035)";
+    const dy = ym * PX_PER_M_Y;
+
+    // Top side (negative Y from center)
+    if (centerY - dy >= PAD_T) {
+      ctx.beginPath(); ctx.moveTo(PAD_L, centerY - dy); ctx.lineTo(canvasW - PAD_R, centerY - dy); ctx.stroke();
+      if (isMajor) ctx.fillText(`${ym}m`, PAD_L + 6, centerY - dy - 4);
+    }
+    // Bottom side (positive Y from center)
+    if (centerY + dy <= canvasH - PAD_B) {
+      ctx.beginPath(); ctx.moveTo(PAD_L, centerY + dy); ctx.lineTo(canvasW - PAD_R, centerY + dy); ctx.stroke();
+      if (isMajor) ctx.fillText(`${ym}m`, PAD_L + 6, centerY + dy - 4);
+    }
+  }
+
+  // ── Centreline ─────────────────────────────────────────────────────────
+  ctx.setLineDash([6, 6]);
+  ctx.strokeStyle = "rgba(255,255,255,0.25)";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(getX(minCh), centerY); ctx.lineTo(getX(maxCh), centerY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ── Bridges ─────────────────────────────────────────────────────────────
+  const bridges = buildBridgeIntervals();
+  function isOnBridge(ch) {
+    return bridges.some(b => ch >= b.startChainage && ch <= b.endChainage);
+  }
+
+  // ── Toe width — per-segment coloured trapezoids ─────────────────────────
+  for (let i = 1; i < rows.length; i++) {
+    const r0 = rows[i - 1], r1 = rows[i];
+    const midCh = (r0.chainage + r1.chainage) / 2;
+    if (isOnBridge(midCh)) continue;
+
+    const x0 = getX(r0.chainage), x1g = getX(r1.chainage);
+    if (x0 == null || x1g == null) continue;
+    const w0 = r0.bank > 0 ? r0.fillBottom : (r0.cut > 0 ? r0.cutBottom : (r0.effectiveFormationWidth || 0));
+    const w1 = r1.bank > 0 ? r1.fillBottom : (r1.cut > 0 ? r1.cutBottom : (r1.effectiveFormationWidth || 0));
+    const h0 = (w0 / 2) * PX_PER_M_Y, h1 = (w1 / 2) * PX_PER_M_Y;
+    const isFill = r1.bank > 0.001, isCut = r1.cut > 0.001;
+    const fillCol = isFill ? "rgba(34,139,69,0.28)" : isCut ? "rgba(180,44,50,0.28)" : "rgba(100,110,130,0.18)";
+    const strokeCol = isFill ? "rgba(34,200,80,0.75)" : isCut ? "rgba(240,70,70,0.75)" : "rgba(140,150,170,0.45)";
+    // Top edge
+    ctx.strokeStyle = strokeCol; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x0, centerY - h0); ctx.lineTo(x1g, centerY - h1); ctx.stroke();
+    // Bottom edge
+    ctx.beginPath(); ctx.moveTo(x0, centerY + h0); ctx.lineTo(x1g, centerY + h1); ctx.stroke();
+    // Fill trapezoid
+    ctx.fillStyle = fillCol;
+    ctx.beginPath(); ctx.moveTo(x0, centerY - h0); ctx.lineTo(x1g, centerY - h1);
+    ctx.lineTo(x1g, centerY + h1); ctx.lineTo(x0, centerY + h0); ctx.closePath(); ctx.fill();
+  }
+
+  // ── Formation width dash ────────────────────────────────────────────────
+  const fwH = (state.settings.formationWidthFill || 0) / 2 * PX_PER_M_Y;
+  if (fwH > 0) {
+    ctx.strokeStyle = "rgba(120,200,255,0.35)"; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(getX(minCh), centerY - fwH); ctx.lineTo(getX(maxCh), centerY - fwH); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(getX(minCh), centerY + fwH); ctx.lineTo(getX(maxCh), centerY + fwH); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ── Draw Bridge Rectangles ──────────────────────────────────────────────
+  for (const b of bridges) {
+    const bx1 = getX(b.startChainage), bx2 = getX(b.endChainage);
+    if (bx1 == null || bx2 == null) continue;
+    const bHalf = 20 * PX_PER_M_Y;
+    const bW = Math.max(bx2 - bx1, 3 * baseScale);
+    ctx.fillStyle = "rgba(37,99,235,0.50)"; ctx.strokeStyle = "rgba(99,163,255,0.9)"; ctx.lineWidth = 1.5;
+    ctx.fillRect(bx1, centerY - bHalf, bW, bHalf * 2);
+    ctx.strokeRect(bx1, centerY - bHalf, bW, bHalf * 2);
+    ctx.strokeStyle = "rgba(99,163,255,0.3)"; ctx.lineWidth = 0.7;
+    for (let hx = bx1; hx < bx2; hx += 8 * baseScale) {
+      ctx.beginPath(); ctx.moveTo(hx, centerY - bHalf); ctx.lineTo(hx + 8 * baseScale, centerY + bHalf); ctx.stroke();
+    }
+    ctx.fillStyle = "#93c5fd"; ctx.font = `bold ${Math.max(9, 11 * baseScale)}px Outfit,sans-serif`;
+    ctx.textAlign = "left";
+    ctx.fillText(b.bridgeNo, bx1 + 2, centerY - bHalf - 5);
+  }
+
+  // ── Curves ──────────────────────────────────────────────────────────────
+  if (state.curveRows && state.curveRows.length) {
+    ctx.lineWidth = 2 * baseScale;
+    state.curveRows.forEach((c, ci) => {
+      if (!Number.isFinite(c.chainage) || c.chainage < minCh || c.chainage > maxCh) return;
+      const cx1 = getX(c.chainage);
+      if (cx1 == null) return;
+      const len = safeNum(c.length);
+      const cx2 = getX(Math.min(c.chainage + (len > 5 ? len : 200), maxCh));
+      if (cx2 == null) return;
+      const rad = safeNum(c.radius);
+      const dir = (ci % 2 === 0) ? -1 : 1;
+      const bulge = 25 * baseScale;
+      ctx.strokeStyle = "rgba(252,211,77,0.85)"; ctx.fillStyle = "transparent";
+      ctx.beginPath();
+      ctx.moveTo(cx1, centerY);
+      ctx.quadraticCurveTo((cx1 + cx2) / 2, centerY + dir * bulge * 2, cx2, centerY);
+      ctx.stroke();
+      ctx.fillStyle = "#fde68a"; ctx.font = `${Math.max(9, 10 * baseScale)}px Outfit,sans-serif`;
+      ctx.textAlign = "center";
+      const label = (c.curve || "Curve") + (rad > 0 ? ` R=${r3(rad)}m` : "");
+      ctx.fillText(label, (cx1 + cx2) / 2, centerY + dir * (bulge * 2 + 14));
+    });
+  }
+
+  // ── Loops & Platforms ───────────────────────────────────────────────────
+  if (state.loopPlatformRows && state.loopPlatformRows.length) {
+    state.loopPlatformRows.forEach((lp) => {
+      const tc = safeNum(lp.tc, 0);                 // ← BUG FIX: was lp.loopTc
+      const halfBody = fwH || 20;
+      // Loop
+      if (Number.isFinite(lp.loopStartCh) && Number.isFinite(lp.loopEndCh)) {
+        const lx1 = getX(lp.loopStartCh), lx2 = getX(lp.loopEndCh);
+        if (lx1 != null && lx2 != null) {
+          const loopY = centerY - halfBody - (tc * PX_PER_M_Y) - 8;
+          ctx.strokeStyle = "rgba(34,211,238,0.85)"; ctx.lineWidth = 2 * baseScale;
+          ctx.beginPath(); ctx.moveTo(lx1, loopY); ctx.lineTo(lx2, loopY); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(lx1, centerY); ctx.lineTo(lx1, loopY); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(lx2, centerY); ctx.lineTo(lx2, loopY); ctx.stroke();
+          ctx.fillStyle = "rgba(34,211,238,0.07)";
+          ctx.fillRect(lx1, loopY, lx2 - lx1, halfBody);
+          ctx.strokeStyle = "rgba(34,211,238,0.35)"; ctx.lineWidth = Math.max(1, baseScale);
+          for (let lxt = lx1 + 10; lxt < lx2; lxt += 14 * baseScale) {
+            ctx.beginPath(); ctx.moveTo(lxt, loopY - 4); ctx.lineTo(lxt, loopY + 4); ctx.stroke();
+          }
+          ctx.fillStyle = "#67e8f9"; ctx.font = `bold ${Math.max(9, 10 * baseScale)}px Outfit,sans-serif`;
+          ctx.textAlign = "left";
+          ctx.fillText("\u25CE " + (lp.station || "Station"), lx1, loopY - 8);
+        }
+      }
+      // Platform
+      if (Number.isFinite(lp.pfStartCh) && Number.isFinite(lp.pfEndCh)) {
+        const px1 = getX(lp.pfStartCh), px2 = getX(lp.pfEndCh);
+        if (px1 != null && px2 != null) {
+          const pfW = safeNum(lp.pfWidth, 10);
+          const loopY = centerY - halfBody - (tc * PX_PER_M_Y) - 8;
+          const pfH = pfW * PX_PER_M_Y * 0.5;
+          const pfTop = loopY - pfH - 4;
+          ctx.fillStyle = "rgba(239,68,68,0.45)"; ctx.strokeStyle = "rgba(252,165,165,0.8)"; ctx.lineWidth = 1.5;
+          ctx.fillRect(px1, pfTop, Math.max(px2 - px1, 4), pfH);
+          ctx.strokeRect(px1, pfTop, Math.max(px2 - px1, 4), pfH);
+          ctx.fillStyle = "#fca5a5"; ctx.font = `${Math.max(8, 9 * baseScale)}px Outfit,sans-serif`;
+          ctx.textAlign = "left"; ctx.fillText("PF", px1, pfTop - 4);
+        }
+      }
+    });
+  }
+
+  // ── Scale Ruler ─────────────────────────────────────────────────────────
+  const rulerY = canvasH - PAD_B + 16;
+  const tkInt = totalL >= 50000 ? 5000 : totalL >= 20000 ? 2000 : totalL >= 5000 ? 1000 : 500;
+  const startTk = Math.ceil(minCh / tkInt) * tkInt;
+  ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(getX(minCh), rulerY); ctx.lineTo(getX(maxCh), rulerY); ctx.stroke();
+  ctx.fillStyle = "rgba(255,255,255,0.6)"; ctx.font = `9px Outfit,sans-serif`; ctx.textAlign = "center";
+  for (let ch = startTk; ch <= maxCh; ch += tkInt) {
+    const tx = getX(ch);
+    if (tx == null) continue;
+    ctx.beginPath(); ctx.moveTo(tx, rulerY - 4); ctx.lineTo(tx, rulerY + 4); ctx.stroke();
+    ctx.fillText(ch >= 1000 ? `${r3(ch / 1000)} km` : `${ch} m`, tx, rulerY + 16);
+  }
+  ctx.textAlign = "left"; ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.font = "10px Outfit,sans-serif";
+  ctx.fillText(`CH ${minCh}m`, PAD_L, rulerY + 30);
+  ctx.textAlign = "right"; ctx.fillText(`CH ${maxCh}m`, canvasW - PAD_R, rulerY + 30);
+
+  // ── Legend ───────────────────────────────────────────────────────────────
+  const legend = [
+    { col: "rgba(34,200,80,0.75)", lbl: "Filling" },
+    { col: "rgba(240,70,70,0.75)", lbl: "Cutting" },
+    { col: "rgba(120,200,255,0.5)", lbl: "Formation" },
+    { col: "rgba(99,163,255,0.9)", lbl: "Bridge" },
+    { col: "rgba(252,211,77,0.85)", lbl: "Curve" },
+    { col: "rgba(34,211,238,0.85)", lbl: "Loop/Station" },
+    { col: "rgba(252,165,165,0.8)", lbl: "Platform" },
+  ];
+  ctx.font = `10px Outfit,sans-serif`;
+  let lx = PAD_L;
+  for (const item of legend) {
+    ctx.fillStyle = item.col; ctx.fillRect(lx, 10, 12, 12);
+    ctx.fillStyle = "rgba(255,255,255,0.75)"; ctx.textAlign = "left";
+    ctx.fillText(item.lbl, lx + 15, 21);
+    lx += 15 + ctx.measureText(item.lbl).width + 14;
+    if (lx > canvasW - 100) break;
+  }
+
+  // ── Tooltip Interaction ──────────────────────────────────────────────────
+  const tooltip = document.getElementById("rollTooltip");
+  ensureRollCrosshair("rollCrosshair", "rollDiagramWrap");
+  ensureRollCrosshair("sideRollCrosshair", "sideViewWrap");
+
+  if (tooltip) {
+    // Store the last hovered row index so click can use it
+    let _hoveredRowIdx = -1;
+
+    canvas.onmousemove = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const visualX = e.clientX - rect.left;
+      const mouseX = visualX * scaleX;
+
+      const chHit = minCh + (mouseX - PAD_L) / PX_PER_M_X;
+      if (chHit >= minCh && chHit <= maxCh && mouseX >= PAD_L && mouseX <= canvasW - PAD_R) {
+        // Find closest row
+        const { row: closest, index: closestIdx } = findClosestCalcRowByChainage(rows, chHit);
+        _hoveredRowIdx = closestIdx;
+
+        // Construct Tooltip content
+        const isOnBr = bridges.some(b => closest.chainage >= b.startChainage && closest.chainage <= b.endChainage);
+        const w0 = closest.bank > 0 ? closest.fillBottom : (closest.cut > 0 ? closest.cutBottom : (closest.effectiveFormationWidth || 0));
+        let content = `
+          <div style="font-weight:700; border-bottom:1px solid hsla(222,20%,50%,0.3); padding-bottom:4px; margin-bottom:6px;">
+            Chainage: ${closest.chainage.toFixed(3)} m
+          </div>
+          <div style="display:grid; grid-template-columns:auto auto; gap:4px 12px; font-size:0.8rem;">
+            <span style="color:var(--muted)">Ground RL:</span> <span style="font-weight:600">${r3(closest.groundLevel)}</span>
+            <span style="color:var(--muted)">Formation RL:</span> <span style="font-weight:600">${r3(closest.proposedLevel)}</span>
+            <span style="color:var(--muted)">Toe Dist (Side):</span> <span style="font-weight:600">${isOnBr ? '0 (Bridge)' : r3(w0 / 2)} m</span>
+            <span style="color:var(--green)">Fill Vol:</span> <span style="font-weight:600">${r3(closest.fillVol)} m³</span>
+            <span style="color:var(--red)">Cut Vol:</span> <span style="font-weight:600">${r3(closest.cutVol)} m³</span>
+          </div>
+          <div style="margin-top:6px; padding-top:4px; border-top:1px solid hsla(222,20%,50%,0.2); font-size:0.7rem; color:hsla(233,100%,75%,0.9); font-weight:600; text-align:center;">
+            Click to view Cross‑Section
+          </div>
+        `;
+
+        tooltip.innerHTML = content;
+        tooltip.style.display = 'block';
+        tooltip.style.left = (e.pageX + 15) + 'px';
+        tooltip.style.top = (e.pageY + 15) + 'px';
+
+        // Ensure tooltip doesn't go off-screen
+        const tRect = tooltip.getBoundingClientRect();
+        if (tRect.right > window.innerWidth) {
+          tooltip.style.left = (e.pageX - tRect.width - 15) + 'px';
+        }
+        if (tRect.bottom > window.innerHeight) {
+          tooltip.style.top = (e.pageY - tRect.height - 15) + 'px';
+        }
+
+        setRollCrosshairPosition("rollCrosshair", canvas, visualX);
+        const sideCanvas = els.sideViewCanvas;
+        if (sideCanvas) {
+          const closestX = getX(closest.chainage);
+          if (closestX != null) {
+            const sideVisualX = (closestX / sideCanvas.width) * sideCanvas.clientWidth;
+            setRollCrosshairPosition("sideRollCrosshair", sideCanvas, sideVisualX);
+          }
+        }
+
+        canvas.style.cursor = 'crosshair';
+      } else {
+        tooltip.style.display = 'none';
+        hideRollCrosshairs();
+        canvas.style.cursor = 'grab';
+        _hoveredRowIdx = -1;
+      }
+    };
+
+    canvas.onmouseleave = () => {
+      tooltip.style.display = 'none';
+      hideRollCrosshairs();
+      canvas.style.cursor = 'grab';
+      _hoveredRowIdx = -1;
+    };
+
+    // Distinguish click vs drag: only open cross-section if mouse didn't move
+    let _downX = 0, _downY = 0;
+    canvas.addEventListener('mousedown', (e) => {
+      _downX = e.clientX;
+      _downY = e.clientY;
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+      const dx = Math.abs(e.clientX - _downX);
+      const dy = Math.abs(e.clientY - _downY);
+      // Only treat as a click if mouse moved less than 5px (not a drag)
+      if (dx < 5 && dy < 5 && _hoveredRowIdx >= 0 && _hoveredRowIdx < state.calcRows.length) {
+        drawCrossSection(state.calcRows[_hoveredRowIdx]);
+        tooltip.style.display = 'none';
+        hideRollCrosshairs();
+      }
+    });
+  }
+}
+
+function ensureRollCrosshair(crosshairId, wrapId) {
+  let crosshair = document.getElementById(crosshairId);
+  const wrap = document.getElementById(wrapId);
+  if (!crosshair && wrap) {
+    crosshair = document.createElement("div");
+    crosshair.id = crosshairId;
+    crosshair.style.cssText = "display:none;position:absolute;top:0;width:1px;background:hsla(354, 72%, 55%, 0.85);pointer-events:none;z-index:90;box-shadow:0 0 3px hsla(354, 72%, 55%, 0.4);";
+    wrap.appendChild(crosshair);
+  }
+  return crosshair;
+}
+
+function setRollCrosshairPosition(crosshairId, canvas, visualX) {
+  const crosshair = ensureRollCrosshair(crosshairId, crosshairId === "rollCrosshair" ? "rollDiagramWrap" : "sideViewWrap");
+  if (!crosshair || !canvas) return;
+  crosshair.style.display = "block";
+  crosshair.style.left = `${canvas.offsetLeft + visualX}px`;
+  crosshair.style.height = `${canvas.clientHeight}px`;
+}
+
+function hideRollCrosshairs() {
+  ["rollCrosshair", "sideRollCrosshair"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
+}
+
+function findClosestCalcRowByChainage(rows, chainage) {
+  if (!Array.isArray(rows) || !rows.length || !Number.isFinite(chainage)) {
+    return { row: null, index: -1 };
+  }
+  let closest = rows[0];
+  let closestIdx = 0;
+  let minDist = Infinity;
+  for (let i = 0; i < rows.length; i += 1) {
+    const d = Math.abs(rows[i].chainage - chainage);
+    if (d < minDist) {
+      minDist = d;
+      closest = rows[i];
+      closestIdx = i;
+    }
+  }
+  return { row: closest, index: closestIdx };
+}
+
+function renderSideView() {
+  const canvas = els.sideViewCanvas;
+  if (!canvas) return;
+  if (!state.calcRows || state.calcRows.length === 0) {
+    canvas.width = 0; canvas.height = 0; return;
+  }
+
+  const rows = state.calcRows;
+  const minCh = rows[0].chainage;
+  const maxCh = rows[rows.length - 1].chainage;
+  const totalL = Math.max(maxCh - minCh, 1);
+
+  const PAD_L = 72;   // room for Y-axis labels
+  const PAD_R = 30;
+  const PAD_T = 60;   // legend + title
+  const PAD_B = 50;   // chainage labels
+
+  const MAX_SAFE_W = 32000;
+  const maxScaleLimit = (MAX_SAFE_W - PAD_L - PAD_R) / (totalL * 0.4);
+
+  const baseScale = Math.max(0.05, Math.min(maxScaleLimit, window._sideScale || 1));
+  window._sideScale = baseScale; // Update state inline
+
+  const PX_PER_M_X = 0.4 * baseScale;
+  const PX_PER_M_Y = 1.5; // Fixed vertical scale
+
+  // Elevation range from calcRows
+  const allGLs = rows.map(r => safeNum(r.groundLevel));
+  const allFLs = rows.map(r => safeNum(r.proposedLevel));
+  const minElev = Math.min(...allGLs, ...allFLs) - 3;
+  const maxElev = Math.max(...allGLs, ...allFLs) + 6;
+  const elevRange = Math.max(maxElev - minElev, 1);
+
+  const canvasW = Math.ceil(PAD_L + totalL * PX_PER_M_X + PAD_R);
+  const bodyH = 400; // Elevation scale fixed height
+  const canvasH = PAD_T + bodyH + PAD_B;
+
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvasW, canvasH);
+
+  // map chainage → canvas X
+  function getX(ch) {
+    return Number.isFinite(ch) ? PAD_L + (ch - minCh) * PX_PER_M_X : null;
+  }
+  // map elevation → canvas Y  (high RL = small Y)
+  function getY(elev) {
+    return PAD_T + bodyH - ((safeNum(elev) - minElev) / elevRange) * bodyH;
+  }
+
+  // ── Background ────────────────────────────────────────────────────────────
+  const bg = ctx.createLinearGradient(0, 0, 0, canvasH);
+  bg.addColorStop(0, "#0d1117");
+  bg.addColorStop(1, "#141d2e");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  // ── Horizontal elevation grid ─────────────────────────────────────────────
+  ctx.strokeStyle = "rgba(255,255,255,0.06)";
+  ctx.lineWidth = 1;
+  const elevStep = elevRange > 200 ? 50 : elevRange > 50 ? 10 : elevRange > 20 ? 5 : 2;
+  const startElev = Math.ceil(minElev / elevStep) * elevStep;
+  for (let el = startElev; el <= maxElev; el += elevStep) {
+    const gy = getY(el);
+    ctx.beginPath(); ctx.moveTo(PAD_L, gy); ctx.lineTo(canvasW - PAD_R, gy); ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.font = `9px Outfit,sans-serif`;
+    ctx.textAlign = "right";
+    ctx.fillText(r3(el) + " m", PAD_L - 5, gy + 4);
+  }
+
+  // ── Vertical km grid ─────────────────────────────────────────────────────
+  ctx.strokeStyle = "rgba(255,255,255,0.05)";
+  const gridKm = totalL >= 50000 ? 10000 : totalL >= 10000 ? 2000 : 1000;
+  const startGrid = Math.ceil(minCh / gridKm) * gridKm;
+  for (let ch = startGrid; ch <= maxCh; ch += gridKm) {
+    const gx = getX(ch);
+    if (gx == null) continue;
+    ctx.beginPath(); ctx.moveTo(gx, PAD_T); ctx.lineTo(gx, PAD_T + bodyH); ctx.stroke();
+  }
+
+  // ── Build bridge intervals map for quick lookup ───────────────────────────
+  const bridges = buildBridgeIntervals();
+  // For each row, check if it's on a bridge
+  function isOnBridge(ch) {
+    return bridges.some(b => ch >= b.startChainage && ch <= b.endChainage);
+  }
+  function isTunnel(b) {
+    return /tunnel/i.test(b.bridgeCategory || "") || /tunnel/i.test(b.bridgeType || "");
+  }
+
+  // ── Fill / Cut areas ─────────────────────────────────────────────────────
+  // Draw fill (green) from formation down to ground
+  for (let i = 1; i < rows.length; i++) {
+    const r0 = rows[i - 1], r1 = rows[i];
+    if (r1.bank <= 0.001) continue;
+    const x0 = getX(r0.chainage), x1 = getX(r1.chainage);
+    if (x0 == null || x1 == null) continue;
+    ctx.beginPath();
+    ctx.moveTo(x0, getY(r0.proposedLevel));
+    ctx.lineTo(x1, getY(r1.proposedLevel));
+    ctx.lineTo(x1, getY(r1.groundLevel));
+    ctx.lineTo(x0, getY(r0.groundLevel));
+    ctx.closePath();
+    ctx.fillStyle = "rgba(34,139,69,0.28)";
+    ctx.fill();
+  }
+  // Draw cut (red) from ground down to cut-bottom
+  for (let i = 1; i < rows.length; i++) {
+    const r0 = rows[i - 1], r1 = rows[i];
+    if (r1.cut <= 0.001) continue;
+    const x0 = getX(r0.chainage), x1 = getX(r1.chainage);
+    if (x0 == null || x1 == null) continue;
+    ctx.beginPath();
+    ctx.moveTo(x0, getY(r0.groundLevel));
+    ctx.lineTo(x1, getY(r1.groundLevel));
+    ctx.lineTo(x1, getY(r1.groundLevel - r1.cut));
+    ctx.lineTo(x0, getY(r0.groundLevel - r0.cut));
+    ctx.closePath();
+    ctx.fillStyle = "rgba(180,44,50,0.22)";
+    ctx.fill();
+  }
+
+  // ── Ground level line ────────────────────────────────────────────────────
+  ctx.beginPath();
+  ctx.strokeStyle = "rgba(180,120,60,0.85)";
+  ctx.lineWidth = 2;
+  let moved = false;
+  for (const r of rows) {
+    const x = getX(r.chainage), y = getY(r.groundLevel);
+    if (x == null) { moved = false; continue; }
+    if (!moved) { ctx.moveTo(x, y); moved = true; } else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // ── Formation (proposed) RL line ─────────────────────────────────────────
+  // Draw in segments — skip where bridge covers (will draw viaduct separately)
+  ctx.lineWidth = 2.5;
+  moved = false;
+  let prevWasBridge = false;
+  for (const r of rows) {
+    const x = getX(r.chainage);
+    const y = getY(r.proposedLevel);
+    if (x == null) { moved = false; continue; }
+    const onBr = isOnBridge(r.chainage);
+    if (onBr) { moved = false; prevWasBridge = true; continue; }  // skip — drawn as viaduct
+    ctx.strokeStyle = "hsl(233,100%,65%)";
+    if (!moved) { ctx.beginPath(); ctx.moveTo(x, y); moved = true; }
+    else ctx.lineTo(x, y);
+    if (prevWasBridge) { ctx.stroke(); ctx.beginPath(); ctx.moveTo(x, y); }
+    prevWasBridge = false;
+  }
+  ctx.stroke();
+
+  // ── Helper: interpolate formation/ground RL at any chainage ──────────────
+  const flAt = (ch) => {
+    for (let i = 0; i < rows.length - 1; i++) {
+      if (ch >= rows[i].chainage && ch <= rows[i + 1].chainage) {
+        const t = (ch - rows[i].chainage) / (rows[i + 1].chainage - rows[i].chainage);
+        return rows[i].proposedLevel + t * (rows[i + 1].proposedLevel - rows[i].proposedLevel);
+      }
+    }
+    return rows[rows.length - 1].proposedLevel;
+  };
+  const glAt = (ch) => {
+    for (let i = 0; i < rows.length - 1; i++) {
+      if (ch >= rows[i].chainage && ch <= rows[i + 1].chainage) {
+        const t = (ch - rows[i].chainage) / (rows[i + 1].chainage - rows[i].chainage);
+        return rows[i].groundLevel + t * (rows[i + 1].groundLevel - rows[i].groundLevel);
+      }
+    }
+    return rows[rows.length - 1].groundLevel;
+  };
+
+  // ── Collect ALL annotation labels for de-overlap ──────────────────────────
+  // Each label: { x, baseY, text, color, font, type }
+  const allLabels = [];
+
+  // ── Bridges / Viaducts / Tunnels ─────────────────────────────────────────
+  for (const b of bridges) {
+    const bx1 = getX(b.startChainage), bx2 = getX(b.endChainage);
+    if (bx1 == null || bx2 == null) continue;
+
+    const fl1 = flAt(b.startChainage), fl2 = flAt(b.endChainage);
+    const gl1 = glAt(b.startChainage), gl2 = glAt(b.endChainage);
+    const by1 = getY(fl1), by2 = getY(fl2);
+    const gy1 = getY(gl1), gy2 = getY(gl2);
+    const bW = Math.max(bx2 - bx1, 4);
+    const tunnel = isTunnel(b);
+
+    // All structures (bridges, tunnels, viaducts) drawn with the same style
+    ctx.fillStyle = "rgba(37,99,235,0.18)";
+    ctx.strokeStyle = "rgba(99,163,255,0.8)";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(bx1, by1 - 6);
+    ctx.lineTo(bx2, by2 - 6);
+    ctx.lineTo(bx2, by2 + 6);
+    ctx.lineTo(bx1, by1 + 6);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    ctx.strokeStyle = "hsl(215,100%,65%)";
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(bx1, by1); ctx.lineTo(bx2, by2); ctx.stroke();
+
+    const pierSpacing = 60;
+    const numPiers = Math.max(0, Math.floor(bW / pierSpacing) - 1);
+    ctx.strokeStyle = "rgba(99,163,255,0.6)"; ctx.lineWidth = 3;
+    for (let p = 1; p <= numPiers; p++) {
+      const t = p / (numPiers + 1);
+      const px = bx1 + t * bW;
+      const pyTop = by1 + t * (by2 - by1);
+      const pierCh = b.startChainage + t * (b.endChainage - b.startChainage);
+      const pierGl = glAt(pierCh);
+      const pyBot = getY(pierGl);
+      ctx.beginPath(); ctx.moveTo(px, pyTop + 6); ctx.lineTo(px, pyBot); ctx.stroke();
+      ctx.strokeStyle = "rgba(99,163,255,0.4)"; ctx.lineWidth = 8;
+      ctx.beginPath(); ctx.moveTo(px, pyBot - 3); ctx.lineTo(px, pyBot); ctx.stroke();
+      ctx.strokeStyle = "rgba(99,163,255,0.6)"; ctx.lineWidth = 3;
+    }
+
+    ctx.strokeStyle = "rgba(99,163,255,0.55)"; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(bx1, by1 - 10); ctx.lineTo(bx1, gy1); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx2, by2 - 10); ctx.lineTo(bx2, gy2); ctx.stroke();
+
+    // Collect label for de-overlap
+    allLabels.push({
+      x: (bx1 + bx2) / 2,
+      baseY: Math.min(by1, by2) - 14,
+      text: b.bridgeNo + (b.bridgeCategory ? ` (${b.bridgeCategory})` : ""),
+      color: "#93c5fd",
+      font: "bold 10px Outfit,sans-serif",
+      type: tunnel ? "tunnel" : "bridge"
+    });
+  }
+
+  // ── Station / Loop markers (vertical dashed) ──────────────────────────────
+  if (state.loopPlatformRows) {
+    for (const lp of state.loopPlatformRows) {
+      const midCh = Number.isFinite(lp.loopStartCh) && Number.isFinite(lp.loopEndCh)
+        ? (lp.loopStartCh + lp.loopEndCh) / 2
+        : null;
+      if (midCh == null) continue;
+      const sx = getX(midCh);
+      if (sx == null) continue;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = "rgba(34,211,238,0.5)"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(sx, PAD_T); ctx.lineTo(sx, PAD_T + bodyH); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Collect station label for de-overlap
+      allLabels.push({
+        x: sx,
+        baseY: PAD_T + 12,
+        text: "◉ " + (lp.station || "Stn"),
+        color: "#67e8f9",
+        font: "bold 9px Outfit,sans-serif",
+        type: "station"
+      });
+    }
+  }
+
+  // ── Curve markers (arc labels at top) ────────────────────────────────────
+  if (state.curveRows) {
+    state.curveRows.forEach((c) => {
+      if (!Number.isFinite(c.chainage)) return;
+      const cx = getX(c.chainage);
+      if (cx == null) return;
+      ctx.strokeStyle = "rgba(252,211,77,0.5)"; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
+      ctx.beginPath(); ctx.moveTo(cx, PAD_T + 20); ctx.lineTo(cx, PAD_T + bodyH); ctx.stroke();
+      ctx.setLineDash([]);
+
+      const rad = safeNum(c.radius);
+      allLabels.push({
+        x: cx,
+        baseY: PAD_T + 8,
+        text: (c.curve || "C") + (rad > 0 ? ` R=${r3(rad)}` : ""),
+        color: "#fde68a",
+        font: "9px Outfit,sans-serif",
+        type: "curve"
+      });
+    });
+  }
+
+  // ── De-overlap and draw all labels ────────────────────────────────────────
+  // Sort by X position so we can compare nearest neighbors
+  allLabels.sort((a, b) => a.x - b.x);
+
+  // Measure widths for collision detection
+  ctx.font = "bold 10px Outfit,sans-serif";
+  for (const lb of allLabels) {
+    ctx.font = lb.font;
+    lb.width = ctx.measureText(lb.text).width;
+    lb.finalY = lb.baseY;
+  }
+
+  // Push labels apart if they overlap (left-to-right sweep)
+  const LABEL_H = 12; // approximate label height
+  const MIN_GAP_X = 4; // minimum horizontal gap before treating as overlap
+  for (let i = 1; i < allLabels.length; i++) {
+    for (let j = i - 1; j >= Math.max(0, i - 8); j--) {
+      const a = allLabels[j], b = allLabels[i];
+      // Check horizontal overlap: do the label extents intersect?
+      const aLeft = a.x - a.width / 2 - MIN_GAP_X;
+      const aRight = a.x + a.width / 2 + MIN_GAP_X;
+      const bLeft = b.x - b.width / 2;
+      const bRight = b.x + b.width / 2;
+      const hOverlap = aRight > bLeft && bRight > aLeft;
+      if (!hOverlap) continue;
+
+      // Check vertical overlap
+      const vOverlap = Math.abs(b.finalY - a.finalY) < LABEL_H;
+      if (vOverlap) {
+        // Nudge the current label down (or up if already near bottom)
+        b.finalY = a.finalY + LABEL_H;
+        // Clamp to not exceed the chart body area
+        if (b.finalY > PAD_T + bodyH - 10) {
+          b.finalY = a.finalY - LABEL_H;
+        }
+      }
+    }
+  }
+
+  // Now draw all labels at their de-overlapped positions
+  for (const lb of allLabels) {
+    ctx.fillStyle = lb.color;
+    ctx.font = lb.font;
+    ctx.textAlign = "center";
+
+    // Draw a subtle connector line if label was pushed away from its base
+    if (Math.abs(lb.finalY - lb.baseY) > 2) {
+      ctx.strokeStyle = lb.color;
+      ctx.globalAlpha = 0.25;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 2]);
+      ctx.beginPath();
+      ctx.moveTo(lb.x, lb.baseY);
+      ctx.lineTo(lb.x, lb.finalY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1.0;
+    }
+
+    ctx.fillText(lb.text, lb.x, lb.finalY);
+  }
+
+  // ── Y-axis border ────────────────────────────────────────────────────────
+  ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(PAD_L, PAD_T); ctx.lineTo(PAD_L, PAD_T + bodyH); ctx.stroke();
+  // Y-axis label (rotated)
+  ctx.save();
+  ctx.translate(14, PAD_T + bodyH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.font = "11px Outfit,sans-serif"; ctx.textAlign = "center";
+  ctx.fillText("Elevation (m RL)", 0, 0);
+  ctx.restore();
+
+  // ── Scale ruler (X-axis) ─────────────────────────────────────────────────
+  const rulerY = PAD_T + bodyH + 12;
+  const tkInt = totalL >= 50000 ? 5000 : totalL >= 20000 ? 2000 : totalL >= 5000 ? 1000 : 500;
+  const startTk = Math.ceil(minCh / tkInt) * tkInt;
+  ctx.strokeStyle = "rgba(255,255,255,0.3)"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(PAD_L, rulerY); ctx.lineTo(canvasW - PAD_R, rulerY); ctx.stroke();
+  ctx.fillStyle = "rgba(255,255,255,0.55)"; ctx.font = `10px Outfit,sans-serif`;
+  ctx.textAlign = "center";
+  for (let ch = startTk; ch <= maxCh; ch += tkInt) {
+    const tx = getX(ch);
+    if (tx == null) continue;
+    ctx.beginPath(); ctx.moveTo(tx, rulerY - 4); ctx.lineTo(tx, rulerY + 4); ctx.stroke();
+    ctx.fillText(ch >= 1000 ? `${r3(ch / 1000)} km` : `${ch} m`, tx, rulerY + 16);
+  }
+
+  // ── Legend ────────────────────────────────────────────────────────────────
+  const legend = [
+    { col: "rgba(180,120,60,0.85)", lbl: "Ground RL" },
+    { col: "hsl(233,100%,65%)", lbl: "Formation RL" },
+    { col: "rgba(34,139,69,0.5)", lbl: "Embankment (Fill)" },
+    { col: "rgba(180,44,50,0.5)", lbl: "Cut Section" },
+    { col: "rgba(99,163,255,0.8)", lbl: "Bridge / Viaduct / Tunnel" },
+    { col: "rgba(34,211,238,0.7)", lbl: "Station" },
+  ];
+  ctx.font = "10px Outfit,sans-serif"; let lx = PAD_L;
+  for (const item of legend) {
+    ctx.fillStyle = item.col; ctx.fillRect(lx, 8, 12, 12);
+    ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.textAlign = "left";
+    ctx.fillText(item.lbl, lx + 15, 19);
+    lx += 15 + ctx.measureText(item.lbl).width + 14;
+    if (lx > canvasW - 80) break;
+  }
+
+  ensureRollCrosshair("rollCrosshair", "rollDiagramWrap");
+  ensureRollCrosshair("sideRollCrosshair", "sideViewWrap");
+
+  canvas.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const visualX = e.clientX - rect.left;
+    const mouseX = visualX * scaleX;
+    const chHit = minCh + (mouseX - PAD_L) / PX_PER_M_X;
+
+    if (chHit >= minCh && chHit <= maxCh && mouseX >= PAD_L && mouseX <= canvasW - PAD_R) {
+      const { row: closest } = findClosestCalcRowByChainage(rows, chHit);
+      if (!closest) return;
+      const closestX = getX(closest.chainage);
+      if (closestX == null) return;
+      const planCanvas = els.rollDiagramCanvas;
+      if (planCanvas) {
+        const planVisualX = (closestX / planCanvas.width) * planCanvas.clientWidth;
+        setRollCrosshairPosition("rollCrosshair", planCanvas, planVisualX);
+      }
+      setRollCrosshairPosition("sideRollCrosshair", canvas, visualX);
+      canvas.style.cursor = "crosshair";
+    } else {
+      hideRollCrosshairs();
+      canvas.style.cursor = "grab";
+    }
+  };
+
+  canvas.onmouseleave = () => {
+    hideRollCrosshairs();
+    canvas.style.cursor = "grab";
+  };
+}
+
+function buildSettingsInputs() {
+  els.settingsGrid.innerHTML = settingSchema.map(([key, label]) => `
+    <label>
+      ${label}
+      <input type="number" step="0.001" name="${key}" value="${r3(state.settings[key])}" required />
+    </label>
+  `).join("");
+}
+
+function applySettingsFromForm() {
+  const fd = new FormData(els.settingsForm);
+  for (const [k] of settingSchema) {
+    state.settings[k] = safeNum(fd.get(k), state.settings[k]);
+  }
+  recalculate();
+}
+
+function drawCrossSection(row, targetEl = els.crossSvg) {
+  if (!targetEl) return;
+  const s = state.settings;
+  const fl = row.proposedLevel;
+  const gl = row.groundLevel;
+
+  const sqCategory = Math.min(3, Math.max(1, Math.round(s.activeSqCategory || 3)));
+  const sqName = sqCategory === 1 ? "SQ1" : (sqCategory === 2 ? "SQ2" : "SQ3");
+  const blanketBySq = { 1: 1.0, 2: 0.75, 3: 0.6 };
+  const blanketRuleThickness = blanketBySq[sqCategory];
+  const ballastThickness = Math.max(0, s.ballastCushionThickness || 0.35);
+  const topLayerThickness = Math.max(0, s.topLayerThickness || 0.5);
+  const topLayerEffectiveThickness = Math.min(topLayerThickness, Math.max(row.bank, 0));
+  const embankmentCoreThickness = Math.max(row.bank - topLayerEffectiveThickness, 0);
+  const layers = [
+    { name: "Ballast Cushion", t: ballastThickness, top: fl + ballastThickness, bottom: fl, color: "#d5d8de" },
+    { name: `Blanket (${sqName})`, t: blanketRuleThickness, top: fl, bottom: fl - blanketRuleThickness, color: "#f5eecf" },
+    { name: "Top Layer Embankment Fill", t: topLayerEffectiveThickness, top: fl - blanketRuleThickness, bottom: fl - blanketRuleThickness - topLayerEffectiveThickness, color: "#edd6bf" },
+    { name: "Embankment Fill (Core)", t: embankmentCoreThickness, top: fl - blanketRuleThickness - topLayerEffectiveThickness, bottom: gl, color: "#dfe9de" },
+  ];
+
+  const layerRows = layers;
+
+  if (targetEl === els.crossSvg) {
+    els.layerTbody.innerHTML = layerRows.map((l) => `
+      <tr>
+        <td>${l.name}</td>
+        <td>${r3(l.t)}</td>
+        <td>${r3(l.top)}</td>
+        <td>${r3(l.bottom)}</td>
+      </tr>
+    `).join("") + `
+      <tr>
+        <td><strong>Formation RL</strong></td>
+        <td>-</td>
+        <td>${r3(fl)}</td>
+        <td>${r3(fl)}</td>
+      </tr>
+      <tr>
+        <td><strong>Ground RL (GL)</strong></td>
+        <td>-</td>
+        <td>${r3(gl)}</td>
+        <td>${r3(gl)}</td>
+      </tr>
+    `;
+    els.dimTbody.innerHTML = `
+      <tr><th>Formation Width (Top)</th><td>${r3(s.formationWidthFill)} m</td></tr>
+      <tr><th>Berm Width (Each Berm)</th><td>${r3(s.bermWidth)} m (${Math.round(s.bermWidth * 1000)} mm)</td></tr>
+      <tr><th>Berms per Side (Drawing)</th><td>${row.bank >= 8 ? 2 : (row.bank >= 4 ? 1 : 0)}</td></tr>
+      <tr><th>Bottom Width (Fill)</th><td>${r3(row.fillBottom)} m</td></tr>
+      <tr><th>Bottom Width (Cut)</th><td>${r3(row.cutBottom)} m</td></tr>
+      <tr><th>Embankment Height</th><td>${r3(row.bank)} m</td></tr>
+      <tr><th>Cut Depth</th><td>${r3(row.cut)} m</td></tr>
+      <tr><th>Side Slope Factor</th><td>${r3(s.sideSlopeFactor)}</td></tr>
+      <tr><th>Blanket Rule</th><td>SQ3=0.600 m, SQ2=0.750 m, SQ1=1.000 m</td></tr>
+    `;
+
+    els.crossTitle.textContent = `Cross-Section @ CH ${r3(row.chainage)} m`;
+    els.crossMeta.textContent = `Type: ${row.type} | Ground RL: ${r3(gl)} | Proposed RL: ${r3(fl)} | Bank: ${r3(row.bank)} | Cut: ${r3(row.cut)}`;
+  }
+
+  const svgW = CROSS_SVG_W;
+  const svgH = CROSS_SVG_H;
+  const marginX = 280;
+  const centerX = svgW / 2;
+  const layerTotalM = ballastThickness + blanketRuleThickness + topLayerThickness;
+  const halfTopM = s.formationWidthFill / 2;
+  const slopeHV = 2; // 2:1 slopes per requirement
+  const fillRunM = row.bank * slopeHV;
+  const cutRunM = row.cut * slopeHV;
+  const halfBottomM = Math.max(halfTopM + fillRunM, row.fillBottom / 2, halfTopM);
+  const halfCutM = Math.max(halfTopM + cutRunM, row.cutBottom / 2, s.cuttingWidth / 2);
+  const maxHalfM = Math.max(halfBottomM + s.bermWidth + 1, halfCutM + 1.5, halfTopM + 1);
+  const pxByWidth = ((svgW - (2 * marginX)) / 2) / Math.max(maxHalfM, 1);
+  const maxVerticalM = Math.max(row.bank, row.cut, 0) + layerTotalM + 4;
+  const pxByHeight = (svgH - 220) / Math.max(maxVerticalM, 1);
+  const pxPerM = Math.max(18, Math.min(42, pxByWidth, pxByHeight));
+  const halfTop = halfTopM * pxPerM;
+  const halfBottom = halfBottomM * pxPerM;
+  const halfCutBottom = halfCutM * pxPerM;
+  const bermW = s.bermWidth * pxPerM;
+  const fillH = row.bank * pxPerM;
+  const cutH = row.cut * pxPerM;
+  const datumY = svgH * 0.58;
+  const topY = row.type === "CUTTING" ? (datumY - (Math.max(cutH, 120) * 0.45)) : (datumY - fillH);
+  const toeY = topY + fillH;
+  const cutBottomY = topY - cutH;
+  const leftToeX = centerX - halfBottom;
+  const rightToeX = centerX + halfBottom;
+  const leftCutX = centerX - halfCutBottom;
+  const rightCutX = centerX + halfCutBottom;
+  const groundY = row.type === "CUTTING" ? cutBottomY : toeY;
+  const hflY = groundY - 48;
+  const centerRef = row.type === "CUTTING" ? cutBottomY : toeY;
+
+  state.crossMatrix = {
+    centerX,
+    topY,
+    pxPerM,
+    fl,
+    gl,
+  };
+
+  const drawDim = (x1, x2, y, label) => `
+    <line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="#2f4d6a" stroke-width="1.6" marker-start="url(#arrowSmall)" marker-end="url(#arrowSmall)" />
+    <text x="${(x1 + x2) / 2}" y="${y - 6}" text-anchor="middle" fill="#2f4d6a" font-size="12" font-weight="700">${label}</text>
+  `;
+  const drawDimLine = (x1, x2, y) => `
+    <line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="#2f4d6a" stroke-width="1.4" marker-start="url(#arrowSmall)" marker-end="url(#arrowSmall)" />
+  `;
+
+  const ballastH = ballastThickness * pxPerM;
+  const blanketH = blanketRuleThickness * pxPerM;
+  const topLayerH = topLayerEffectiveThickness * pxPerM;
+  const blanketHDraw = row.bank > 0 ? Math.min(blanketH, fillH) : blanketH;
+  const topLayerHDraw = row.bank > 0 ? Math.min(topLayerH, Math.max(fillH - blanketHDraw, 0)) : topLayerH;
+  const trackTopY = topY - ballastH;
+  const layerCalloutStyles = {
+    ballast: { stroke: "#7f8a95", text: "#6f7a86" },
+    blanket: { stroke: "#90886c", text: "#7f775b" },
+    topLayer: { stroke: "#9a856c", text: "#876f57" },
+  };
+
+  const layerRects = [];
+  // crowned ballast cushion with shoulders 0.60m each, 1:30 crossfall
+  const shoulderWm = 0.6;
+  const crownWm = Math.max(s.formationWidthFill - 2 * shoulderWm, 0.5);
+  const shoulderPx = shoulderWm * pxPerM;
+  const crownPx = crownWm * pxPerM;
+  const dropPxRaw = (shoulderWm / 30) * pxPerM;
+  const dropPx = Math.max(dropPxRaw, 2); // ensure visible crown drop
+  const bx0 = centerX - halfTop;
+  const bx1 = bx0 + shoulderPx;
+  const bx2 = bx1 + crownPx;
+  const bx3 = bx2 + shoulderPx;
+  const byCenter = trackTopY;            // highest at center
+  const byEdge = trackTopY + dropPx;     // lower at shoulders
+  // ballast crown
+  // ballast crown center (non-hatch), shoulders hatch, continuous fall outward
+  const centerFill = "#cbd2d8";
+  const shoulderLeft = `<polygon points="${bx0},${byEdge} ${bx1},${byCenter} ${bx1},${byCenter + ballastH} ${bx0},${byEdge + ballastH}" fill="url(#hatchFill)" stroke="#7f8a95" />`;
+  const shoulderRight = `<polygon points="${bx2},${byCenter} ${bx3},${byEdge} ${bx3},${byEdge + ballastH} ${bx2},${byCenter + ballastH}" fill="url(#hatchFill)" stroke="#7f8a95" />`;
+  const centerBallast = `<rect x="${bx1}" y="${byCenter}" width="${crownPx}" height="${ballastH}" fill="${centerFill}" stroke="#7f8a95" />`;
+  layerRects.push(`${shoulderLeft}${centerBallast}${shoulderRight}`);
+  // blanket follows same crossfall at ballast bottom (left/right hatch, center solid)
+  const bltTopY0 = byEdge + ballastH;
+  const bltTopY1 = byCenter + ballastH;
+  const blanketLeft = `<polygon points="${bx0},${bltTopY0} ${bx1},${bltTopY1} ${bx1},${bltTopY1 + blanketHDraw} ${bx0},${bltTopY0 + blanketHDraw}" fill="#f5eecf" stroke="#90886c" />`;
+  const blanketRight = `<polygon points="${bx2},${bltTopY1} ${bx3},${bltTopY0} ${bx3},${bltTopY0 + blanketHDraw} ${bx2},${bltTopY1 + blanketHDraw}" fill="#f5eecf" stroke="#90886c" />`;
+  const blanketCenter = `<rect x="${bx1}" y="${bltTopY1}" width="${crownPx}" height="${blanketHDraw}" fill="#f5eecf" stroke="#90886c" />`;
+  layerRects.push(`${blanketLeft}${blanketCenter}${blanketRight}`);
+  // top layer with same pattern
+  const tlTopY0 = bltTopY0 + blanketHDraw;
+  const tlTopY1 = bltTopY1 + blanketHDraw;
+  const topLayerLeft = `<polygon points="${bx0},${tlTopY0} ${bx1},${tlTopY1} ${bx1},${tlTopY1 + topLayerHDraw} ${bx0},${tlTopY0 + topLayerHDraw}" fill="#edd6bf" stroke="#9a856c" />`;
+  const topLayerRight = `<polygon points="${bx2},${tlTopY1} ${bx3},${tlTopY0} ${bx3},${tlTopY0 + topLayerHDraw} ${bx2},${tlTopY1 + topLayerHDraw}" fill="#edd6bf" stroke="#9a856c" />`;
+  const topLayerCenter = `<rect x="${bx1}" y="${tlTopY1}" width="${crownPx}" height="${topLayerHDraw}" fill="#edd6bf" stroke="#9a856c" />`;
+  layerRects.push(`${topLayerLeft}${topLayerCenter}${topLayerRight}`);
+
+  if (row.bank > 0) {
+    const halfBlanketBottom = halfTop + (blanketHDraw * s.sideSlopeFactor);
+    const halfTopLayerBottom = halfTop + ((blanketHDraw + topLayerHDraw) * s.sideSlopeFactor);
+    layerRects.push(`
+      <polygon points="${centerX - halfTop},${topY} ${centerX + halfTop},${topY} ${centerX + halfBlanketBottom},${topY + blanketHDraw} ${centerX - halfBlanketBottom},${topY + blanketHDraw}"
+      fill="#f5eecf" stroke="#90886c" />`);
+    layerRects.push(`
+      <polygon points="${centerX - halfBlanketBottom},${topY + blanketHDraw} ${centerX + halfBlanketBottom},${topY + blanketHDraw} ${centerX + halfTopLayerBottom},${topY + blanketHDraw + topLayerHDraw} ${centerX - halfTopLayerBottom},${topY + blanketHDraw + topLayerHDraw}"
+      fill="#edd6bf" stroke="#9a856c" />`);
+  } else {
+    layerRects.push(`<rect x="${centerX - halfTop}" y="${topY}" width="${halfTop * 2}" height="${blanketH}" fill="#f5eecf" stroke="#90886c" />`);
+    layerRects.push(`<rect x="${centerX - halfTop}" y="${topY + blanketH}" width="${halfTop * 2}" height="${topLayerH}" fill="#edd6bf" stroke="#9a856c" />`);
+  }
+
+  const bermLabel = `${Math.round(s.bermWidth * 1000)} mm (${r3(s.bermWidth)} m)`;
+  let cutPoly = "";
+  let fillPoly = "";
+  let berms = "";
+
+  if (row.type === "CUTTING" && row.cut > 0) {
+    // Detailed Cutting profile with side drains and berms based on reference drawing
+    const drainW = s.drainWidth ? (s.drainWidth * pxPerM) : (1.2 * pxPerM);
+    const drainH = s.drainHeight ? (s.drainHeight * pxPerM) : (1.0 * pxPerM);
+    const leftPts = [];
+    const rightPts = [];
+    const bermDimSnippets = [];
+
+    // Formation edge and bottom drain
+    const formLeft = centerX - halfTop;
+    const formRight = centerX + halfTop;
+    leftPts.push({ x: formLeft, y: topY });
+    rightPts.push({ x: formRight, y: topY });
+
+    // Drop into side drain
+    const drainBotL_R = formLeft - (drainW * 0.2); // inner slope
+    const drainBotL_L = formLeft - drainW;         // outer edge
+    leftPts.push({ x: drainBotL_R, y: topY + drainH });
+    leftPts.push({ x: drainBotL_L, y: topY + drainH });
+    leftPts.push({ x: drainBotL_L, y: topY }); // outer top edge of drain
+
+    const drainBotR_L = formRight + (drainW * 0.2);
+    const drainBotR_R = formRight + drainW;
+    rightPts.push({ x: drainBotR_L, y: topY + drainH });
+    rightPts.push({ x: drainBotR_R, y: topY + drainH });
+    rightPts.push({ x: drainBotR_R, y: topY });
+
+    // Catch Water Drains on Berms (approx 0.5m x 0.5m based on image)
+    const cwDrainW = 0.5 * pxPerM;
+    const cwDrainH = 0.5 * pxPerM;
+
+    // Calculate berms going UP the cut
+    const bermCount = row.cut >= 8 ? 2 : (row.cut >= 4 ? 1 : 0);
+    const bermFractions = bermCount === 2 ? [0.35, 0.72] : (bermCount === 1 ? [0.58] : []);
+
+    let currentHeight = 0;
+    let currentLeft = drainBotL_L;
+    let currentRight = drainBotR_R;
+
+    bermFractions.forEach((f, idx) => {
+      const targetHeight = row.cut * f;
+      const deltaHeight = targetHeight - currentHeight;
+      const deltaRun = slopeHV * deltaHeight * pxPerM;
+      const y = topY - targetHeight * pxPerM;
+      const lx = currentLeft - deltaRun;
+      const rx = currentRight + deltaRun;
+
+      // Slope up to berm
+      leftPts.push({ x: lx, y });
+      rightPts.push({ x: rx, y });
+
+      // Berm bench flat
+      // Left Berm
+      const lxBenchEdge = lx - bermW;
+      leftPts.push({ x: lxBenchEdge, y }); // flat berm
+
+      // Right Berm
+      const rxBenchEdge = rx + bermW;
+      rightPts.push({ x: rxBenchEdge, y });
+
+      const dimY = y - 18;
+      bermDimSnippets.push(drawDim(lxBenchEdge, lx, dimY, bermLabel));
+      bermDimSnippets.push(drawDim(rx, rxBenchEdge, dimY, bermLabel));
+      bermDimSnippets.push(`<text x="${(lxBenchEdge + lx) / 2}" y="${y - 28}" text-anchor="middle" fill="#385a48" font-size="11" font-weight="700">BERM</text>`);
+      bermDimSnippets.push(`<text x="${(rx + rxBenchEdge) / 2}" y="${y - 28}" text-anchor="middle" fill="#385a48" font-size="11" font-weight="700">BERM</text>`);
+
+      currentHeight = targetHeight;
+      currentLeft = lxBenchEdge;
+      currentRight = rxBenchEdge;
+    });
+
+    // Final slope to ground level (cut bottom is actually the top G.L. conceptually)
+    const deltaHeight = row.cut - currentHeight;
+    const deltaRun = slopeHV * deltaHeight * pxPerM;
+    const xLeftTop = currentLeft - deltaRun;
+    const xRightTop = currentRight + deltaRun;
+    leftPts.push({ x: xLeftTop, y: cutBottomY });
+    rightPts.push({ x: xRightTop, y: cutBottomY });
+
+    // Close polygon
+    const polyPts = [...leftPts.reverse(), ...rightPts].map((p) => `${p.x},${p.y}`).join(" ");
+    cutPoly = `<polygon points="${polyPts}" fill="#f0e2e2" stroke="#8a6f72" />`;
+    berms = bermDimSnippets.join("");
+
+  } else if (row.bank > 0) {
+    const bermCount = row.bank >= 8 ? 2 : (row.bank >= 4 ? 1 : 0);
+    const bermFractions = bermCount === 2 ? [0.35, 0.72] : (bermCount === 1 ? [0.58] : []);
+    const leftPts = [{ x: centerX - halfTop, y: topY }];
+    const rightPts = [{ x: centerX + halfTop, y: topY }];
+    const bermDimSnippets = [];
+    let currentDepth = 0;
+    let currentLeft = centerX - halfTop;
+    let currentRight = centerX + halfTop;
+    bermFractions.forEach((f, idx) => {
+      const targetDepth = row.bank * f;
+      const deltaDepth = targetDepth - currentDepth;
+      const deltaRun = slopeHV * deltaDepth * pxPerM;
+      const y = topY + targetDepth * pxPerM;
+      const lx = currentLeft - deltaRun;
+      const rx = currentRight + deltaRun;
+      // slope segment to berm elevation
+      leftPts.push({ x: lx, y });
+      rightPts.push({ x: rx, y });
+      // berm bench
+      const lxBench = lx - bermW;
+      const rxBench = rx + bermW;
+      leftPts.push({ x: lxBench, y });
+      rightPts.push({ x: rxBench, y });
+      const dimY = y + 26;
+      bermDimSnippets.push(drawDim(lxBench, lx, dimY, bermLabel));
+      bermDimSnippets.push(drawDim(rx, rxBench, dimY, bermLabel));
+      bermDimSnippets.push(`<text x="${(lxBench + lx) / 2}" y="${y - 10}" text-anchor="middle" fill="#385a48" font-size="11" font-weight="700">BERM</text>`);
+      bermDimSnippets.push(`<text x="${(rx + rxBench) / 2}" y="${y - 10}" text-anchor="middle" fill="#385a48" font-size="11" font-weight="700">BERM</text>`);
+      currentDepth = targetDepth;
+      currentLeft = lxBench;
+      currentRight = rxBench;
+    });
+    // final slope to toe from last bench
+    const deltaDepth = row.bank - currentDepth;
+    const deltaRun = slopeHV * deltaDepth * pxPerM;
+    const xLeftToe = currentLeft - deltaRun;
+    const xRightToe = currentRight + deltaRun;
+    leftPts.push({ x: xLeftToe, y: toeY });
+    rightPts.push({ x: xRightToe, y: toeY });
+    const polyPts = [...leftPts, ...rightPts.reverse()].map((p) => `${p.x},${p.y}`).join(" ");
+    fillPoly = `<polygon points="${polyPts}" fill="url(#embFillHatch)" stroke="#69786a" />`;
+    berms = bermDimSnippets.join("");
+  }
+
+  const segLeftOuter = 1.2;
+  const segLeftShoulder = 0.35;
+  const segRightShoulder = 0.35;
+  const segRightOuter = 1.2;
+  const segMiddle = Math.max(s.formationWidthFill - (segLeftOuter + segLeftShoulder + segRightShoulder + segRightOuter), 0.5);
+  const segs = [segLeftOuter, segLeftShoulder, segMiddle, segRightShoulder, segRightOuter];
+  const segLabels = [`${r3(segLeftOuter)}m`, `${r3(segLeftShoulder)}m`, `${r3(segMiddle)}m`, `${r3(segRightShoulder)}m`, `${r3(segRightOuter)}m`];
+  let cursorX = centerX - halfTop;
+  const segDims = [];
+  const segMidPoints = [];
+  for (let i = 0; i < segs.length; i += 1) {
+    const w = segs[i] * pxPerM;
+    const nextX = cursorX + w;
+    segDims.push(drawDimLine(cursorX, nextX, trackTopY - 42));
+    segDims.push(`<line x1="${cursorX}" y1="${trackTopY - 24}" x2="${cursorX}" y2="${topY + 2}" stroke="#7c93a8" stroke-dasharray="3 3" />`);
+    segMidPoints.push((cursorX + nextX) / 2);
+    cursorX = nextX;
+  }
+  segDims.push(`<line x1="${centerX + halfTop}" y1="${trackTopY - 24}" x2="${centerX + halfTop}" y2="${topY + 2}" stroke="#7c93a8" stroke-dasharray="3 3" />`);
+  const segLabelRows = segLabels.map((label, i) => {
+    const y = (i % 2 === 0) ? (trackTopY - 54) : (trackTopY - 64);
+    return `<text x="${segMidPoints[i]}" y="${y}" text-anchor="middle" fill="#2f4d6a" font-size="11" font-weight="700">${label}</text>`;
+  }).join("");
+  const bodyLabel = row.type === "CUTTING" ? "Cutting Profile" : "Embankment Fill";
+  const bodySubLabel = row.type === "CUTTING" ? "" : "(SQ1/SQ2/SQ3 Category Soils)";
+  const bodyYRef = row.type === "CUTTING" ? (topY + 120) : ((topY + toeY) / 2);
+  const topLayerCalloutY = row.bank > 0 ? (topY + blanketHDraw) : (topY + blanketH);
+  const calloutAnchorX = centerX + halfTop + 12;
+  const calloutEndX = Math.min(calloutAnchorX + 160, svgW - 220);
+  const calloutTextX = calloutEndX + 10;
+  const calloutDy = -34;
+  const ballastCalloutStartY = trackTopY + Math.max(ballastH * 0.48, 2);
+  const blanketCalloutStartY = topY + Math.max(blanketHDraw * 0.62, 2);
+  const topLayerCalloutStartY = topLayerCalloutY + Math.max(topLayerHDraw * 0.62, 2);
+  const drawLayerCallout = (label, startY, style) => {
+    const endY = startY + calloutDy;
+    return `
+      <line x1="${calloutAnchorX}" y1="${startY}" x2="${calloutEndX}" y2="${endY}" stroke="${style.stroke}" stroke-width="1.8" />
+      <text x="${calloutTextX}" y="${endY - 2}" fill="${style.text}" font-size="12">${label}</text>
+    `;
+  };
+  const layerCallouts = [
+    drawLayerCallout(`${r3(ballastThickness)} m Ballast Cushion`, ballastCalloutStartY, layerCalloutStyles.ballast),
+    drawLayerCallout(`Blanket (${sqName}) ${r3(blanketRuleThickness)} m`, blanketCalloutStartY, layerCalloutStyles.blanket),
+    drawLayerCallout(`Top Layer of Embankment Fill ${r3(topLayerEffectiveThickness)} m`, topLayerCalloutStartY, layerCalloutStyles.topLayer),
+  ].join("");
+  const slopeLabels = row.bank > 0
+    ? `
+      <text x="${leftToeX - 46}" y="${topY + Math.max(fillH * 0.55, 24)}" fill="#2f4d6a" font-size="12" font-weight="700">1:${r3(slopeHV)}</text>
+      <text x="${rightToeX + 16}" y="${topY + Math.max(fillH * 0.55, 24)}" fill="#2f4d6a" font-size="12" font-weight="700">1:${r3(slopeHV)}</text>
+    `
+    : "";
+  const levelLabels = [
+    `Formation RL: ${r3(fl)} m`,
+    `Ballast Top RL: ${r3(fl + ballastThickness)} m`,
+    `Blanket Bottom RL: ${r3(fl - blanketRuleThickness)} m`,
+    `Top Layer Bottom RL: ${r3(fl - blanketRuleThickness - topLayerEffectiveThickness)} m`,
+    `Ground RL (GL): ${r3(gl)} m`,
+  ];
+  const levelText = levelLabels.map((txt, i) => {
+    const y = 80 + i * 22;
+    const x = svgW - 260;
+    return `<text x="${x}" y="${y}" fill="#2b3f52" font-size="12" font-weight="700">${txt}</text>`;
+  }).join("");
+  const demarcRightX = svgW - 210;
+  const glLeftX = centerX - 520;
+  const hflLeftX = centerX - 410;
+
+  targetEl.innerHTML = `
+    <rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#f8fcff" />
+    <line x1="${glLeftX}" y1="${groundY}" x2="${demarcRightX}" y2="${groundY}" stroke="#5d6b77" stroke-dasharray="8 7" stroke-width="1.8" />
+    <text x="${demarcRightX + 18}" y="${groundY - 7}" fill="#374b5d" font-size="13" font-weight="700">G.L.</text>
+    <line x1="${hflLeftX}" y1="${hflY}" x2="${demarcRightX}" y2="${hflY}" stroke="#6d7680" stroke-dasharray="12 8" stroke-width="1.4" />
+    <text x="${demarcRightX + 18}" y="${hflY - 7}" fill="#4f5f6d" font-size="12">H.F.L.</text>
+    <text x="${centerX - 95}" y="${groundY + 86}" fill="#3f4a55" font-size="13">Natural Ground / Subsoil</text>
+    ${fillPoly}
+    ${cutPoly}
+    ${berms}
+    ${layerRects.join("")}
+    <line x1="${centerX - halfTop}" y1="${topY}" x2="${centerX + halfTop}" y2="${topY}" stroke="#2e3b49" stroke-width="2.4" />
+    <text x="${centerX + halfTop + 16}" y="${topY - 2}" fill="#253748" font-size="14" font-weight="700">Top of Formation</text>
+    ${drawDim(centerX - halfTop, centerX + halfTop, trackTopY - 84, `${r3(s.formationWidthFill)} m`)}
+    ${segDims.join("")}
+    ${segLabelRows}
+    ${layerCallouts}
+    <line x1="${centerX}" y1="${topY}" x2="${centerX}" y2="${centerRef}" stroke="#2f4d6a" stroke-width="1.8" marker-start="url(#arrowSmall)" marker-end="url(#arrowSmall)" />
+    <text x="${centerX + 10}" y="${(topY + centerRef) / 2}" fill="#2f4d6a" font-size="12" font-weight="700">${row.type === "CUTTING" ? `Cut = ${r3(row.cut)} m` : `e = ${r3(row.bank)} m`}</text>
+    ${slopeLabels}
+    <text x="${centerX - 130}" y="${bodyYRef + 26}" fill="#344553" font-size="13" font-weight="700">${bodyLabel}</text>
+    <text x="${centerX - 132}" y="${bodyYRef + 42}" fill="#344553" font-size="12">${bodySubLabel}</text>
+    ${levelText}
+    <text x="42" y="40" fill="#1f2e3a" font-size="16" font-weight="700">Cross Section of Track</text>
+    <defs>
+      <pattern id="hatchFill" patternUnits="userSpaceOnUse" width="8" height="8">
+        <rect width="8" height="8" fill="#dfe9de" />
+        <path d="M-2,2 l4,-4 M0,8 l8,-8 M6,10 l4,-4" stroke="#8ca290" stroke-width="1" />
+      </pattern>
+      <pattern id="embFillHatch" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(20)">
+        <rect width="10" height="10" fill="#dfe9de" />
+        <path d="M0,0 L0,10" stroke="#9cb3a3" stroke-width="1" />
+      </pattern>
+      <marker id="arrowSmall" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto-start-reverse">
+        <path d="M0,0 L7,3.5 L0,7 z" fill="#2f4d6a"/>
+      </marker>
+    </defs>
+  `;
+  if (targetEl === els.crossSvg) {
+    resetCrossView();
+    els.crossSectionModal.showModal();
+  }
+}
+
+function bindEvents() {
+  if (els.loginForm) {
+    els.loginForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      attemptLogin();
+    });
+  }
+
+  if (els.loginSubmitBtn) {
+    els.loginSubmitBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      attemptLogin();
+    });
+  }
+
+  if (els.logoutBtn) {
+    els.logoutBtn.addEventListener("click", () => {
+      logout();
+    });
+  }
+
+  if (els.workNav) {
+    els.workNav.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-work-page-btn]");
+      if (!btn) return;
+      setWorkPage(btn.dataset.workPageBtn);
+    });
+  }
+
+  if (els.themeToggleCheckbox) {
+    els.themeToggleCheckbox.addEventListener("change", (e) => {
+      // Dark is default (unchecked). Checked = light mode.
+      document.documentElement.classList.toggle("light", e.target.checked);
+    });
+    // Set initial toggle state (unchecked = dark mode default)
+    els.themeToggleCheckbox.checked = document.documentElement.classList.contains("light");
+  }
+
+  if (els.sidebarToggle && els.appLayout) {
+    els.sidebarToggle.addEventListener("click", () => {
+      els.appLayout.classList.add("sidebar-collapsed");
+    });
+
+    const brandIcon = document.querySelector(".brand-icon");
+    if (brandIcon) {
+      brandIcon.addEventListener("click", () => {
+        if (els.appLayout.classList.contains("sidebar-collapsed")) {
+          els.appLayout.classList.remove("sidebar-collapsed");
+        }
+      });
+    }
+  }
+
+  if (els.openExportModalBtn) {
+    els.openExportModalBtn.addEventListener("click", () => {
+      if (!state.calcRows.length) {
+        alert("No calculation data available to export.");
+        return;
+      }
+      els.exportModal.showModal();
+    });
+  }
+
+  if (els.confirmExportBtn) {
+    els.confirmExportBtn.addEventListener("click", () => {
+      const rowLimitInput = document.getElementById("exportRowLimit");
+      const rowLimit = rowLimitInput ? parseInt(rowLimitInput.value) || 0 : 0;
+
+      const options = {
+        calcSheet: document.getElementById("includeCalcSheet").checked,
+        crossSections: document.getElementById("includeCrossSections").checked,
+        rollDiagram: document.getElementById("includeRollDiagram").checked,
+        rowLimit: rowLimit
+      };
+      els.exportModal.close();
+      generateProjectReport(options);
+    });
+  }
+
+  if (els.cancelExportBtn) {
+    els.cancelExportBtn.addEventListener("click", () => els.exportModal.close());
+  }
+
+  // Populate date display
+  const dateEl = document.getElementById("dateDisplay");
+  if (dateEl) {
+    const now = new Date();
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    dateEl.textContent = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()} `;
+  }
+
+  // --- Strict Verification Engine ---
+  function validateProjectData() {
+    const errors = [];
+    if (!state.project.name) errors.push("- Project Name is missing.");
+    if (!state.rawRows || state.rawRows.length === 0) errors.push("- No Earthwork Levels data uploaded.");
+
+    // Check for calculation errors
+    let nanFound = false;
+    let logicError = null;
+    let invalidChainage = null;
+
+    if (state.calcRows && state.calcRows.length > 0) {
+      for (let i = 0; i < state.calcRows.length; i++) {
+        const row = state.calcRows[i];
+
+        // Check essential numbers
+        if (!Number.isFinite(row.chainage)) {
+          invalidChainage = `Row ${i + 1} `;
+        }
+
+        // If cutVol or fillVol area/vol resulted in NaN
+        if (Number.isNaN(row.cutVol) || Number.isNaN(row.fillVol) || Number.isNaN(row.bank) || Number.isNaN(row.ewArea) || Number.isNaN(row.areaDiff)) {
+          nanFound = true;
+          logicError = `Calculation Error at Chainage ${row.chainage} `;
+          break;
+        }
+      }
+    } else {
+      errors.push("- No calculations generated. Please recalculate first.");
+    }
+
+    if (invalidChainage) errors.push(`- Invalid Chainage found near calculation ${invalidChainage}. Check input data.`);
+    if (nanFound && logicError) errors.push(`- Engine encountered severe NaN / Logic calculation errors.${logicError}. Check cross - sectional parameters or unit rates.`);
+
+    return errors;
+  }
+
+  // ── Roll Diagram pan / zoom / sync interaction ──────────────────────────
+  (function setupRollInteractions() {
+    const planWrap = document.getElementById("rollDiagramWrap");
+    const sideWrap = document.getElementById("sideViewWrap");
+    const syncBtn = document.getElementById("rollSyncBtn");
+    const zoomIn = document.getElementById("rollZoomIn");
+    const zoomOut = document.getElementById("rollZoomOut");
+    const zoomReset = document.getElementById("rollZoomReset");
+
+    let synced = false;
+    let syncLock = false;
+
+    // ── Sync button ─────────────────────────────────────────────────────────
+    if (syncBtn) {
+      syncBtn.addEventListener("click", () => {
+        synced = !synced;
+        syncBtn.style.background = synced ? "rgba(34,211,238,0.18)" : "rgba(255,255,255,0.06)";
+        syncBtn.style.borderColor = synced ? "rgba(34,211,238,0.6)" : "rgba(255,255,255,0.15)";
+        syncBtn.style.color = synced ? "#67e8f9" : "rgba(255,255,255,0.7)";
+        syncBtn.querySelector("span") && (syncBtn.querySelector("span").textContent = synced ? "Synced ✓" : "Sync Scrolling");
+        if (synced && planWrap && sideWrap) {
+          window._sideScale = window._planScale || 1;
+          if (state.calcRows.length) renderSideView();
+          requestAnimationFrame(() => { sideWrap.scrollLeft = planWrap.scrollLeft; });
+        }
+      });
+    }
+
+    function syncScrollLeft(from, to) {
+      if (!synced || syncLock || !from || !to) return;
+      syncLock = true;
+      to.scrollLeft = from.scrollLeft;
+      syncLock = false;
+    }
+
+    // ── Drag-to-pan ─────────────────────────────────────────────────────────
+    function addDragPan(wrap) {
+      if (!wrap) return;
+      let dragging = false, lx = 0, ly = 0;
+      wrap.addEventListener("mousedown", (e) => {
+        if (e.button !== 0) return;
+        dragging = true; lx = e.clientX; ly = e.clientY;
+        wrap.style.cursor = "grabbing"; wrap.style.userSelect = "none";
+        e.preventDefault();
+      });
+      wrap.addEventListener("mousemove", (e) => {
+        if (!dragging) return;
+        const dx = e.clientX - lx, dy = e.clientY - ly;
+        wrap.scrollLeft -= dx; wrap.scrollTop -= dy;
+        lx = e.clientX; ly = e.clientY;
+        if (synced) {
+          const other = wrap === planWrap ? sideWrap : planWrap;
+          syncScrollLeft(wrap, other);
+        }
+      });
+      ["mouseup", "mouseleave"].forEach(ev => {
+        wrap.addEventListener(ev, () => { dragging = false; wrap.style.cursor = "grab"; wrap.style.userSelect = ""; });
+      });
+      // Touch support
+      let tlx = 0, tly = 0;
+      wrap.addEventListener("touchstart", (e) => { tlx = e.touches[0].clientX; tly = e.touches[0].clientY; }, { passive: true });
+      wrap.addEventListener("touchmove", (e) => {
+        const dx = e.touches[0].clientX - tlx, dy = e.touches[0].clientY - tly;
+        wrap.scrollLeft -= dx; wrap.scrollTop -= dy;
+        tlx = e.touches[0].clientX; tly = e.touches[0].clientY;
+        if (synced) { const other = wrap === planWrap ? sideWrap : planWrap; syncScrollLeft(wrap, other); }
+        e.preventDefault();
+      }, { passive: false });
+    }
+
+    addDragPan(planWrap);
+    addDragPan(sideWrap);
+
+    // ── Scroll-based sync (for native scrollbar use) ─────────────────────────
+    if (planWrap) planWrap.addEventListener("scroll", () => { if (!syncLock) syncScrollLeft(planWrap, sideWrap); });
+    if (sideWrap) sideWrap.addEventListener("scroll", () => { if (!syncLock) syncScrollLeft(sideWrap, planWrap); });
+
+    // ── Scroll-wheel zoom toward cursor (AutoCAD style) ───────────────────────
+    function addWheelZoom(wrap) {
+      if (!wrap) return;
+      wrap.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const ZOOM_STEP = 1.12;
+        const factor = e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;   // scroll up = zoom in
+        const isPlan = wrap === planWrap;
+        const oldScale = isPlan ? (window._planScale || 1) : (window._sideScale || 1);
+        const newScale = Math.max(0.05, oldScale * factor);
+        if (newScale === oldScale) return;
+
+        // Remember which chainage is under the cursor so we can restore it after re-render
+        const rect = wrap.getBoundingClientRect();
+        const cursorXpx = e.clientX - rect.left + wrap.scrollLeft;  // pixel in canvas coords
+        const cursorYpx = e.clientY - rect.top + wrap.scrollTop;
+        const ratio = newScale / oldScale;
+
+        if (synced) {
+          window._planScale = newScale;
+          window._sideScale = newScale;
+          if (state.calcRows.length) { renderRollDiagram(); renderSideView(); }
+        } else {
+          if (isPlan) {
+            window._planScale = newScale;
+            if (state.calcRows.length) renderRollDiagram();
+          } else {
+            window._sideScale = newScale;
+            if (state.calcRows.length) renderSideView();
+          }
+        }
+
+        // Restore cursor focal point
+        requestAnimationFrame(() => {
+          wrap.scrollLeft = cursorXpx * ratio - (e.clientX - rect.left);
+          wrap.scrollTop = cursorYpx * ratio - (e.clientY - rect.top);
+          // Sync horizontal scroll to other panel if synced
+          if (synced) {
+            const other = wrap === planWrap ? sideWrap : planWrap;
+            if (other) other.scrollLeft = wrap.scrollLeft;
+          }
+        });
+      }, { passive: false });
+    }
+
+    addWheelZoom(planWrap);
+    addWheelZoom(sideWrap);
+
+    // ── +/−/Reset zoom buttons ───────────────────────────────────────────────
+    function zoomButtons(factor, isReset) {
+      if (!state.calcRows.length) return;
+
+      const oldPlan = window._planScale || 1, oldSide = window._sideScale || 1;
+      const newPlan = isReset ? 1 : Math.max(0.05, oldPlan * factor);
+      const newSide = isReset ? 1 : Math.max(0.05, oldSide * factor);
+
+      const ratioPlan = newPlan / oldPlan;
+      const ratioSide = newSide / oldSide;
+
+      window._planScale = newPlan;
+      window._sideScale = synced ? newPlan : newSide;
+
+      // Centre points to zoom toward
+      const pcx = planWrap ? planWrap.scrollLeft + planWrap.clientWidth / 2 : 0;
+      const pcy = planWrap ? planWrap.scrollTop + planWrap.clientHeight / 2 : 0;
+      const scx = sideWrap ? sideWrap.scrollLeft + sideWrap.clientWidth / 2 : 0;
+      const scy = sideWrap ? sideWrap.scrollTop + sideWrap.clientHeight / 2 : 0;
+
+      renderRollDiagram();
+      renderSideView();
+
+      requestAnimationFrame(() => {
+        if (planWrap) {
+          planWrap.scrollLeft = isReset ? 0 : pcx * ratioPlan - planWrap.clientWidth / 2;
+          planWrap.scrollTop = isReset ? 0 : pcy * ratioPlan - planWrap.clientHeight / 2;
+        }
+        if (sideWrap) {
+          if (synced && planWrap && !isReset) {
+            sideWrap.scrollLeft = planWrap.scrollLeft;
+          } else {
+            sideWrap.scrollLeft = isReset ? 0 : scx * ratioSide - sideWrap.clientWidth / 2;
+          }
+          sideWrap.scrollTop = isReset ? 0 : scy * ratioSide - sideWrap.clientHeight / 2;
+        }
+      });
+    }
+
+    if (zoomIn) zoomIn.addEventListener("click", () => zoomButtons(1.4, false));
+    if (zoomOut) zoomOut.addEventListener("click", () => zoomButtons(1 / 1.4, false));
+    if (zoomReset) zoomReset.addEventListener("click", () => zoomButtons(1, true));
+  })();
+
+  // Verify Calculations button
+  const verifyBtn = document.getElementById("verifyCalcBtn");
+  if (verifyBtn) {
+    verifyBtn.addEventListener("click", () => {
+      verifyBtn.classList.add("verifying");
+      verifyBtn.disabled = true;
+      recalculate();
+
+      setTimeout(() => {
+        const errors = validateProjectData();
+        verifyBtn.classList.remove("verifying");
+
+        const modal = document.getElementById("verifyModal");
+        const modalContent = document.getElementById("verifyModalContent");
+        const modalIcon = document.getElementById("verifyModalIcon");
+        const modalIconEl = document.getElementById("verifyModalIconEl");
+        const modalTitle = document.getElementById("verifyModalTitle");
+
+        if (errors.length === 0) {
+          state.project.verified = true;
+          updateWizardUI();
+          applyProjectGate();
+          updateEstimates();
+          updateDashboard();
+          verifyBtn.classList.add("verified");
+          if (modalTitle) modalTitle.textContent = "Verification Successful";
+          if (modalIcon) {
+            modalIcon.style.background = "rgba(16, 185, 129, 0.15)";
+            modalIcon.style.color = "#10b981";
+            modalIcon.style.border = "1px solid rgba(16, 185, 129, 0.2)";
+          }
+          if (modalIconEl) modalIconEl.className = "ri-checkbox-circle-line";
+          if (modalContent) {
+            modalContent.innerHTML = `
+               <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); padding: 16px; border-radius: 8px; margin-bottom: 12px; display: flex; align-items: flex-start; gap: 12px;">
+                 <i class="ri-shield-check-fill" style="color: #10b981; font-size: 1.5rem;"></i>
+                 <div>
+                   <div style="color: #fff; font-weight: 600; margin-bottom: 4px;">Engine Verification Passed</div>
+                   <div style="font-size: 0.85rem; color: rgba(255,255,255,0.7);">
+                     All structural calculations, chainages, and cross-section parameters have been independently validated. You are clear to export.
+                     <br><br>
+                     <strong>Checked Points:</strong> ${state.calcRows.length} Cross-Sections
+                     <br>
+                     <strong>Timestamp:</strong> ${new Date().toLocaleTimeString()}
+                   </div>
+                 </div>
+               </div>
+             `;
+          }
+
+          if (modal) modal.showModal();
+
+          setTimeout(() => {
+            verifyBtn.classList.remove("verified");
+            verifyBtn.disabled = false;
+          }, 2000);
+
+        } else {
+          state.project.verified = false;
+          updateWizardUI();
+          applyProjectGate();
+          updateEstimates();
+          updateDashboard();
+          verifyBtn.disabled = false;
+          if (modalTitle) modalTitle.textContent = "Verification Failed";
+          if (modalIcon) {
+            modalIcon.style.background = "rgba(239, 68, 68, 0.15)";
+            modalIcon.style.color = "#ef4444";
+            modalIcon.style.border = "1px solid rgba(239, 68, 68, 0.2)";
+          }
+          if (modalIconEl) modalIconEl.className = "ri-error-warning-line";
+          if (modalContent) {
+            const errorList = errors.map(e => `<li style="margin-bottom: 8px;"><i class="ri-close-circle-fill" style="color: #ef4444; margin-right: 6px;"></i>${e}</li>`).join("");
+            modalContent.innerHTML = `
+               <div style="background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); padding: 16px; border-radius: 8px; margin-bottom: 12px;">
+                 <div style="color: #ef4444; font-weight: 600; margin-bottom: 8px;">Critical Errors Found (${errors.length})</div>
+                 <div style="font-size: 0.85rem; color: rgba(255,255,255,0.7); margin-bottom: 12px;">
+                   The system has halted processing to prevent inaccurate data from being exported. Please resolve the following structural flaws:
+                 </div>
+                 <ul style="list-style: none; padding: 0; margin: 0; font-family: monospace; font-size: 13px; color: #f87171; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 6px;">
+                   ${errorList}
+                 </ul>
+               </div>
+             `;
+          }
+          if (modal) modal.showModal();
+        }
+      }, 800);
+    });
+  }
+
+  // --- Keyboard Shortcuts ---
+  document.addEventListener("keydown", (e) => {
+    // Save: Ctrl+S / Cmd+S
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+      if (els.saveProjectBtn) els.saveProjectBtn.click();
+    }
+    // Arrow Key Navigation for Chainages (Only active on Overview)
+    const overviewPage = document.querySelector('.work-page[data-work-page="overview"]');
+    if (overviewPage && overviewPage.classList.contains("active")) {
+      if (e.key === "ArrowLeft") {
+        document.getElementById("prevChainBtn")?.click();
+      } else if (e.key === "ArrowRight") {
+        document.getElementById("nextChainBtn")?.click();
+      }
+    }
+  });
+
+  if (els.resultTabs) {
+    els.resultTabs.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-result-tab]");
+      if (!btn) return;
+      setResultTab(btn.dataset.resultTab);
+    });
+  }
+
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-overview-action]");
+    if (!btn) return;
+    const action = btn.dataset.overviewAction;
+    if (action === "create") els.createProjectBtn?.click();
+    if (action === "open") els.importProjectBtn?.click();
+    if (action === "import") els.importBtn?.click();
+    if (action === "verify") document.getElementById("verifyCalcBtn")?.click();
+    if (action === "bridge") setWorkPage("bridges");
+    if (action === "station") setWorkPage("loops");
+    if (action === "plans") setWorkPage("alignment-map");
+    if (action === "map") {
+      setWorkPage("alignment-map");
+    }
+    if (action === "export") els.openExportModalBtn?.click();
+  });
+
+  if (els.createProjectBtn && els.projectWizardModal) {
+    els.createProjectBtn.addEventListener("click", () => {
+      resetForNewProject();
+      state.project.active = true;
+      state.project.verified = false;
+      updateWizardUI();
+      applyProjectGate();
+      els.projectWizardModal.showModal();
+    });
+  }
+
+  if (els.importProjectBtn && els.projectImportInput) {
+    els.importProjectBtn.addEventListener("click", async () => {
+      if ("showOpenFilePicker" in window) {
+        try {
+          const [handle] = await window.showOpenFilePicker({
+            multiple: false,
+            types: [{
+              description: "Earthwork Project File",
+              accept: { "application/json": [".ew", ".EW"] },
+            }],
+          });
+          if (!handle) return;
+          const file = await handle.getFile();
+          const txt = await file.text();
+          const parsed = JSON.parse(txt);
+          loadProjectFromPayload(parsed, { fileHandle: handle });
+          return;
+        } catch (err) {
+          if (err?.name !== "AbortError") {
+            console.error("Project open error:", err);
+            alert(`Project import failed: ${err?.message || "Invalid .EW file."}`);
+          }
+          return;
+        }
+      }
+      els.projectImportInput.click();
+    });
+  }
+
+  if (els.closeProjectWizardBtn && els.projectWizardModal) {
+    els.closeProjectWizardBtn.addEventListener("click", () => {
+      els.projectWizardModal.close();
+    });
+  }
+
+  if (els.projectNameInput) {
+    els.projectNameInput.addEventListener("input", () => {
+      state.project.name = String(els.projectNameInput.value || "").trim();
+      updateWizardUI();
+      applyProjectGate();
+    });
+  }
+
+  if (els.wizardUploadButtons?.length) {
+    els.wizardUploadButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const kind = btn.dataset.wizardUpload;
+        if (kind === "levels" && els.importInput) els.importInput.click();
+        if (kind === "bridges" && els.bridgeImportInput) els.bridgeImportInput.click();
+        if (kind === "curves" && els.curveImportInput) els.curveImportInput.click();
+        if (kind === "loops" && els.loopImportInput) els.loopImportInput.click();
+        if (kind === "kml" && els.kmlImportInput) els.kmlImportInput.click();
+      });
+    });
+  }
+
+  // --- Drag and Drop File Upload ---
+  const dropZone = document.getElementById("wizardDropZone");
+  const dropOverlay = document.getElementById("wizardDropOverlay");
+
+  if (dropZone && dropOverlay) {
+    dropZone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropZone.classList.add("drag-active");
+    });
+
+    dropZone.addEventListener("dragleave", (e) => {
+      e.preventDefault();
+      // Only remove if we really left the zone
+      if (e.target === dropOverlay || e.target === dropZone) {
+        dropZone.classList.remove("drag-active");
+      }
+    });
+
+    dropZone.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("drag-active");
+
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const files = Array.from(e.dataTransfer.files).filter(f => f.name.match(/\.(xlsx|xls|csv|kml|kmz)$/i));
+
+        // Show loading state on cursor 
+        document.body.style.cursor = "wait";
+
+        for (const file of files) {
+          try {
+            if (file.name.match(/\.(kml|kmz)$/i)) {
+              if (els.kmlImportInput) {
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                els.kmlImportInput.files = dt.files;
+                els.kmlImportInput.dispatchEvent(new Event("change"));
+              }
+              continue;
+            }
+            const data = await file.arrayBuffer();
+            const wb = XLSX.read(data, { type: "array", cellDates: false });
+            const headers = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 })[0] || [];
+            const headerStr = headers.map(h => String(h).toLowerCase()).join(" ");
+
+            if (headerStr.includes("radius") && headerStr.includes("length")) {
+              await importCurveFile(file);
+            } else if (headerStr.includes("bridge") || (headerStr.includes("start") && headerStr.includes("end"))) {
+              await importBridgeFile(file);
+            } else if (headerStr.includes("code") || headerStr.includes("platform") || wb.SheetNames[0].toLowerCase().includes("loop")) {
+              await importLoopFile(file);
+            } else if (headerStr.includes("chainage") || headerStr.includes("station") || headerStr.includes("level")) {
+              // Fallback primarily for Earthwork Levels
+              await importLevelsFile(file);
+            } else {
+              console.warn("Could not auto-route file by headers:", file.name, "- defaulting to Levels");
+              // If completely ambiguous, guess levels because it's the most important
+              await importLevelsFile(file);
+            }
+          } catch (err) {
+            console.error("Auto-route error for", file.name, err);
+            alert(`Could not process dropped file ${file.name}: ${err.message} `);
+          }
+        }
+
+        document.body.style.cursor = "default";
+      }
+    });
+  }
+
+  if (els.wizardSaveBtn) {
+    els.wizardSaveBtn.addEventListener("click", () => {
+      saveCurrentProject();
+    });
+  }
+
+  if (els.saveProjectBtn) {
+    els.saveProjectBtn.addEventListener("click", () => {
+      saveCurrentProject();
+    });
+  }
+
+  if (els.wizardCalculateBtn) {
+    els.wizardCalculateBtn.addEventListener("click", () => {
+      if (!isProjectReadyForVerification()) {
+        alert("Upload all files and enter project name to verify.");
+        return;
+      }
+
+      // Start fluid loading animation
+      els.wizardCalculateBtn.classList.add("is-loading");
+
+      // Wait for wave animation to "fill"
+      setTimeout(() => {
+        // Switch to verified state
+        els.wizardCalculateBtn.classList.add("is-verified");
+
+        // Wait for checkmark to settle
+        setTimeout(() => {
+          // Execute actual logic
+          state.project.verified = true;
+          recalculate();
+          updateWizardUI();
+          applyProjectGate();
+          els.projectWizardModal?.close();
+
+          // Reset button for next time
+          setTimeout(() => {
+            els.wizardCalculateBtn.classList.remove("is-loading", "is-verified");
+          }, 300);
+
+        }, 600);
+      }, 1200);
+    });
+  }
+
+  if (els.resetProjectBtn) {
+    els.resetProjectBtn.addEventListener("click", () => {
+      if (confirm("Are you sure you want to reset the project? All unsaved progress will be lost.")) {
+        resetForNewProject();
+        alert("Workspace reset to default. Create a new project to continue.");
+      }
+    });
+  }
+
+  // --- Project Snapshots ---
+  state.snapshots = state.snapshots || [];
+
+  if (els.snapshotsBtn && els.snapshotsModal) {
+    els.snapshotsBtn.addEventListener("click", () => {
+      if (!state.project.active) {
+        alert("Create or open a project first.");
+        return;
+      }
+      renderSnapshotsList();
+      els.snapshotsModal.showModal();
+    });
+
+    if (els.closeSnapshotsBtn) {
+      els.closeSnapshotsBtn.addEventListener("click", () => els.snapshotsModal.close());
+    }
+
+    if (els.takeSnapshotBtn) {
+      els.takeSnapshotBtn.addEventListener("click", () => {
+        const name = els.snapshotNameInput.value.trim() || `Snapshot ${new Date().toLocaleTimeString()} `;
+        const snapshot = {
+          id: Date.now().toString(),
+          name,
+          timestamp: new Date().toLocaleString(),
+          rawRows: JSON.parse(JSON.stringify(state.rawRows || [])),
+          curves: JSON.parse(JSON.stringify(state.curves || [])),
+          bridges: JSON.parse(JSON.stringify(state.bridges || [])),
+          loops: JSON.parse(JSON.stringify(state.loops || [])),
+          levels: JSON.parse(JSON.stringify(state.levels || [])),
+          settings: JSON.parse(JSON.stringify(state.settings || {})),
+        };
+
+        state.snapshots.push(snapshot);
+        els.snapshotNameInput.value = "";
+        renderSnapshotsList();
+      });
+    }
+  }
+
+  // --- Real-time Cost Estimation ---
+  if (els.recalcEstimatesBtn) {
+    els.recalcEstimatesBtn.addEventListener("click", updateEstimates);
+  }
+  [
+    els.rateClearing, els.rateBenching, els.rateFilling, els.rateBlanketing,
+    els.rateCutSoil, els.rateCutSoft, els.rateCutHardBlast, els.rateCutHardChisel,
+    els.rateExtraLead, els.rateTurfing, els.pctSoil, els.pctSoftRock, els.pctHardBlast,
+    els.pctHardChisel, els.pctReusableSpoil, els.leadKm
+  ].forEach(input => {
+    if (input) {
+      input.addEventListener("input", updateEstimates);
+      input.addEventListener("change", updateEstimates);
+    }
+  });
+
+  // --- Expandable Graphs Logic ---
+  let expandedChartInstance = null;
+
+  function openExpandedGraph(graphType) {
+    if (!els.graphModal) return;
+
+    // Destroy previous expanded instance if it exists
+    if (expandedChartInstance) {
+      expandedChartInstance.destroy();
+      expandedChartInstance = null;
+    }
+
+    const ctx = els.expandedGraphCanvas?.getContext("2d");
+    if (!ctx) return;
+
+    let sourceChart = null;
+    let title = "";
+
+    if (graphType === "lSection") {
+      sourceChart = state.charts.lSection;
+      title = "Expanded L-Section Profile";
+    } else if (graphType === "volume") {
+      sourceChart = state.charts.volume;
+      title = "Expanded Volume Distribution";
+    }
+
+    if (!sourceChart || !sourceChart.data || sourceChart.data.datasets.length === 0) {
+      alert("No data available to expand. Please generate a project first.");
+      return;
+    }
+
+    els.graphModalTitle.textContent = title;
+
+    // Clone data and config roughly (deep copy is safer for chart.js)
+    const clonedData = JSON.parse(JSON.stringify(sourceChart.data));
+    const clonedOptions = JSON.parse(JSON.stringify(sourceChart.options));
+
+    // Adjust options for fullscreen view (disable relative sizing if needed, or adjust tooltips)
+    clonedOptions.maintainAspectRatio = false;
+    clonedOptions.plugins.title = { display: false };
+
+    expandedChartInstance = new Chart(ctx, {
+      type: sourceChart.config.type,
+      data: clonedData,
+      options: clonedOptions
+    });
+
+    els.graphModal.showModal();
+  }
+
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".expand-graph-btn");
+    if (btn) {
+      openExpandedGraph(btn.dataset.graph);
+    }
+  });
+
+  if (els.closeGraphModalBtn) {
+    els.closeGraphModalBtn.addEventListener("click", () => {
+      els.graphModal.close();
+      if (expandedChartInstance) {
+        expandedChartInstance.destroy();
+        expandedChartInstance = null;
+      }
+    });
+  }
+
+  function renderSnapshotsList() {
+    if (!els.snapshotList) return;
+    if (state.snapshots.length === 0) {
+      els.snapshotList.innerHTML = '<p class="muted">No snapshots taken yet.</p>';
+      return;
+    }
+
+    els.snapshotList.innerHTML = state.snapshots.map(snap => `
+    < div class="glass" style = "padding: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;" >
+        <div>
+          <strong style="color: var(--text);">${snap.name}</strong><br/>
+          <small class="muted">${snap.timestamp}</small>
+        </div>
+        <button class="btn btn-secondary" onclick="restoreSnapshot('${snap.id}')">Restore</button>
+      </div >
+    `).reverse().join("");
+  }
+
+  window.restoreSnapshot = (id) => {
+    const snap = state.snapshots.find(s => s.id === id);
+    if (!snap) return;
+    if (!confirm(`Restore snapshot "${snap.name}" ? Current unsaved changes will be lost.`)) return;
+
+    state.rawRows = JSON.parse(JSON.stringify(snap.rawRows));
+    state.curves = JSON.parse(JSON.stringify(snap.curves));
+    state.bridges = JSON.parse(JSON.stringify(snap.bridges));
+    state.loops = JSON.parse(JSON.stringify(snap.loops));
+    state.levels = JSON.parse(JSON.stringify(snap.levels));
+    state.settings = JSON.parse(JSON.stringify(snap.settings));
+
+    recalculate();
+    els.snapshotsModal?.close();
+  };
+
+  const importLevelsFile = async (file) => {
+    const ext = file.name.toLowerCase();
+    if (!(ext.endsWith(".csv") || ext.endsWith(".xlsx") || ext.endsWith(".xls"))) {
+      throw new Error("Supported files are .csv, .xlsx, .xls");
+    }
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, { type: "array", cellDates: false });
+
+    const wsLevels = wb.Sheets[wb.SheetNames[0]];
+    const aoaLevels = XLSX.utils.sheet_to_json(wsLevels, { header: 1, defval: "", raw: false, blankrows: false });
+    if (!aoaLevels.length) throw new Error("File has no data rows.");
+
+    // --- LOCAL PARSING FIRST (no AI required) ---
+    const interval = inferImportInterval();
+    const startChInput = inferImportStartChainage();
+    const localResult = parseImportedRows(aoaLevels, startChInput, interval);
+    let parsed = localResult.rows || [];
+
+    // If local parsing failed, try AI as fallback
+    if (!parsed.length) {
+      // Strict validation
+      const headerStr = aoaLevels.slice(0, 5).map(row => row.join(" ").toLowerCase()).join(" ");
+      if (!(headerStr.includes("chainage") || headerStr.includes("station") || headerStr.includes("level"))) {
+        throw new Error("Invalid File: The selected file does not appear to be an Earthwork Levels file. Check your column headers and ensure you are uploading to the correct field.");
+      }
+
+      // Try AI mapper as fallback
+      let mapResult;
+      try {
+        const previewAoa = aoaLevels.slice(0, 50);
+        const previewCsv = previewAoa.map(r => r.join(',')).join('\n');
+        showAILoading("Mapping topographical Levels via AI...");
+        const response = await fetch("/api/extract-data", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: previewCsv, dataType: 'levels' })
+        });
+        if (!response.ok) throw new Error(`Server Error: ${response.status} `);
+        const resData = await response.json();
+        mapResult = resData.data;
+      } catch (e) {
+        hideAILoading();
+        throw new Error("Could not parse levels locally (no matching headers found), and AI fallback also failed: " + e.message);
+      }
+      hideAILoading();
+
+      if (!mapResult || mapResult.chainageIndex < 0 || mapResult.groundLevelIndex < 0 || mapResult.proposedLevelIndex < 0) {
+        throw new Error("Could not identify Chainage, Ground Level, and Proposed Level columns. Ensure your file has clear headers.");
+      }
+
+      let baseOffset = 0;
+      const startIdx = Math.max(0, mapResult.dataStartRowIndex || 1);
+      for (let i = startIdx; i < aoaLevels.length; i++) {
+        const row = aoaLevels[i];
+        if (!row || !row.length) continue;
+        let chainageNum = parseChainage(String(row[mapResult.chainageIndex] || "").trim());
+        let glNum = parseLooseNumber(row[mapResult.groundLevelIndex], NaN);
+        let plNum = parseLooseNumber(row[mapResult.proposedLevelIndex], NaN);
+        if (!Number.isFinite(glNum) || !Number.isFinite(plNum)) continue;
+        if (!Number.isFinite(chainageNum)) {
+          if (parsed.length === 0 && Number.isFinite(startChInput)) { baseOffset = startChInput; chainageNum = baseOffset; }
+          else if (parsed.length > 0) { baseOffset += interval; chainageNum = baseOffset; }
+          else continue;
+        } else { baseOffset = chainageNum; }
+        parsed.push({
+          chainage: chainageNum,
+          station: mapResult.stationIndex >= 0 ? String(row[mapResult.stationIndex] || "").trim() : "",
+          structureNo: mapResult.structureNoIndex >= 0 ? String(row[mapResult.structureNoIndex] || "").trim() : "",
+          groundLevel: glNum,
+          proposedLevel: plNum
+        });
+      }
+    }
+
+    if (!parsed.length) {
+      throw new Error("No valid rows found. Check your data file.");
+    }
+    state.rawRows = parsed;
+
+    // Process additional sheets — LOCAL parsing first, AI fallback
+    if (wb.SheetNames.length > 1) {
+      for (let si = 1; si < wb.SheetNames.length; si++) {
+        const sheetName = wb.SheetNames[si].toLowerCase();
+        const ws = wb.Sheets[wb.SheetNames[si]];
+        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false, blankrows: false });
+        if (!aoa.length) continue;
+
+        if (sheetName.includes("bridge")) {
+          const localBridges = parseBridgeRowsFromAoa(aoa, "Minor");
+          if (localBridges.rows && localBridges.rows.length) {
+            state.bridgeRows = localBridges.rows;
+            state.project.uploads.bridges = true;
+          } else {
+            try {
+              const csvContent = aoa.map(r => r.join(',')).join('\n');
+              const res = await fetch("/api/extract-data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: csvContent, dataType: 'bridges' }) }).then(r => r.json()).catch(() => null);
+              if (res && res.success && res.data && res.data.length) { state.bridgeRows = res.data; state.project.uploads.bridges = true; }
+            } catch (_) { /* AI fallback failed, skip */ }
+          }
+        }
+        else if (sheetName.includes("curve")) {
+          const localCurves = parseCurveRowsFromAoa(aoa);
+          if (localCurves.rows && localCurves.rows.length) {
+            state.curveRows = localCurves.rows;
+            state.project.uploads.curves = true;
+          } else {
+            try {
+              const csvContent = aoa.map(r => r.join(',')).join('\n');
+              const res = await fetch("/api/extract-data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: csvContent, dataType: 'curves' }) }).then(r => r.json()).catch(() => null);
+              if (res && res.success && res.data && res.data.length) { state.curveRows = res.data; state.project.uploads.curves = true; }
+            } catch (_) { /* AI fallback failed, skip */ }
+          }
+        }
+        else if (sheetName.includes("loop") || sheetName.includes("station") || sheetName.includes("platform")) {
+          const localLoops = parseLoopPlatformRowsFromAoa(aoa);
+          if (localLoops.rows && localLoops.rows.length) {
+            state.loopPlatformRows = localLoops.rows;
+            state.project.uploads.loops = true;
+          } else {
+            try {
+              const csvContent = aoa.map(r => r.join(',')).join('\n');
+              const res = await fetch("/api/extract-data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: csvContent, dataType: 'loops' }) }).then(r => r.json()).catch(() => null);
+              if (res && res.success && res.data && res.data.length) { state.loopPlatformRows = res.data; state.project.uploads.loops = true; }
+            } catch (_) { /* AI fallback failed, skip */ }
+          }
+        }
+      }
+    }
+
+    const ch = parsed.map((r) => r.chainage).sort((a, b) => a - b);
+    els.projectMeta.textContent = "Earthwork Calculations";
+    state.project.uploads.levels = true;
+    state.project.verified = false;
+    updateWizardUI();
+    applyProjectGate();
+
+    renderBridgeInputs();
+    renderCurveInputs();
+    renderLoopInputs();
+    recalculate();
+  };
+
+  // --- Universal AI File Processor Helpers ---
+  const showAILoading = (text) => {
+    const overlay = document.getElementById("aiLoadingOverlay");
+    const textEl = document.getElementById("aiLoadingText");
+    if (overlay && textEl) {
+      textEl.textContent = text || "Extracting and formatting data structures.";
+      overlay.classList.remove("hidden");
+    }
+    document.body.style.cursor = "wait";
+  };
+
+  const hideAILoading = () => {
+    const overlay = document.getElementById("aiLoadingOverlay");
+    if (overlay) overlay.classList.add("hidden");
+    document.body.style.cursor = "default";
+  };
+
+  // --- Universal AI File Processor ---
+  const processFileWithAI = async (file, dataType) => {
+    // 1. Read file as an array of arrays
+    const aoa = await readSheetAoaFromFile(file);
+    if (!aoa || !aoa.length) throw new Error("File appears empty or unreadable.");
+
+    // Strict validation: Verify the user uploaded the 'correct' file into the 'correct' field
+    // Get headers (first 5 rows just in case they are shifted)
+    const headerStr = aoa.slice(0, 5).map(row => row.join(" ").toLowerCase()).join(" ");
+
+    if (dataType === "curves" && !(headerStr.includes("radius") && headerStr.includes("length") && (headerStr.includes("curve") || headerStr.includes("chainage")))) {
+      throw new Error("Invalid File: The selected file does not appear to be a Curve list. Check your column headers and ensure you are uploading to the correct field.");
+    }
+    if (dataType === "bridges" && !(headerStr.includes("bridge") || (headerStr.includes("start") && headerStr.includes("end")) || (headerStr.includes("span") && headerStr.includes("length")))) {
+      throw new Error("Invalid File: The selected file does not appear to be a Bridge list. Check your column headers and ensure you are uploading to the correct field.");
+    }
+    if (dataType === "loops" && !(headerStr.includes("code") || headerStr.includes("station") || headerStr.includes("platform") || headerStr.includes("loop") || headerStr.includes("width"))) {
+      throw new Error("Invalid File: The selected file does not appear to be a Loops & Platforms list. Check your column headers and ensure you are uploading to the correct field.");
+    }
+
+    // 2. Convert to raw CSV string (to save tokens)
+    const csvContent = aoa.map(row => row.join(',')).join('\n');
+
+    // 3. Optional: display loading state inside the app (e.g., changing cursor)
+    showAILoading(`Extracting ${dataType} details via AI...`);
+
+    try {
+      // 4. Send to Vercel API
+      const response = await fetch("/api/extract-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: csvContent, dataType })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Server Error: ${response.status} `);
+      }
+
+      const resData = await response.json();
+      return resData;
+
+    } finally {
+      hideAILoading();
+    }
+  };
+
+  const importBridgeFile = async (file) => {
+    try {
+      const sheets = await readAllSheetsFromFile(file);
+      let importedRows = [];
+      let combinedCsv = "";
+
+      for (const sheet of sheets) {
+        // Collect for potential AI fallback
+        combinedCsv += `-- - SHEET: ${sheet.name} ---\n`;
+        combinedCsv += sheet.aoa.map(row => row.map(c => `"${String(c || "").replace(/"/g, '""').replace(/\n/g, " ")}"`).join(", ")).join("\n") + "\n\n";
+
+        // Try local parsing first using the existing bridge parser
+        const localResult = parseBridgeRowsFromAoa(sheet.aoa, sheet.name);
+        if (localResult.rows && localResult.rows.length > 0) {
+          importedRows = importedRows.concat(localResult.rows);
+        }
+      }
+
+      // If local parsing didn't find anything, try the AI (likely a complex/messy layout)
+      if (importedRows.length === 0 && combinedCsv.trim().length > 10) {
+        showAILoading(`No standard structure headers found. Trying AI extraction...`);
+        try {
+          const response = await fetch("/api/extract-data", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: combinedCsv, dataType: "bridges" })
+          });
+
+          if (response.ok) {
+            const resData = await response.json();
+            if (resData && resData.success && resData.data && resData.data.length > 0) {
+              importedRows = resData.data.map((r, i) => normalizeBridgeEntry(r, i)).filter(Boolean);
+            }
+          }
+        } catch (aiErr) {
+          console.warn("AI Fallback failed:", aiErr);
+        } finally {
+          hideAILoading();
+        }
+      }
+
+      if (importedRows.length > 0) {
+        state.bridgeRows = importedRows;
+        state.bridgeRows.sort((a, b) => (safeNum(a.startChainage) - safeNum(b.startChainage)));
+        state.project.uploads.bridges = true;
+        state.project.verified = false;
+        updateWizardUI();
+        applyProjectGate();
+        renderBridgeInputs();
+        recalculate();
+        alert(`Successfully imported ${importedRows.length} bridge(s)/tunnel(s)!`);
+      } else {
+        alert("Could not identify any bridge structures in that file. Check your headers and sheet content.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert(`Bridge import failed: ${err.message}`);
+    }
+  };
+
+  const importCurveFile = async (file) => {
+    try {
+      // Try local parsing first
+      const aoa = await readSheetAoaFromFile(file);
+      const localResult = parseCurveRowsFromAoa(aoa);
+      let importedRows = localResult.rows || [];
+
+      // If local parsing yielded nothing, try AI fallback
+      if (!importedRows.length) {
+        try {
+          const result = await processFileWithAI(file, "curves");
+          if (result && result.success && result.data && result.data.length > 0) {
+            importedRows = result.data;
+          }
+        } catch (aiErr) {
+          console.warn("AI curve fallback failed:", aiErr.message);
+        }
+      }
+
+      if (importedRows.length > 0) {
+        state.curveRows = importedRows;
+        state.project.uploads.curves = true;
+        state.project.verified = false;
+        updateWizardUI();
+        applyProjectGate();
+        recalculate();
+        alert(`Successfully imported ${importedRows.length} curve(s)!`);
+      } else {
+        alert("Could not identify any curve data in that file. Check your headers.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert(`Curve import failed: ${err.message}`);
+    }
+  };
+
+  const importLoopFile = async (file) => {
+    try {
+      // Try local parsing first
+      const aoa = await readSheetAoaFromFile(file);
+      const localResult = parseLoopPlatformRowsFromAoa(aoa);
+      let importedRows = localResult.rows || [];
+
+      // If local parsing yielded nothing, try AI fallback
+      if (!importedRows.length) {
+        try {
+          const result = await processFileWithAI(file, "loops");
+          if (result && result.success && result.data && result.data.length > 0) {
+            importedRows = result.data;
+          }
+        } catch (aiErr) {
+          console.warn("AI loop fallback failed:", aiErr.message);
+        }
+      }
+
+      if (importedRows.length > 0) {
+        state.loopPlatformRows = importedRows;
+        state.project.uploads.loops = true;
+        state.project.verified = false;
+        updateWizardUI();
+        applyProjectGate();
+        recalculate();
+        const importedStations = [...new Set(importedRows.map((r) => String(r.station || "").trim()).filter(Boolean))];
+        alert(`Successfully imported ${importedStations.length} station(s) across ${importedRows.length} station/loop row(s)!`);
+      } else {
+        alert("Could not identify any Loop or Station data in that file. Check your headers.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert(`Loop/platform import failed: ${err.message}`);
+    }
+  };
+
+  if (els.importBtn && els.importOptionsModal) {
+    els.importBtn.addEventListener("click", () => els.importOptionsModal.showModal());
+  }
+
+  if (els.closeImportOptionsBtn && els.importOptionsModal) {
+    els.closeImportOptionsBtn.addEventListener("click", () => els.importOptionsModal.close());
+  }
+
+  // --- AI Bridge Extraction Logic ---
+  const aiBridgeModal = document.getElementById("aiBridgeModal");
+  const bridgeAiBtn = document.getElementById("bridgeAiBtn");
+  const closeAiModalBtn = document.getElementById("closeAiModalBtn");
+  const startAiExtractBtn = document.getElementById("startAiExtractBtn");
+  const aiTextInput = document.getElementById("aiTextInput");
+
+  if (bridgeAiBtn && aiBridgeModal) {
+    bridgeAiBtn.addEventListener("click", () => {
+      aiTextInput.value = "";
+      aiBridgeModal.classList.remove("hidden");
+    });
+  }
+
+  if (closeAiModalBtn && aiBridgeModal) {
+    closeAiModalBtn.addEventListener("click", () => {
+      aiBridgeModal.classList.add("hidden");
+    });
+  }
+
+  if (startAiExtractBtn && aiTextInput && aiBridgeModal) {
+    startAiExtractBtn.addEventListener("click", async () => {
+      const text = aiTextInput.value.trim();
+      if (!text) return alert("Please paste some text first!");
+
+      const originalBtnText = startAiExtractBtn.innerHTML;
+      startAiExtractBtn.innerHTML = '<span class="spinner"></span> Extracting with AI...';
+      startAiExtractBtn.disabled = true;
+
+      try {
+        const response = await fetch("/api/extract-data", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ text, dataType: "bridges" })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || `Server Error: ${response.status}`);
+        }
+
+        const resData = await response.json();
+
+        if (resData && resData.success && resData.data && resData.data.length > 0) {
+          // Normalize the AI extracted bridges to add shouldDeduct flags and compute lengths
+          const newRows = resData.data.map((r, i) => normalizeBridgeEntry(r, i)).filter(Boolean);
+          state.bridgeRows = newRows;
+          state.project.uploads.bridges = true;
+          state.project.verified = false;
+
+          updateWizardUI();
+          applyProjectGate();
+          renderBridgeInputs();
+          recalculate();
+
+          aiBridgeModal.classList.add("hidden");
+          alert(`Successfully extracted and added ${resData.data.length} bridges using AI!`);
+        } else {
+          alert("The AI could not find any clear bridge data in that text.");
+        }
+      } catch (err) {
+        console.error("AI Extraction Error:", err);
+        alert(`Failed to extract bridges.\n\nError: ${err.message}`);
+      } finally {
+        startAiExtractBtn.innerHTML = originalBtnText;
+        startAiExtractBtn.disabled = false;
+      }
+    });
+  }
+  // ----------------------------------
+
+  if (els.importOptionsModal) {
+    els.importOptionsModal.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-import-kind]");
+      if (!btn) return;
+      const kind = btn.dataset.importKind;
+      if (kind === "levels" && els.importInput) {
+        els.importOptionsModal.close();
+        els.importInput.click();
+      } else if (kind === "bridges" && els.bridgeImportInput) {
+        els.importOptionsModal.close();
+        els.bridgeImportInput.click();
+      } else if (kind === "curves" && els.curveImportInput) {
+        els.importOptionsModal.close();
+        els.curveImportInput.click();
+      } else if (kind === "loops" && els.loopImportInput) {
+        els.importOptionsModal.close();
+        els.loopImportInput.click();
+      } else if (kind === "kml" && els.kmlImportInput) {
+        els.importOptionsModal.close();
+        els.kmlImportInput.click();
+      }
+    });
+  }
+
+  if (els.bridgeAddBtn) {
+    els.bridgeAddBtn.addEventListener("click", () => {
+      syncBridgeStateFromTable(); // Sync current inputs first
+      const base = inferImportStartChainage();
+      const nextNo = state.bridgeRows.length + 1;
+      state.bridgeRows.push({
+        bridgeNo: `BR-${nextNo}`,
+        bridgeCategory: "Minor",
+        bridgeType: "Box",
+        bridgeSize: "6.1m",
+        bridgeSpans: "1",
+        startChainage: r3(base),
+        endChainage: r3(base + 20),
+        length: r3(20),
+      });
+      state.project.uploads.bridges = true;
+      state.project.verified = false;
+      updateWizardUI();
+      applyProjectGate();
+      renderBridgeInputs();
+    });
+  }
+
+  if (els.bridgeApplyBtn) {
+    els.bridgeApplyBtn.addEventListener("click", () => {
+      syncBridgeStateFromTable();
+      state.project.uploads.bridges = true;
+      state.project.verified = false;
+      updateWizardUI();
+      applyProjectGate();
+      renderBridgeInputs();
+      recalculate();
+    });
+  }
+
+  if (els.bridgeTableBody) {
+    els.bridgeTableBody.addEventListener("click", (e) => {
+      const delBtn = e.target.closest("[data-bridge-del]");
+      if (!delBtn) return;
+      const i = Number(delBtn.dataset.bridgeDel);
+      if (!Number.isFinite(i)) return;
+      syncBridgeStateFromTable(); // Capture all current inputs first
+      state.bridgeRows = state.bridgeRows.filter((_, idx) => idx !== i);
+      state.project.uploads.bridges = state.bridgeRows.length > 0;
+      state.project.verified = false;
+      updateWizardUI();
+      applyProjectGate();
+      renderBridgeInputs();
+      recalculate();
+    });
+  }
+
+  if (els.curveAddBtn) {
+    els.curveAddBtn.addEventListener("click", () => {
+      state.curveRows.push({
+        curve: `Curve-${state.curveRows.length + 1}`,
+        chainage: null,
+        radius: null,
+        length: null,
+      });
+      state.project.uploads.curves = true;
+      state.project.verified = false;
+      updateWizardUI();
+      applyProjectGate();
+      renderCurveInputs();
+    });
+  }
+
+  if (els.curveApplyBtn) {
+    els.curveApplyBtn.addEventListener("click", () => {
+      syncCurveStateFromTable();
+      state.project.uploads.curves = state.curveRows.length > 0;
+      state.project.verified = false;
+      updateWizardUI();
+      applyProjectGate();
+      renderCurveInputs();
+      recalculate();
+    });
+  }
+
+  if (els.curveTableBody) {
+    els.curveTableBody.addEventListener("click", (e) => {
+      const delBtn = e.target.closest("[data-curve-del]");
+      if (!delBtn) return;
+      const i = Number(delBtn.dataset.curveDel);
+      if (!Number.isFinite(i)) return;
+      state.curveRows = state.curveRows.filter((_, idx) => idx !== i);
+      state.project.uploads.curves = state.curveRows.length > 0;
+      state.project.verified = false;
+      updateWizardUI();
+      applyProjectGate();
+      renderCurveInputs();
+      recalculate();
+    });
+  }
+
+  if (els.loopAddBtn) {
+    els.loopAddBtn.addEventListener("click", () => {
+      state.loopPlatformRows.push({
+        station: `LP-${state.loopPlatformRows.length + 1}`,
+        csb: null,
+        tc: 0,
+        loopStartCh: null,
+        loopEndCh: null,
+        pfWidth: 0,
+        pfStartCh: null,
+        pfEndCh: null,
+        remarks: "",
+      });
+      state.project.uploads.loops = true;
+      state.project.verified = false;
+      updateWizardUI();
+      applyProjectGate();
+      renderLoopInputs();
+    });
+  }
+
+  if (els.loopApplyBtn) {
+    els.loopApplyBtn.addEventListener("click", () => {
+      syncLoopStateFromTable();
+      state.project.uploads.loops = state.loopPlatformRows.length > 0;
+      state.project.verified = false;
+      updateWizardUI();
+      applyProjectGate();
+      renderLoopInputs();
+      recalculate();
+    });
+  }
+
+  if (els.loopTableBody) {
+    els.loopTableBody.addEventListener("click", (e) => {
+      const delBtn = e.target.closest("[data-loop-del]");
+      if (!delBtn) return;
+      const i = Number(delBtn.dataset.loopDel);
+      if (!Number.isFinite(i)) return;
+      state.loopPlatformRows = state.loopPlatformRows.filter((_, idx) => idx !== i);
+      state.project.uploads.loops = state.loopPlatformRows.length > 0;
+      state.project.verified = false;
+      updateWizardUI();
+      applyProjectGate();
+      renderLoopInputs();
+      recalculate();
+    });
+  }
+
+  if (els.importInput) {
+    els.importInput.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        await importLevelsFile(file);
+      } catch (err) {
+        console.error("Level import error:", err);
+        alert(`Import failed: ${err?.message || "Unable to parse levels file."}`);
+      } finally {
+        e.target.value = "";
+      }
+    });
+  }
+
+  if (els.bridgeImportInput) {
+    els.bridgeImportInput.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        await importBridgeFile(file);
+      } catch (err) {
+        console.error("Bridge import error:", err);
+        alert(`Bridge import failed: ${err?.message || "Unable to parse bridge sheet."}`);
+      } finally {
+        e.target.value = "";
+      }
+    });
+  }
+
+  if (els.curveImportInput) {
+    els.curveImportInput.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        await importCurveFile(file);
+      } catch (err) {
+        console.error("Curve import error:", err);
+        alert(`Curve import failed: ${err?.message || "Unable to parse curve list."}`);
+      } finally {
+        e.target.value = "";
+      }
+    });
+  }
+
+  if (els.loopImportInput) {
+    els.loopImportInput.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        await importLoopFile(file);
+      } catch (err) {
+        console.error("Loop/platform import error:", err);
+        alert(`Loops/Platforms import failed: ${err?.message || "Unable to parse loop/platform list."}`);
+      } finally {
+        e.target.value = "";
+      }
+    });
+  }
+
+  if (els.projectImportInput) {
+    els.projectImportInput.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const name = String(file.name || "");
+        if (!/\.ew$/i.test(name)) {
+          throw new Error("Only .EW project files are allowed.");
+        }
+        const txt = await file.text();
+        const parsed = JSON.parse(txt);
+        loadProjectFromPayload(parsed, { fileHandle: null });
+      } catch (err) {
+        console.error("Project import error:", err);
+        alert(`Project import failed: ${err?.message || "Invalid .EW file."}`);
+      } finally {
+        e.target.value = "";
+      }
+    });
+  }
+
+  els.openSettingsBtn.addEventListener("click", () => {
+    buildSettingsInputs();
+    els.settingsModal.showModal();
+  });
+  els.closeSettingsBtn.addEventListener("click", () => els.settingsModal.close());
+
+  els.settingsForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    applySettingsFromForm();
+    els.settingsModal.close();
+  });
+
+  els.resetDefaultsBtn.addEventListener("click", () => {
+    state.settings = { ...state.defaultSettings };
+    buildSettingsInputs();
+  });
+
+  els.tableBody.addEventListener("click", (e) => {
+    const trigger = e.target.closest("[data-cross-index]");
+    if (!trigger) return;
+    const i = Number(trigger.dataset.crossIndex);
+    if (Number.isFinite(i)) drawCrossSection(state.calcRows[i]);
+  });
+
+  els.closeCrossBtn.addEventListener("click", () => els.crossSectionModal.close());
+  els.zoomInBtn.addEventListener("click", () => {
+    const rect = els.crossSvg.getBoundingClientRect();
+    zoomCrossAt(rect.left + (rect.width / 2), rect.top + (rect.height / 2), 0.86);
+  });
+  els.zoomOutBtn.addEventListener("click", () => {
+    const rect = els.crossSvg.getBoundingClientRect();
+    zoomCrossAt(rect.left + (rect.width / 2), rect.top + (rect.height / 2), 1.16);
+  });
+  els.zoomResetBtn.addEventListener("click", () => {
+    resetCrossView();
+  });
+}
+
+function saveState() {
+  state.meta = state.meta || {};
+  state.meta.lastSavedAt = new Date().toISOString();
+  const data = {
+    project: state.project,
+    meta: state.meta,
+    rawRows: state.rawRows,
+    bridgeRows: state.bridgeRows,
+    curveRows: state.curveRows,
+    loopPlatformRows: state.loopPlatformRows,
+    settings: state.settings,
+    snapshots: state.snapshots,
+    kmlData: state.kmlData,
+    stationPlans: state.stationPlans,
+  };
+  localStorage.setItem("earthsoft_saved_work", JSON.stringify(data));
+}
+
+function loadStoredState() {
+  const saved = localStorage.getItem("earthsoft_saved_work");
+  if (!saved) return;
+  try {
+    const data = JSON.parse(saved);
+    if (!data) return;
+    Object.assign(state, data);
+  } catch (e) {
+    console.error("Failed to load state:", e);
+  }
+}
+
+async function init() {
+  const visualLayerDefaults = {
+    // --- Core Earthwork Calculation Parameters ---
+    formationWidthFill: 7.85,         // Formation width for filling (meters)
+    blanketThickness: 0.3,            // Blanket layer thickness (meters)
+    preparedSubgradeThickness: 0.0,   // Prepared subgrade thickness (meters)
+    bermWidth: 3.0,                   // Berm width (meters)
+    cuttingWidth: 12.05,              // Formation width for cutting (meters)
+    sideSlopeFactor: 2.236,           // Side slope factor (1:2 slope = 2.236 hypotenuse factor)
+    // --- Visual Layer Thicknesses ---
+    sq3Thickness: 0.2,
+    sq2Thickness: 0.15,
+    aboveBallastThickness: 0.3,
+    sleeperThickness: 0.25,
+    railHeight: 0.18,
+    ballastCushionThickness: 0.35,
+    topLayerThickness: 0.5,
+    activeSqCategory: 3,
+  };
+  state.defaultSettings = { ...visualLayerDefaults };
+  state.seedDefaultSettings = { ...state.defaultSettings };
+
+  // Initialize defaults
+  state.meta = {};
+  state.settings = { ...state.defaultSettings };
+  state.rawRows = [];
+  state.seedRows = [];
+  state.seedMeta = {};
+  state.snapshots = [];
+
+  loadStoredState();
+  loadAuthState();
+  // Ensure settings always has all required keys (stored state may have stale/missing fields)
+  state.settings = { ...state.defaultSettings, ...(state.settings || {}) };
+  state.meta = state.meta || {};
+  state.project = {
+    active: Boolean(state.project?.active),
+    verified: Boolean(state.project?.verified),
+    name: String(state.project?.name || ""),
+    uploads: {
+      levels: Boolean(state.project?.uploads?.levels),
+      curves: Boolean(state.project?.uploads?.curves),
+      bridges: Boolean(state.project?.uploads?.bridges),
+      loops: Boolean(state.project?.uploads?.loops),
+      kml: Boolean(state.project?.uploads?.kml) || Boolean(state.kmlData),
+    },
+  };
+
+  bindEvents();
+  bindCrossCanvasInteraction();
+  setWorkPage("overview");
+  setResultTab("qty");
+  updateAuthUI();
+  updateWizardUI();
+  applyProjectGate();
+  recalculate();
+}
+
+init();
+
+window._isPdfExportCancelled = false;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const cancelBtn = document.getElementById('cancelPdfExportBtn');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      window._isPdfExportCancelled = true;
+      const loadingText = document.getElementById('aiLoadingText');
+      if (loadingText) loadingText.textContent = "Cancelling export safely... Please wait.";
+    });
+  }
+});
+
+function formatReportChainage(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "-";
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  const km = Math.floor(abs / 1000);
+  const m = Math.round(abs - (km * 1000));
+  return `${sign}${km}+${String(m).padStart(3, "0")}`;
+}
+
+function createReportPage(title, subtitle = "") {
+  const page = document.createElement("div");
+  page.style.padding = "34px 42px";
+  page.style.minHeight = "750px";
+  page.style.boxSizing = "border-box";
+  if (title) {
+    const head = document.createElement("div");
+    head.style.marginBottom = "24px";
+    head.innerHTML = `
+      <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:12px;">
+        <div>
+          <div style="font-size:11px; letter-spacing:0.18em; text-transform:uppercase; color:#2563eb; font-weight:800;">Earthsoft Engineering Report</div>
+          <h1 style="margin:8px 0 0; font-size:28px; letter-spacing:-0.03em; color:#0f172a;">${title}</h1>
+        </div>
+        <div style="text-align:right; font-size:11px; color:#64748b;">
+          <div>${state.project.name || "Untitled Project"}</div>
+          <div>${new Date().toLocaleDateString()}</div>
+        </div>
+      </div>
+      ${subtitle ? `<p style="margin:0; color:#475569; font-size:13px; line-height:1.5;">${subtitle}</p>` : ""}
+    `;
+    page.appendChild(head);
+  }
+  return page;
+}
+
+function createReportSection(title, contentHtml) {
+  const section = document.createElement("section");
+  section.style.marginBottom = "18px";
+  section.innerHTML = `
+    <div style="margin-bottom:10px; display:flex; align-items:center; gap:10px;">
+      <div style="width:22px; height:4px; border-radius:999px; background:#2563eb;"></div>
+      <h2 style="margin:0; font-size:15px; color:#0f172a; letter-spacing:0.01em;">${title}</h2>
+    </div>
+    ${contentHtml}
+  `;
+  return section;
+}
+
+function reportMetricCard(label, value, tone = "slate", sub = "") {
+  const toneMap = {
+    slate: { bg: "#f8fafc", border: "#e2e8f0", value: "#0f172a" },
+    blue: { bg: "#eff6ff", border: "#bfdbfe", value: "#1d4ed8" },
+    green: { bg: "#ecfdf5", border: "#a7f3d0", value: "#047857" },
+    red: { bg: "#fef2f2", border: "#fecaca", value: "#b91c1c" },
+    amber: { bg: "#fffbeb", border: "#fde68a", value: "#b45309" },
+  };
+  const palette = toneMap[tone] || toneMap.slate;
+  return `
+    <div style="padding:14px 16px; border-radius:14px; background:${palette.bg}; border:1px solid ${palette.border};">
+      <div style="font-size:10px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase; color:#64748b;">${label}</div>
+      <div style="margin-top:8px; font-size:22px; font-weight:800; color:${palette.value};">${value}</div>
+      ${sub ? `<div style="margin-top:4px; font-size:11px; color:#64748b;">${sub}</div>` : ""}
+    </div>
+  `;
+}
+
+function buildReportContext(rows) {
+  const first = rows[0] || {};
+  const last = rows[rows.length - 1] || {};
+  const fillTotal = rows.reduce((acc, row) => acc + safeNum(row.fillVol, 0), 0);
+  const cutTotal = rows.reduce((acc, row) => acc + safeNum(row.cutVol, 0), 0);
+  const totalLength = Math.max(safeNum(last.chainage) - safeNum(first.chainage), 0);
+  const groupedStations = getGroupedStations();
+  const reusablePct = parseLooseNumber(els.pctReusableSpoil?.value, 60);
+  const reusableSpoil = cutTotal * (safeNum(reusablePct, 60) / 100);
+  const balance = reusableSpoil - fillTotal;
+  const uploads = state.project?.uploads || {};
+  const alerts = [];
+  if (!uploads.kml) alerts.push("KML/KMZ alignment not attached");
+  if (!state.project?.verified) alerts.push("Project not verified");
+  if (!uploads.loops) alerts.push("Loops & Platforms not imported");
+  if (!uploads.bridges) alerts.push("Bridge deductions not imported");
+  if (!uploads.curves) alerts.push("Curve list not imported");
+  if (!Object.keys(state.stationPlans || {}).length) alerts.push("No station conceptual plans attached");
+  return {
+    first,
+    last,
+    fillTotal,
+    cutTotal,
+    totalLength,
+    groupedStations,
+    reusablePct,
+    reusableSpoil,
+    balance,
+    alerts,
+    validBridges: Array.isArray(state.bridgeRows) ? state.bridgeRows.length : 0,
+    validCurves: Array.isArray(state.curveRows) ? state.curveRows.length : 0,
+  };
+}
+
+async function generateProjectReport(options) {
+  window._isPdfExportCancelled = false;
+  if (typeof html2pdf === "undefined") {
+    alert("PDF library (html2pdf) failed to load. Please check your internet connection.");
+    return;
+  }
+
+  const loading = document.getElementById("aiLoadingOverlay");
+  const loadingText = document.getElementById("aiLoadingText");
+  const loadingHeader = document.getElementById("aiLoadingHeader");
+  const progressBarContainer = document.getElementById("aiProgressBarContainer");
+  const progressBar = document.getElementById("aiProgressBar");
+
+  if (loading) {
+    loading.classList.remove("hidden");
+    if (loadingHeader) loadingHeader.textContent = "System Processing...";
+    if (loadingText) loadingText.textContent = "Preparing project report PDF...";
+    if (progressBarContainer) progressBarContainer.style.display = "block";
+    if (progressBar) progressBar.style.width = "0%";
+  }
+
+  try {
+    const wrapper = document.createElement("div");
+    wrapper.id = "pdf-export-wrapper";
+    wrapper.style.position = "fixed";
+    wrapper.style.left = "-9999px";
+    wrapper.style.top = "0";
+    document.body.appendChild(wrapper);
+
+    const container = document.createElement("div");
+    container.id = "pdf-report-container";
+    container.style.width = "1122px";          // Standard landscape width
+    container.style.backgroundColor = "#ffffff";
+    container.style.color = "#000000";
+    container.style.fontFamily = "'Outfit', sans-serif";
+    container.style.padding = "0";
+
+    wrapper.appendChild(container);
+
+    const exportRowsLimit = options.rowLimit && options.rowLimit > 0 ? options.rowLimit : state.calcRows.length;
+    const exportCalcRows = state.calcRows.slice(0, exportRowsLimit);
+
+    if (exportCalcRows.length === 0) {
+      throw new Error("No data to export.");
+    }
+
+    if (progressBar) progressBar.style.width = "5%";
+
+    const cancelBtn = document.getElementById("cancelPdfExportBtn");
+    if (cancelBtn) cancelBtn.style.display = "block";
+
+    const reportCtx = buildReportContext(exportCalcRows);
+
+    // 1. Cover Page
+    const titlePage = document.createElement("div");
+    titlePage.style.padding = "72px 60px";
+    titlePage.style.height = "750px";
+    titlePage.style.boxSizing = "border-box";
+    titlePage.style.background = "linear-gradient(135deg, #eff6ff 0%, #ffffff 36%, #f8fafc 100%)";
+    titlePage.innerHTML = `
+      <div style="display:flex; flex-direction:column; justify-content:space-between; height:100%;">
+        <div>
+          <div style="display:inline-flex; align-items:center; gap:12px; padding:10px 16px; border-radius:999px; background:rgba(37,99,235,0.08); color:#1d4ed8; font-size:12px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase;">
+            Earthsoft Professional Export
+          </div>
+          <h1 style="margin:28px 0 8px; font-size:52px; line-height:1; letter-spacing:-0.05em; color:#0f172a;">Railway Earthwork Report</h1>
+          <p style="margin:0; font-size:22px; color:#334155; font-weight:600;">${state.project.name || "Untitled Project"}</p>
+          <p style="margin:18px 0 0; max-width:760px; color:#475569; font-size:15px; line-height:1.7;">
+            Executive engineering summary including project readiness, quantity balance, calculation sheets, roll diagrams, and cross-sectional detail drawings.
+          </p>
+        </div>
+        <div style="display:grid; grid-template-columns: 1.2fr 1fr; gap:28px; align-items:end;">
+          <div style="display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px;">
+            ${reportMetricCard("Chainage Range", `${formatReportChainage(reportCtx.first.chainage)} to ${formatReportChainage(reportCtx.last.chainage)}`, "blue")}
+            ${reportMetricCard("Total Length", `${r3(reportCtx.totalLength / 1000)} km`, "slate")}
+            ${reportMetricCard("Total Fill", formatVolume(reportCtx.fillTotal), "green")}
+            ${reportMetricCard("Total Cut", formatVolume(reportCtx.cutTotal), "red")}
+          </div>
+          <div style="padding:20px 22px; border-radius:22px; background:#0f172a; color:#e2e8f0;">
+            <div style="font-size:12px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase; color:#7dd3fc;">Project Snapshot</div>
+            <table style="width:100%; margin-top:12px; border-collapse:collapse; font-size:13px;">
+              <tr><td style="padding:8px 0; color:#94a3b8;">Generated</td><td style="padding:8px 0; text-align:right; font-weight:700;">${new Date().toLocaleString()}</td></tr>
+              <tr><td style="padding:8px 0; color:#94a3b8;">Verification</td><td style="padding:8px 0; text-align:right; font-weight:700;">${state.project?.verified ? "Verified" : "Draft"}</td></tr>
+              <tr><td style="padding:8px 0; color:#94a3b8;">Cross-Sections</td><td style="padding:8px 0; text-align:right; font-weight:700;">${exportCalcRows.length}</td></tr>
+              <tr><td style="padding:8px 0; color:#94a3b8;">Bridges / Curves</td><td style="padding:8px 0; text-align:right; font-weight:700;">${reportCtx.validBridges} / ${reportCtx.validCurves}</td></tr>
+              <tr><td style="padding:8px 0; color:#94a3b8;">Mapped Stations</td><td style="padding:8px 0; text-align:right; font-weight:700;">${reportCtx.groupedStations.length}</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+    container.appendChild(titlePage);
+
+    // 2. Executive Summary
+    const summaryPage = createReportPage(
+      "Executive Summary",
+      "This section presents project readiness, quantity balance, imported dataset coverage, and the most relevant field intelligence before the detailed engineering sheets."
+    );
+    summaryPage.appendChild(createReportSection("Quantity Balance", `
+      <div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:12px;">
+        ${reportMetricCard("Fill Volume", formatVolume(reportCtx.fillTotal), "green", "Total embankment requirement")}
+        ${reportMetricCard("Cut Volume", formatVolume(reportCtx.cutTotal), "red", "Total excavation generated")}
+        ${reportMetricCard("Reusable Spoil", formatVolume(reportCtx.reusableSpoil), "amber", `${safeNum(reportCtx.reusablePct, 60).toFixed(0)}% reuse assumption`)}
+        ${reportMetricCard("Net Balance", `${reportCtx.balance >= 0 ? "+" : ""}${formatCompactVolume(reportCtx.balance)} m³`, reportCtx.balance >= 0 ? "blue" : "red", reportCtx.balance >= 0 ? "Potential surplus" : "Potential borrow requirement")}
+      </div>
+    `));
+    summaryPage.appendChild(createReportSection("Project Readiness", `
+      <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:18px;">
+        <div style="border:1px solid #e2e8f0; border-radius:16px; overflow:hidden;">
+          <table style="width:100%; border-collapse:collapse; font-size:12px;">
+            <tbody>
+              ${[
+                ["Project Name", state.project.name || "Untitled Project"],
+                ["Verification Status", state.project?.verified ? "Verified" : "Draft / Pending verification"],
+                ["Levels Imported", state.project?.uploads?.levels ? "Yes" : "No"],
+                ["Bridge List Imported", state.project?.uploads?.bridges ? "Yes" : "No"],
+                ["Curve List Imported", state.project?.uploads?.curves ? "Yes" : "No"],
+                ["Loops & Platforms Imported", state.project?.uploads?.loops ? "Yes" : "No"],
+                ["KML/KMZ Alignment Imported", state.project?.uploads?.kml ? "Yes" : "No"],
+                ["Station Plans Attached", `${Object.keys(state.stationPlans || {}).length}`],
+              ].map(([label, value], idx) => `
+                <tr style="background:${idx % 2 ? "#f8fafc" : "#ffffff"};">
+                  <td style="padding:10px 12px; color:#475569; font-weight:600; width:48%;">${label}</td>
+                  <td style="padding:10px 12px; color:#0f172a; font-weight:700;">${value}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+        <div style="padding:16px; border-radius:16px; border:1px solid #e2e8f0; background:#f8fafc;">
+          <div style="font-size:11px; font-weight:800; letter-spacing:0.1em; text-transform:uppercase; color:#64748b; margin-bottom:10px;">Design Notes</div>
+          ${reportCtx.alerts.length
+            ? `<ul style="margin:0; padding-left:18px; color:#334155; font-size:12px; line-height:1.7;">${reportCtx.alerts.map((item) => `<li>${item}</li>`).join("")}</ul>`
+            : `<p style="margin:0; color:#334155; font-size:12px; line-height:1.7;">No major readiness issues detected. Imported datasets are sufficient for review and export.</p>`}
+        </div>
+      </div>
+    `));
+    const sharpestCurve = [...(state.curveRows || [])]
+      .filter((c) => safeNum(c.radius, NaN) > 0)
+      .sort((a, b) => safeNum(a.radius) - safeNum(b.radius))[0];
+    const firstBridge = [...(state.bridgeRows || [])]
+      .sort((a, b) => safeNum(a.startChainage) - safeNum(b.startChainage))[0];
+    const firstStation = reportCtx.groupedStations
+      .filter((s) => Number.isFinite(s.csb))
+      .sort((a, b) => safeNum(a.csb) - safeNum(b.csb))[0];
+    summaryPage.appendChild(createReportSection("Field Intelligence", `
+      <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px;">
+        ${reportMetricCard("First Bridge", firstBridge ? `${firstBridge.bridgeNo || "Bridge"} @ ${formatReportChainage(firstBridge.startChainage)}` : "Not available", "blue", firstBridge ? (firstBridge.bridgeType || "-") : "Bridge list missing")}
+        ${reportMetricCard("Sharpest Curve", sharpestCurve ? `${sharpestCurve.curve || "Curve"} • R=${r3(sharpestCurve.radius)} m` : "Not available", "amber", sharpestCurve ? formatReportChainage(sharpestCurve.chainage) : "Curve list missing")}
+        ${reportMetricCard("First Station", firstStation ? `${firstStation.station}` : "Not available", "slate", firstStation ? formatReportChainage(firstStation.csb) : "Loop/station data missing")}
+      </div>
+    `));
+    container.appendChild(summaryPage);
+
+    // 3. Calculation Sheet
+    if (options.calcSheet) {
+      if (loadingText) loadingText.textContent = "Exporting Calculation Sheet...";
+      // Standardize table selection
+      const originalHeader = document.querySelector(".table-panel thead, .test-table thead, table thead");
+
+      const CHUNK_SIZE = 35; // Maximum rows per PDF page
+      const totalRows = exportCalcRows.length;
+
+      const calcPagesCount = Math.ceil(totalRows / CHUNK_SIZE);
+
+      for (let i = 0; i < totalRows; i += CHUNK_SIZE) {
+        if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+
+        const currentPage = Math.floor(i / CHUNK_SIZE) + 1;
+        if (loadingText) loadingText.textContent = `Building Calculation Sheet: Page ${currentPage} of ${calcPagesCount}`;
+        if (progressBar) progressBar.style.width = `${5 + (currentPage / calcPagesCount) * 15}%`; // 5% -> 20% span
+
+        const chunkPage = document.createElement("div");
+        chunkPage.style.padding = "40px";
+        if (i === 0) {
+
+          let qtyRowsHtml = '';
+          const qtyRows = Array.from(document.querySelectorAll('#resultQtyBody tr'));
+          if (qtyRows.length) {
+            qtyRowsHtml = qtyRows.map(tr => {
+              const tds = Array.from(tr.querySelectorAll('td'));
+              return `<tr>${tds.map(td => `<td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">${td.textContent}</td>`).join('')}</tr>`;
+            }).join('');
+          } else {
+            qtyRowsHtml = `<tr><td colspan="5" style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">No calculations available</td></tr>`;
+          }
+
+          chunkPage.innerHTML = `
+            <div style="margin-bottom: 28px; padding:18px; border:1px solid #e2e8f0; border-radius:16px; background:#f8fafc;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:18px; margin-bottom:14px;">
+                <div>
+                  <div style="font-size:11px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase; color:#2563eb;">Calculation Summary</div>
+                  <h2 style="margin:6px 0 0; color:#0f172a; font-size:22px;">${state.project.name || "Untitled"}</h2>
+                  <p style="margin:8px 0 0; color:#475569; font-size:12px;">Calculated chainage from ${formatReportChainage(reportCtx.first.chainage)} to ${formatReportChainage(reportCtx.last.chainage)} across ${exportCalcRows.length} sections.</p>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(2, minmax(120px,1fr)); gap:10px; min-width:320px;">
+                  ${reportMetricCard("Fill", formatVolume(reportCtx.fillTotal), "green")}
+                  ${reportMetricCard("Cut", formatVolume(reportCtx.cutTotal), "red")}
+                  ${reportMetricCard("Bridges", `${reportCtx.validBridges}`, "blue")}
+                  ${reportMetricCard("Stations", `${reportCtx.groupedStations.length}`, "slate")}
+                </div>
+              </div>
+              <h3 style="color: #0f172a; margin-bottom: 10px; font-size: 14px;">Quantity Overview</h3>
+              <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 20px;">
+                <thead>
+                  <tr style="background: #e2e8f0;">
+                    <th style="border: 1px solid #cbd5e1; padding: 6px;">Range</th>
+                    <th style="border: 1px solid #cbd5e1; padding: 6px;">Prepared</th>
+                    <th style="border: 1px solid #cbd5e1; padding: 6px;">Blanket</th>
+                    <th style="border: 1px solid #cbd5e1; padding: 6px;">Fill (m³)</th>
+                    <th style="border: 1px solid #cbd5e1; padding: 6px;">Cut (m³)</th>
+                  </tr>
+                </thead>
+                <tbody>${qtyRowsHtml}</tbody>
+              </table>
+            </div>
+            <h2 style="margin-top: 0; color: #0f172a; border-bottom: 3px solid #0f172a; padding-bottom: 12px; margin-bottom: 30px;">Detailed Calculation Sheet</h2>
+          `;
+        } else {
+          chunkPage.innerHTML = `<h2 style="margin-top: 0; color: #0f172a; border-bottom: 3px solid #0f172a; padding-bottom: 12px; margin-bottom: 30px;">Detailed Calculation Sheet - Continued</h2>`;
+        }
+
+        const table = document.createElement("table");
+        table.style.width = "100%";
+        table.style.borderCollapse = "collapse";
+        table.style.fontSize = "10.5px";
+
+        if (originalHeader) {
+          const thead = originalHeader.cloneNode(true);
+          thead.style.backgroundColor = "#fff";
+          thead.querySelectorAll("th").forEach(th => {
+            th.style.border = "1px solid #000";
+            th.style.padding = "8px 4px";
+            th.style.color = "#000";
+            th.style.textAlign = "center";
+            th.style.fontSize = "10.5px";
+          });
+          table.appendChild(thead);
+        }
+
+        const tbody = document.createElement("tbody");
+        const rowsChunk = exportCalcRows.slice(i, i + CHUNK_SIZE);
+
+        rowsChunk.forEach((r, idx) => {
+          const tr = document.createElement("tr");
+          tr.style.backgroundColor = idx % 2 === 0 ? "#ffffff" : "#fdfdfd";
+
+          const structureNo = r.structureNo ? String(r.structureNo).replace(/\n/g, " ").trim() : "-";
+          const station = r.station ? String(r.station).replace(/\n/g, " ") : "-";
+          const bridgeRefs = (r.bridgeRefs && r.bridgeRefs.length) ? r.bridgeRefs.join(" | ") : "-";
+
+          const chainageLabel = (r.chainage < 0 ? "-" : "") + Math.floor(Math.abs(r.chainage) / 1000) + "+" + (Math.abs(r.chainage) % 1000).toFixed(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1").padStart(3, "0");
+
+          const cellsHtml = `
+              <td>${bridgeRefs}</td>
+              <td>${station}</td>
+              <td>${chainageLabel}</td>
+              <td>${r.diff ? r3(r.diff) : "—"}</td>
+              <td>${r3(r.groundLevel)}</td>
+              <td class="t-pro">${r3(r.proposedLevel)}</td>
+              <td>${r.loopTc ? r3(r.loopTc) : "—"}</td>
+              <td>${r.platformWidth ? r3(r.platformWidth) : "—"}</td>
+              <td>${r.bridgeDeductLen ? r3(r.bridgeDeductLen) : "—"}</td>
+              <td>${r.ewDiff ? r3(r.ewDiff) : "—"}</td>
+              <td>${r.rlDiff ? r3(r.rlDiff) : "—"}</td>
+              <td class="t-fill">${r.bank > 0.0001 ? r3(r.bank) : "—"}</td>
+              <td class="t-cut">${r.cut > 0.0001 ? r3(r.cut) : "—"}</td>
+              <td class="t-fill">${r.fillArea > 0.0001 ? r3(r.fillArea) : "—"}</td>
+              <td class="t-cut">${r.cutArea > 0.0001 ? r3(r.cutArea) : "—"}</td>
+              <td class="t-fill">${r.fillVol > 0.0001 ? r3(r.fillVol) : "—"}</td>
+              <td class="t-cut">${r.cutVol > 0.0001 ? r3(r.cutVol) : "—"}</td>
+           `;
+          tr.innerHTML = cellsHtml;
+
+          tr.querySelectorAll("td").forEach(td => {
+            td.style.border = "1px solid #000";
+            td.style.padding = "6px 4px";
+            td.style.textAlign = "center";
+            td.style.color = "#000";
+          });
+          tr.querySelectorAll(".t-fill").forEach(el => { el.style.color = "#000"; el.style.fontWeight = "600"; });
+          tr.querySelectorAll(".t-cut").forEach(el => { el.style.color = "#000"; el.style.fontWeight = "600"; });
+          tr.querySelectorAll(".t-pro").forEach(el => { el.style.color = "#000"; el.style.fontWeight = "600"; });
+          tbody.appendChild(tr);
+        });
+
+        table.appendChild(tbody);
+        chunkPage.appendChild(table);
+        container.appendChild(chunkPage);
+      }
+    }
+
+    if (progressBar) progressBar.style.width = "25%";
+
+    // 4. Roll Diagram
+    if (options.rollDiagram) {
+      if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+      if (loadingText) loadingText.textContent = "Exporting Roll Diagram...";
+
+      const originalRollCanvas = els.rollDiagramCanvas;
+      const originalSideCanvas = els.sideViewCanvas;
+      const originalRows = state.calcRows;
+
+      const CHUNK_LEN = 1000;
+      const minOverallCh = exportCalcRows[0].chainage;
+      const maxOverallCh = exportCalcRows[exportCalcRows.length - 1].chainage;
+
+      for (let chStart = minOverallCh; chStart <= maxOverallCh; chStart += CHUNK_LEN) {
+        if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+        const chunkRollRows = exportCalcRows.filter(r => r.chainage >= chStart && r.chainage <= chStart + CHUNK_LEN);
+        if (chunkRollRows.length < 2) continue;
+
+        const rollPage = document.createElement("div");
+        rollPage.style.padding = "20px 40px";
+        rollPage.innerHTML = `<h2 style="margin-top: 0; color: #000; margin-bottom: 10px; font-size: 16px;">L-Section Roll Diagram (Ch ${r3(chStart)}m to ${r3(chStart + CHUNK_LEN)}m)</h2>`;
+
+        const tempRollCanvas = document.createElement("canvas");
+        els.rollDiagramCanvas = tempRollCanvas;
+        state.calcRows = chunkRollRows;
+
+        window._printModeLight = true; // Use globally defined print flag for light mode render
+        renderRollDiagram();
+        if (tempRollCanvas.width > 0 && tempRollCanvas.height > 0) {
+          const img = document.createElement("img");
+          img.src = tempRollCanvas.toDataURL("image/png");
+          img.style.width = "100%";
+          img.style.border = "1px solid #e2e8f0";
+          img.style.borderRadius = "4px";
+          img.style.marginBottom = "20px";
+          img.style.filter = "invert(1) hue-rotate(180deg) contrast(1.1)"; // Force white background while preserving semantic colors (green/red) approximately
+          rollPage.appendChild(img);
+        }
+
+        rollPage.innerHTML += `<h2 style="margin-top: 20px; color: #000; margin-bottom: 10px; font-size: 16px;">Cross-Sectional Toe Width Diagram</h2>`;
+        const tempSideCanvas = document.createElement("canvas");
+        els.sideViewCanvas = tempSideCanvas;
+        renderSideView();
+        window._printModeLight = false;
+
+        if (tempSideCanvas.width > 0 && tempSideCanvas.height > 0) {
+          const sImg = document.createElement("img");
+          sImg.src = tempSideCanvas.toDataURL("image/png");
+          sImg.style.width = "100%";
+          sImg.style.border = "1px solid #e2e8f0";
+          sImg.style.borderRadius = "4px";
+          sImg.style.filter = "invert(1) hue-rotate(180deg) contrast(1.1)";
+          rollPage.appendChild(sImg);
+        }
+
+        container.appendChild(rollPage);
+      }
+
+      els.rollDiagramCanvas = originalRollCanvas;
+      els.sideViewCanvas = originalSideCanvas;
+      state.calcRows = originalRows;
+
+      if (progressBar) progressBar.style.width = "30%";
+    }
+
+    // 5. Cross Sections
+    if (options.crossSections) {
+      const csHeaderPage = document.createElement("div");
+      csHeaderPage.style.padding = "40px";
+      csHeaderPage.style.height = "750px";
+      csHeaderPage.innerHTML = `<h2 style="margin-top: 0; color: #0f172a; border-bottom: 3px solid #ef4444; padding-bottom: 12px; margin-bottom: 30px;">Cross-Sectional Detail Drawings</h2>`;
+      container.appendChild(csHeaderPage);
+
+      const itemsPerBatch = 2; // Exact number of items that fit well on one A4 page without breaking
+      let currentCsPage = document.createElement("div");
+      currentCsPage.style.padding = "20px";
+
+      for (let i = 0; i < exportCalcRows.length; i++) {
+        if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+
+        if (loadingText && i % 5 === 0) {
+          loadingText.textContent = `Building Cross-Sections: ${i} / ${exportCalcRows.length} (Limit: ${options.rowLimit ? options.rowLimit : 'All'})`;
+        }
+        if (progressBar && i % 5 === 0) {
+          progressBar.style.width = `${30 + ((i / exportCalcRows.length) * 20)}%`; // 30% -> 50% span
+        }
+
+        const row = exportCalcRows[i];
+        const sectionDiv = document.createElement("div");
+        sectionDiv.style.marginBottom = "50px";
+        sectionDiv.style.textAlign = "center";
+        sectionDiv.style.pageBreakInside = "avoid";
+
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("width", "1000"); // Fixed width for consistent scaling
+        svg.setAttribute("height", "576");
+        svg.setAttribute("viewBox", `0 0 ${CROSS_SVG_W} ${CROSS_SVG_H}`);
+
+        // Ensure defs are present for hatching/arrows
+        const defs = els.crossSvg.querySelector("defs");
+        if (defs) svg.appendChild(defs.cloneNode(true));
+
+        drawCrossSection(row, svg);
+
+        sectionDiv.innerHTML = `<h3 style="text-align: left; color: #1e293b; padding-left: 20px; border-left: 5px solid #3b82f6; margin-bottom: 15px;">Chainage: ${r3(row.chainage)} m - Type: ${row.type}</h3>`;
+        sectionDiv.appendChild(svg);
+        currentCsPage.appendChild(sectionDiv);
+
+        // Page break logic
+        if ((i + 1) % itemsPerBatch === 0 || i === exportCalcRows.length - 1) {
+          container.appendChild(currentCsPage);
+          if (i < exportCalcRows.length - 1) {
+            currentCsPage = document.createElement("div");
+            currentCsPage.style.padding = "20px";
+          }
+        }
+      }
+    }
+
+    if (loadingText) loadingText.textContent = "Finalizing PDF document. This may take a minute...";
+    if (progressBar) progressBar.style.width = "50%";
+
+    if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+
+    // Allow browser time to complete layout of generated DOM tables
+    container.offsetHeight;
+    await new Promise(r => setTimeout(r, 600));
+
+    // Calculate dynamic JS PDF workflow sequentially for scale without black pages
+    const pagesArray = Array.from(container.children);
+    if (!pagesArray.length) {
+      throw new Error("No pages generated to export.");
+    }
+
+    const opt = {
+      margin: [10, 10, 10, 10], // Slightly improved margin config
+      filename: `${state.project.name || "Earthsoft_Report"}_${new Date().toISOString().split('T')[0]}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, logging: false, letterRendering: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+      pagebreak: { mode: ['css', 'legacy'] }
+    };
+
+    let worker = html2pdf().set(opt).from(pagesArray[0]).toPdf();
+
+    // 50% -> 100% processing worker pipeline
+    for (let j = 1; j < pagesArray.length; j++) {
+      if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+      worker = worker.get('pdf').then(pdf => {
+        pdf.addPage();
+        if (loadingText) loadingText.textContent = `Rendering page ${j} of ${pagesArray.length}...`;
+        if (progressBar) {
+          const pct = 50 + ((j / pagesArray.length) * 50);
+          progressBar.style.width = `${pct}%`;
+        }
+      }).from(pagesArray[j]).toContainer().toCanvas().toPdf();
+    }
+
+    if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+    await worker.save();
+
+    if (progressBar) progressBar.style.width = "100%";
+    if (loadingText) loadingText.textContent = "Download complete!";
+    await new Promise(r => setTimeout(r, 800));
+
+  } catch (error) {
+    if (error.message === "Export cancelled by user.") {
+      console.log("PDF Export was cancelled by the user.");
+      // Display a temporary cancellation notification or silently fail out
+      if (loadingText) loadingText.textContent = "Export cancelled.";
+      return;
+    }
+    console.error("Report Generation Error:", error);
+    alert("An error occurred during report generation. This might happen if your project data is very large. Check the console for logs.");
+  } finally {
+    const wrapper = document.getElementById("pdf-export-wrapper");
+    if (wrapper) wrapper.remove();
+
+    const cancelBtn = document.getElementById("cancelPdfExportBtn");
+    if (cancelBtn) cancelBtn.style.display = "none";
+
+    if (loadingHeader) loadingHeader.textContent = "AI Processing..."; // Reset to original
+    if (progressBarContainer) progressBarContainer.style.display = "none";
+    if (loading) loading.classList.add("hidden");
+  }
+}
