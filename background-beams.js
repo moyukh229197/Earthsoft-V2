@@ -22,7 +22,7 @@ function createBackgroundBeams() {
   const width = 45;
   const height = 45;
   const numSquares = 40;
-  const maxOpacity = 0.15;
+  const maxOpacity = 0.02;
   const duration = 2.5;
   const repeatDelay = 0.5;
   const x = -1;
@@ -35,9 +35,9 @@ function createBackgroundBeams() {
   svg.style.inset = "0";
   svg.style.height = "100%";
   svg.style.width = "100%";
-  // Subtle grey stroke for grid lines
-  svg.style.fill = "rgba(156, 163, 175, 0.4)";
-  svg.style.stroke = "rgba(156, 163, 175, 0.4)";
+  // Keep the grid close to the page background so it doesn't distract.
+  svg.style.fill = "rgba(38, 48, 66, 0.06)";
+  svg.style.stroke = "rgba(38, 48, 66, 0.06)";
 
   const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
   const pattern = document.createElementNS("http://www.w3.org/2000/svg", "pattern");
@@ -52,6 +52,7 @@ function createBackgroundBeams() {
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
   path.setAttribute("d", `M.5 ${height}V.5H${width}`);
   path.setAttribute("fill", "none");
+  path.setAttribute("stroke", "rgba(38, 48, 66, 0.08)");
   path.setAttribute("stroke-dasharray", strokeDasharray.toString());
   pattern.appendChild(path);
   defs.appendChild(pattern);
@@ -89,9 +90,7 @@ function createBackgroundBeams() {
     sq.setAttribute("x", (pos[0] * width + 1).toString());
     sq.setAttribute("y", (pos[1] * height + 1).toString());
     sq.setAttribute("fill", "currentColor");
-    // In dark themes it will be white, in light maybe dark depending on body color
-    // We force white here for the cool "tech" effect against the dark background
-    sq.style.color = "rgba(255, 255, 255, 1)";
+    sq.style.color = "rgba(71, 85, 105, 0.14)";
     sq.setAttribute("stroke-width", "0");
     sq.style.opacity = "0";
 

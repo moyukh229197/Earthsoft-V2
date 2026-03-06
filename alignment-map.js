@@ -6,6 +6,8 @@
 let alignmentMap = null;
 let baseLayers = {};
 let mapItems = null; // We'll use a FeatureGroup for easy clearing
+let pendingStationPlanTarget = "";
+let pendingStationPlanFile = null;
 
 // Initialize UI and Event Listeners when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
@@ -14,6 +16,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const kmlImportInput = document.getElementById("kmlImportInput");
     const importStationPlanBtn = document.getElementById("importStationPlanBtn");
     const stationPlanImportInput = document.getElementById("stationPlanImportInput");
+    const stationPlanModal = document.getElementById("stationPlanModal");
+    const stationPlanStationSelect = document.getElementById("stationPlanStationSelect");
+    const confirmStationPlanModalBtn = document.getElementById("confirmStationPlanModalBtn");
+    const cancelStationPlanModalBtn = document.getElementById("cancelStationPlanModalBtn");
+    const closeStationPlanModalBtn = document.getElementById("closeStationPlanModalBtn");
     const clearMapBtn = document.getElementById("clearMapBtn");
     const mapTypeSelect = document.getElementById("mapTypeSelect");
 
@@ -24,6 +31,30 @@ document.addEventListener("DOMContentLoaded", () => {
     if (importStationPlanBtn && stationPlanImportInput) {
         importStationPlanBtn.addEventListener("click", () => stationPlanImportInput.click());
         stationPlanImportInput.addEventListener("change", handleStationPlanImport);
+    }
+    if (confirmStationPlanModalBtn && stationPlanStationSelect) {
+        confirmStationPlanModalBtn.addEventListener("click", () => {
+            const selectedStation = String(stationPlanStationSelect.value || "").trim();
+            if (!selectedStation) {
+                alert("Select a station first.");
+                return;
+            }
+            attachPendingStationPlan(selectedStation);
+        });
+    }
+    if (cancelStationPlanModalBtn) {
+        cancelStationPlanModalBtn.addEventListener("click", closeStationPlanDialog);
+    }
+    if (closeStationPlanModalBtn) {
+        closeStationPlanModalBtn.addEventListener("click", closeStationPlanDialog);
+    }
+    if (stationPlanModal) {
+        stationPlanModal.addEventListener("close", () => {
+            if (stationPlanModal.returnValue !== "confirmed") {
+                clearPendingStationPlan();
+            }
+            stationPlanModal.returnValue = "";
+        });
     }
     if (clearMapBtn) {
         clearMapBtn.addEventListener("click", clearMapData);
@@ -63,6 +94,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 }, 300);
             }
         });
+    });
+
+    document.addEventListener("click", (event) => {
+        const uploadBtn = event.target.closest("[data-upload-station-plan]");
+        if (!uploadBtn || !stationPlanImportInput) return;
+        pendingStationPlanTarget = String(uploadBtn.dataset.uploadStationPlan || "").trim();
+        if (!pendingStationPlanTarget) return;
+        stationPlanImportInput.click();
     });
 });
 
@@ -109,7 +148,12 @@ function clearMapData() {
 
     state.kmlData = null;
     state.stationPlans = {};
+    if (state?.project?.uploads) {
+        state.project.uploads.kml = false;
+    }
     saveState();
+    if (typeof updateWizardUI === "function") updateWizardUI();
+    if (typeof applyProjectGate === "function") applyProjectGate();
 
     if (mapItems) mapItems.clearLayers();
 
@@ -133,13 +177,7 @@ function handleKmlImport(e) {
             try {
                 const jszip = new JSZip();
                 const zip = await jszip.loadAsync(evt.target.result);
-
-                let kmlFile = null;
-                zip.forEach((relativePath, zipEntry) => {
-                    if (relativePath.toLowerCase().endsWith('.kml')) {
-                        kmlFile = zipEntry;
-                    }
-                });
+                const kmlFile = pickPreferredKmzKmlEntry(zip);
 
                 if (!kmlFile) {
                     alert("Could not find a .kml file inside the KMZ archive.");
@@ -170,60 +208,13 @@ function handleKmlImport(e) {
 const _safeNum = (v, fallback = 0) => (typeof safeNum === 'function' ? safeNum(v, fallback) : (isNaN(parseFloat(v)) ? fallback : parseFloat(v)));
 
 function parseKMLData(kmlText) {
-    console.log("Parsing KML data (Regex Mode)...");
+    console.log("Parsing KML data...");
 
-    const coordRegex = /<coordinates>([\s\S]*?)<\/coordinates>/g;
-    const points_extracted = [];
-    let match;
-
-    while ((match = coordRegex.exec(kmlText)) !== null) {
-        const text = match[1].trim();
-        const tuples = text.split(/[\s\n\r]+/);
-        tuples.forEach(tuple => {
-            const parts = tuple.split(',').map(s => s.trim());
-            if (parts.length >= 2) {
-                const lng = parseFloat(parts[0]);
-                const lat = parseFloat(parts[1]);
-                if (!isNaN(lat) && !isNaN(lng)) {
-                    points_extracted.push({ lat, lng });
-                }
-            }
-        });
-    }
-
-    if (points_extracted.length === 0) {
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(kmlText, "text/xml");
-        const coordsNodes = xmlDoc.getElementsByTagName("coordinates");
-        for (let i = 0; i < coordsNodes.length; i++) {
-            const text = coordsNodes[i].textContent || "";
-            const tuples = text.trim().split(/[\s\n\r]+/);
-            tuples.forEach(tuple => {
-                const parts = tuple.split(',').map(s => s.trim());
-                if (parts.length >= 2) {
-                    const lng = parseFloat(parts[0]);
-                    const lat = parseFloat(parts[1]);
-                    if (!isNaN(lat) && !isNaN(lng)) points_extracted.push({ lat, lng });
-                }
-            });
-        }
-    }
-
-    if (points_extracted.length === 0) {
+    const points = extractAlignmentPointsFromKml(kmlText);
+    if (!points.length) {
         alert("Could not parse coordinates from the KML file.");
         return;
     }
-
-    const points = [];
-    points_extracted.forEach((p, idx) => {
-        if (idx === 0) points.push(p);
-        else {
-            const last = points[points.length - 1];
-            if (Math.abs(last.lat - p.lat) > 1e-9 || Math.abs(last.lng - p.lng) > 1e-9) {
-                points.push(p);
-            }
-        }
-    });
 
     let cumDist = 0;
     points[0].ch = 0;
@@ -233,7 +224,13 @@ function parseKMLData(kmlText) {
     }
 
     state.kmlData = { points, totalDistance: cumDist };
+    if (state?.project?.uploads) {
+        state.project.uploads.kml = true;
+        state.project.verified = false;
+    }
     saveState();
+    if (typeof updateWizardUI === "function") updateWizardUI();
+    if (typeof applyProjectGate === "function") applyProjectGate();
 
     alert(`Successfully imported ${points.length} coordinates and mapped ${cumDist.toFixed(0)}m of alignment.`);
 
@@ -243,6 +240,214 @@ function parseKMLData(kmlText) {
     }
 }
 
+function pickPreferredKmzKmlEntry(zip) {
+    const candidates = [];
+    zip.forEach((relativePath, zipEntry) => {
+        if (!zipEntry.dir && relativePath.toLowerCase().endsWith(".kml")) {
+            candidates.push(zipEntry);
+        }
+    });
+
+    if (!candidates.length) return null;
+
+    candidates.sort((a, b) => {
+        const aPath = a.name.toLowerCase();
+        const bPath = b.name.toLowerCase();
+        const aScore = (aPath.endsWith("/doc.kml") || aPath === "doc.kml" ? 100 : 0) - aPath.split("/").length;
+        const bScore = (bPath.endsWith("/doc.kml") || bPath === "doc.kml" ? 100 : 0) - bPath.split("/").length;
+        return bScore - aScore;
+    });
+
+    return candidates[0];
+}
+
+function extractAlignmentPointsFromKml(kmlText) {
+    const xmlPaths = extractPathsFromXmlKml(kmlText);
+    const mergedXmlPath = buildAlignmentPath(xmlPaths);
+    if (mergedXmlPath.length) {
+        return dedupeConsecutivePoints(mergedXmlPath);
+    }
+
+    const regexPaths = extractPathsFromRawKml(kmlText);
+    const mergedRegexPath = buildAlignmentPath(regexPaths);
+    return dedupeConsecutivePoints(mergedRegexPath);
+}
+
+function extractPathsFromXmlKml(kmlText) {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(kmlText, "application/xml");
+    if (xmlDoc.querySelector("parsererror")) return [];
+
+    const paths = [];
+    const lineStrings = Array.from(xmlDoc.getElementsByTagName("LineString"));
+    lineStrings.forEach((lineString) => {
+        const coordsNode = lineString.getElementsByTagName("coordinates")[0];
+        const points = parseCoordinateText(coordsNode?.textContent || "");
+        if (points.length > 1) paths.push(points);
+    });
+
+    const trackNodes = Array.from(xmlDoc.getElementsByTagNameNS("*", "Track"));
+    trackNodes.forEach((trackNode) => {
+        const coordNodes = Array.from(trackNode.getElementsByTagNameNS("*", "coord"));
+        const points = coordNodes
+            .map((node) => parseGxCoordinate(node.textContent || ""))
+            .filter(Boolean);
+        if (points.length > 1) paths.push(points);
+    });
+
+    if (!paths.length) {
+        const linearRings = Array.from(xmlDoc.getElementsByTagName("LinearRing"));
+        linearRings.forEach((ring) => {
+            const coordsNode = ring.getElementsByTagName("coordinates")[0];
+            const points = parseCoordinateText(coordsNode?.textContent || "");
+            if (points.length > 1) paths.push(points);
+        });
+    }
+
+    return paths;
+}
+
+function extractPathsFromRawKml(kmlText) {
+    const paths = [];
+    const coordRegex = /<coordinates>([\s\S]*?)<\/coordinates>/gi;
+    let match;
+    while ((match = coordRegex.exec(kmlText)) !== null) {
+        const points = parseCoordinateText(match[1] || "");
+        if (points.length > 1) paths.push(points);
+    }
+
+    if (!paths.length) {
+        const gxCoordRegex = /<gx:coord>([\s\S]*?)<\/gx:coord>/gi;
+        const trackPoints = [];
+        while ((match = gxCoordRegex.exec(kmlText)) !== null) {
+            const point = parseGxCoordinate(match[1] || "");
+            if (point) trackPoints.push(point);
+        }
+        if (trackPoints.length > 1) paths.push(trackPoints);
+    }
+
+    return paths;
+}
+
+function parseCoordinateText(text) {
+    return String(text || "")
+        .trim()
+        .split(/[\s\r\n]+/)
+        .map(parseStandardCoordinate)
+        .filter(Boolean);
+}
+
+function parseStandardCoordinate(tuple) {
+    const parts = String(tuple || "").split(",").map((s) => s.trim());
+    if (parts.length < 2) return null;
+    const lng = parseFloat(parts[0]);
+    const lat = parseFloat(parts[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { lat, lng };
+}
+
+function parseGxCoordinate(tuple) {
+    const parts = String(tuple || "").trim().split(/\s+/);
+    if (parts.length < 2) return null;
+    const lng = parseFloat(parts[0]);
+    const lat = parseFloat(parts[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { lat, lng };
+}
+
+function dedupeConsecutivePoints(points) {
+    return (points || []).reduce((acc, point) => {
+        const last = acc[acc.length - 1];
+        if (!last || Math.abs(last.lat - point.lat) > 1e-9 || Math.abs(last.lng - point.lng) > 1e-9) {
+            acc.push({ lat: point.lat, lng: point.lng });
+        }
+        return acc;
+    }, []);
+}
+
+function buildAlignmentPath(paths) {
+    const validPaths = (paths || []).filter((path) => Array.isArray(path) && path.length > 1);
+    if (!validPaths.length) return [];
+
+    const mergedPaths = mergeConnectedPaths(validPaths);
+    let bestPath = mergedPaths[0];
+    let bestDistance = getPathDistance(bestPath);
+
+    for (let i = 1; i < mergedPaths.length; i++) {
+        const path = mergedPaths[i];
+        const distance = getPathDistance(path);
+        if (
+            distance > bestDistance + 1 ||
+            (Math.abs(distance - bestDistance) <= 1 && path.length > bestPath.length)
+        ) {
+            bestPath = path;
+            bestDistance = distance;
+        }
+    }
+
+    return bestPath;
+}
+
+function mergeConnectedPaths(paths) {
+    const unused = paths
+        .map((path) => dedupeConsecutivePoints(path))
+        .filter((path) => path.length > 1);
+    const merged = [];
+
+    while (unused.length) {
+        let current = unused.shift();
+        let changed = true;
+
+        while (changed) {
+            changed = false;
+
+            for (let i = 0; i < unused.length; i++) {
+                const candidate = unused[i];
+                const joined = tryJoinPaths(current, candidate);
+                if (joined) {
+                    current = joined;
+                    unused.splice(i, 1);
+                    changed = true;
+                    break;
+                }
+            }
+        }
+
+        merged.push(current);
+    }
+
+    return merged;
+}
+
+function tryJoinPaths(a, b) {
+    if (!a?.length || !b?.length) return null;
+
+    const aStart = a[0];
+    const aEnd = a[a.length - 1];
+    const bStart = b[0];
+    const bEnd = b[b.length - 1];
+
+    if (pointsMatch(aEnd, bStart)) return a.concat(b.slice(1));
+    if (pointsMatch(aEnd, bEnd)) return a.concat(b.slice(0, -1).reverse());
+    if (pointsMatch(aStart, bEnd)) return b.concat(a.slice(1));
+    if (pointsMatch(aStart, bStart)) return b.slice(1).reverse().concat(a);
+
+    return null;
+}
+
+function pointsMatch(p1, p2, tolerance = 1e-6) {
+    if (!p1 || !p2) return false;
+    return Math.abs(p1.lat - p2.lat) <= tolerance && Math.abs(p1.lng - p2.lng) <= tolerance;
+}
+
+function getPathDistance(points) {
+    let total = 0;
+    for (let i = 1; i < points.length; i++) {
+        total += getDistanceInMeters(points[i - 1], points[i]);
+    }
+    return total;
+}
+
 // ── Station Plan Import ────────────────────────────────────────────────────
 
 function handleStationPlanImport(e) {
@@ -250,21 +455,21 @@ function handleStationPlanImport(e) {
     if (!file) return;
 
     if (!state.loopPlatformRows || state.loopPlatformRows.length === 0) {
+        e.target.value = "";
         alert("Please add Loops & Station data first.");
         return;
     }
 
-    const stationName = prompt("Enter Station Name to attach this plan to:\n" + state.loopPlatformRows.map(r => r.desc).join('\n'));
-    if (!stationName) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-        state.stationPlans[stationName.toLowerCase().trim()] = evt.target.result;
-        saveState();
-        if (state.kmlData) drawAlignmentMap();
+    const stationChoices = [...new Set(state.loopPlatformRows.map((r) => String(r.station || "").trim()).filter(Boolean))];
+    if (!stationChoices.length) {
         e.target.value = "";
-    };
-    reader.readAsDataURL(file);
+        alert("No station names are available yet. Import loop/station rows first.");
+        return;
+    }
+
+    pendingStationPlanFile = file;
+    e.target.value = "";
+    openStationPlanDialog(stationChoices);
 }
 
 // ── Map Rendering Core ───────────────────────────────────────────────────
@@ -275,6 +480,7 @@ function drawAlignmentMap() {
     if (!state.kmlData || !state.kmlData.points || !state.kmlData.points.length) {
         document.getElementById("alignmentMapContainer").style.display = "none";
         document.getElementById("alignmentMapEmpty").style.display = "flex";
+        updateMapLegend(0);
         return;
     }
 
@@ -314,7 +520,7 @@ function drawAlignmentMap() {
             if (p0 && p1) {
                 L.polyline([[p0.lat, p0.lng], [p1.lat, p1.lng]], {
                     color: isFill ? '#22c55e' : '#f43f5e',
-                    weight: 6,
+                    weight: 7,
                     opacity: 0.9
                 }).addTo(mapItems);
             }
@@ -324,9 +530,9 @@ function drawAlignmentMap() {
     // Helper to add titled markers
     const addMarker = (midCh, title, content, color) => {
         const pt = getLatLngFromChainage(midCh - startChOffset, points);
-        if (!pt) return;
+        if (!pt) return null;
 
-        L.circleMarker([pt.lat, pt.lng], {
+        return L.circleMarker([pt.lat, pt.lng], {
             radius: 8,
             fillColor: color,
             color: '#ffffff',
@@ -339,9 +545,12 @@ function drawAlignmentMap() {
     // Bridges
     state.bridgeRows.forEach(br => {
         const mid = (_safeNum(br.startChainage) + _safeNum(br.endChainage)) / 2;
+        const spanConfig = `${_safeNum(br.bridgeSpans, 1)} x ${br.bridgeSize || br.bridgeSpanLength || "-"}`;
         const content = `
             <div class="map-popup-title">Bridge ${br.bridgeNo}</div>
+            <div class="map-popup-row"><span class="label">Category:</span> <span class="value">${br.bridgeCategory || "-"}</span></div>
             <div class="map-popup-row"><span class="label">Type:</span> <span class="value">${br.bridgeType}</span></div>
+            <div class="map-popup-row"><span class="label">Span Config:</span> <span class="value">${spanConfig}</span></div>
             <div class="map-popup-row"><span class="label">Start:</span> <span class="value">${_safeNum(br.startChainage).toFixed(3)}</span></div>
             <div class="map-popup-row"><span class="label">End:</span> <span class="value">${_safeNum(br.endChainage).toFixed(3)}</span></div>
         `;
@@ -349,20 +558,61 @@ function drawAlignmentMap() {
     });
 
     // Curves
-    state.curveRows.forEach(cr => {
-        const mid = (_safeNum(cr.startChainage) + _safeNum(cr.endChainage)) / 2;
+    state.curveRows.forEach((cr, index) => {
+        const length = _safeNum(cr.length);
+        const startCh = _safeNum(cr.chainage);
+        const endCh = length > 0 ? startCh + length : startCh;
+        const mid = length > 0 ? startCh + (length / 2) : startCh;
+        if (!Number.isFinite(mid)) return;
+        const direction = cr.direction || (((index % 2) === 0) ? "Left" : "Right");
         const content = `
-            <div class="map-popup-title">Curve</div>
-            <div class="map-popup-row"><span class="label">Radius:</span> <span class="value">${cr.radius} m</span></div>
+            <div class="map-popup-title">${cr.curve || "Curve"}</div>
+            <div class="map-popup-row"><span class="label">Chainage:</span> <span class="value">${startCh.toFixed(3)}</span></div>
+            <div class="map-popup-row"><span class="label">Length:</span> <span class="value">${length.toFixed(3)} m</span></div>
+            <div class="map-popup-row"><span class="label">Radius:</span> <span class="value">${_safeNum(cr.radius).toFixed(3)} m</span></div>
+            <div class="map-popup-row"><span class="label">Direction:</span> <span class="value">${direction}</span></div>
         `;
-        addMarker(mid, "Curve", content, "#eab308");
+        addMarker(mid, cr.curve || "Curve", content, "#eab308");
     });
 
     // Stations
-    state.loopPlatformRows.forEach(lp => {
-        const mid = (_safeNum(lp.startChainage) + _safeNum(lp.endChainage)) / 2;
+    const stationGroups = new Map();
+    state.loopPlatformRows.forEach((lp) => {
+        const stationName = String(lp.station || "").trim() || "Station";
+        const key = stationName.toLowerCase();
+        const group = stationGroups.get(key) || {
+            station: stationName,
+            csb: Number.isFinite(_safeNum(lp.csb, NaN)) ? _safeNum(lp.csb, NaN) : NaN,
+            tc: 0,
+            pfWidth: 0,
+            loopStartCh: Number.POSITIVE_INFINITY,
+            loopEndCh: Number.NEGATIVE_INFINITY,
+            remarks: [],
+        };
+
+        const loopStartCh = _safeNum(lp.loopStartCh, NaN);
+        const loopEndCh = _safeNum(lp.loopEndCh, NaN);
+        if (Number.isFinite(loopStartCh)) group.loopStartCh = Math.min(group.loopStartCh, loopStartCh);
+        if (Number.isFinite(loopEndCh)) group.loopEndCh = Math.max(group.loopEndCh, loopEndCh);
+        group.tc = Math.max(group.tc, _safeNum(lp.tc, 0));
+        group.pfWidth = Math.max(group.pfWidth, _safeNum(lp.pfWidth, 0));
+        if (lp.remarks) group.remarks.push(String(lp.remarks).trim());
+
+        stationGroups.set(key, group);
+    });
+
+    stationGroups.forEach((station) => {
+        const csbCh = Number.isFinite(station.csb) ? station.csb : NaN;
+        const mid = Number.isFinite(csbCh)
+            ? csbCh
+            : (
+                Number.isFinite(station.loopStartCh) && Number.isFinite(station.loopEndCh)
+                    ? (station.loopStartCh + station.loopEndCh) / 2
+                    : NaN
+            );
+        if (!Number.isFinite(mid)) return;
         let planHtml = '';
-        const planKey = String(lp.desc).toLowerCase().trim();
+        const planKey = station.station.toLowerCase().trim();
         const plan = state.stationPlans[planKey];
 
         if (plan) {
@@ -374,13 +624,35 @@ function drawAlignmentMap() {
         }
 
         const content = `
-            <div class="map-popup-title">${lp.desc}</div>
-            <div class="map-popup-row"><span class="label">Start CH:</span> <span class="value">${_safeNum(lp.startChainage).toFixed(3)}</span></div>
-            <div class="map-popup-row"><span class="label">End CH:</span> <span class="value">${_safeNum(lp.endChainage).toFixed(3)}</span></div>
             ${planHtml}
+            <div class="map-popup-title">${station.station}</div>
+            <div class="map-popup-row"><span class="label">CSB:</span> <span class="value">${Number.isFinite(csbCh) ? csbCh.toFixed(3) : "-"}</span></div>
+            <div class="map-popup-row"><span class="label">Loop CH:</span> <span class="value">${Number.isFinite(station.loopStartCh) ? station.loopStartCh.toFixed(3) : "-"} to ${Number.isFinite(station.loopEndCh) ? station.loopEndCh.toFixed(3) : "-"}</span></div>
+            <div class="map-popup-row"><span class="label">Track Centre:</span> <span class="value">${_safeNum(station.tc).toFixed(3)} m</span></div>
+            <div class="map-popup-row"><span class="label">Platform Width:</span> <span class="value">${_safeNum(station.pfWidth).toFixed(3)} m</span></div>
+            <div class="map-popup-row"><span class="label">Remarks:</span> <span class="value">${station.remarks.length ? station.remarks.join("; ") : "-"}</span></div>
+            <button type="button" class="station-plan-action" data-upload-station-plan="${escapeHtmlAttr(station.station)}">
+                ${plan ? "Update Conceptual Plan" : "Upload Conceptual Plan"}
+            </button>
         `;
-        addMarker(mid, lp.desc, content, "#06b6d4");
+        const stationMarker = addMarker(mid, station.station, content, "#06b6d4");
+        const pt = getLatLngFromChainage(mid - startChOffset, points);
+        if (pt) {
+            L.marker([pt.lat, pt.lng], {
+                interactive: true,
+                icon: L.divIcon({
+                    className: "station-label-wrap",
+                    html: `<button type="button" class="station-label-chip">${escapeHtml(station.station)}</button>`,
+                    iconSize: null,
+                }),
+            }).bindPopup(content, { maxWidth: 350 }).addTo(mapItems);
+        }
+        if (stationMarker) {
+            stationMarker.bringToFront();
+        }
     });
+
+    updateMapLegend(Object.keys(state.stationPlans || {}).length);
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────
@@ -411,4 +683,101 @@ function getLatLngFromChainage(targetCh, points) {
     if (!p1 || !p2) return null;
     const ratio = (targetCh - p1.ch) / (p2.ch - p1.ch);
     return { lat: p1.lat + ratio * (p2.lat - p1.lat), lng: p1.lng + ratio * (p2.lng - p1.lng) };
+}
+
+function escapeHtml(value) {
+    return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function escapeHtmlAttr(value) {
+    return escapeHtml(value);
+}
+
+function updateMapLegend(stationPlanCount) {
+    const noteEl = document.getElementById("alignmentMapLegendNote");
+    if (!noteEl) return;
+    if (stationPlanCount > 0) {
+        noteEl.textContent = `${stationPlanCount} station plan${stationPlanCount === 1 ? "" : "s"} mapped. Station labels are shown once per station at CSB.`;
+    } else {
+        noteEl.textContent = "Station locations are shown after KML import. Station labels are shown once per station at CSB.";
+    }
+}
+
+function openStationPlanDialog(stationChoices) {
+    const modal = document.getElementById("stationPlanModal");
+    const select = document.getElementById("stationPlanStationSelect");
+    const text = document.getElementById("stationPlanModalText");
+    if (!modal || !select) {
+        const fallbackStation = pendingStationPlanTarget || stationChoices[0] || "";
+        if (fallbackStation) attachPendingStationPlan(fallbackStation);
+        return;
+    }
+
+    select.innerHTML = stationChoices.map((station) => {
+        const safeLabel = escapeHtml(station);
+        const selected = pendingStationPlanTarget && station.toLowerCase().trim() === pendingStationPlanTarget.toLowerCase().trim()
+            ? " selected"
+            : "";
+        return `<option value="${safeLabel}"${selected}>${safeLabel}</option>`;
+    }).join("");
+
+    if (text) {
+        text.textContent = pendingStationPlanFile
+            ? `Selected file: ${pendingStationPlanFile.name}. Choose the station this conceptual plan belongs to.`
+            : "Select the station this conceptual plan belongs to.";
+    }
+
+    modal.showModal();
+}
+
+function closeStationPlanDialog() {
+    const modal = document.getElementById("stationPlanModal");
+    if (!modal) {
+        clearPendingStationPlan();
+        return;
+    }
+    modal.close();
+}
+
+function clearPendingStationPlan() {
+    pendingStationPlanTarget = "";
+    pendingStationPlanFile = null;
+}
+
+function attachPendingStationPlan(stationName) {
+    const file = pendingStationPlanFile;
+    if (!file) {
+        alert("No station plan file is pending.");
+        closeStationPlanDialog();
+        return;
+    }
+
+    const normalizedStationName = String(stationName || "").toLowerCase().trim();
+    const stationChoices = [...new Set(state.loopPlatformRows.map((r) => String(r.station || "").trim()).filter(Boolean))];
+    const matchedStation = stationChoices.find((name) => name.toLowerCase().trim() === normalizedStationName);
+    if (!matchedStation) {
+        alert("That station name does not match the imported loop/station list.");
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+        state.stationPlans[normalizedStationName] = evt.target.result;
+        saveState();
+        if (state.kmlData) drawAlignmentMap();
+
+        const modal = document.getElementById("stationPlanModal");
+        if (modal) {
+            modal.returnValue = "confirmed";
+            modal.close();
+        }
+        alert(`Attached station plan to ${matchedStation}. Click its station label or cyan marker on the map to view it.`);
+        clearPendingStationPlan();
+    };
+    reader.readAsDataURL(file);
 }

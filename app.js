@@ -35,6 +35,7 @@ const state = {
       curves: false,
       bridges: false,
       loops: false,
+      kml: false,
     },
   },
   activeWorkPage: "overview",
@@ -44,6 +45,7 @@ const state = {
   crossPan: { active: false, lastX: 0, lastY: 0 },
   kmlData: null,
   stationPlans: {},
+  projectFileHandle: null,
 };
 
 const els = {
@@ -76,6 +78,7 @@ const els = {
   wizardTickCurves: document.getElementById("wizardTickCurves"),
   wizardTickBridges: document.getElementById("wizardTickBridges"),
   wizardTickLoops: document.getElementById("wizardTickLoops"),
+  wizardTickKml: document.getElementById("wizardTickKml"),
   wizardSaveBtn: document.getElementById("wizardSaveBtn"),
   wizardCalculateBtn: document.getElementById("wizardCalculateBtn"),
   wizardUploadButtons: Array.from(document.querySelectorAll("[data-wizard-upload]")),
@@ -153,6 +156,9 @@ const els = {
   layerTbody: document.getElementById("layerTbody"),
   dimTbody: document.getElementById("dimTbody"),
   actualFilling: document.getElementById("actualFilling"),
+  reusableFilling: document.getElementById("reusableFilling"),
+  fillReusableHatch: document.getElementById("fillReusableHatch"),
+  fillReusablePctLabel: document.getElementById("fillReusablePctLabel"),
   actualCutting: document.getElementById("actualCutting"),
   crossMeta: document.getElementById("crossMeta"),
   graphModal: document.getElementById("graphModal"),
@@ -168,6 +174,65 @@ const els = {
   confirmExportBtn: document.getElementById("confirmExportBtn"),
   cancelExportBtn: document.getElementById("cancelExportBtn"),
 };
+
+function formatDashboardChainage(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "-";
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  const km = Math.floor(abs / 1000);
+  const m = Math.round(abs - (km * 1000));
+  return `${sign}${km}+${String(m).padStart(3, "0")}`;
+}
+
+function formatCompactVolume(v) {
+  return Number.isFinite(v)
+    ? Number(v).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+    : "0";
+}
+
+function getMedianInterval(rows) {
+  const diffs = [];
+  for (let i = 1; i < rows.length; i += 1) {
+    const diff = safeNum(rows[i].chainage) - safeNum(rows[i - 1].chainage);
+    if (diff > 0) diffs.push(diff);
+  }
+  if (!diffs.length) return NaN;
+  diffs.sort((a, b) => a - b);
+  const mid = Math.floor(diffs.length / 2);
+  return diffs.length % 2 ? diffs[mid] : (diffs[mid - 1] + diffs[mid]) / 2;
+}
+
+function getGroupedStations(rows = state.loopPlatformRows || []) {
+  const groups = new Map();
+  rows.forEach((lp) => {
+    const stationName = String(lp.station || "").trim();
+    if (!stationName) return;
+    const key = stationName.toLowerCase();
+    const existing = groups.get(key) || {
+      station: stationName,
+      csb: Number.isFinite(parseChainage(lp.csb)) ? parseChainage(lp.csb) : NaN,
+      tc: 0,
+      pfWidth: 0,
+      loopStartCh: Number.POSITIVE_INFINITY,
+      loopEndCh: Number.NEGATIVE_INFINITY,
+      remarks: [],
+    };
+    const loopStart = parseChainage(lp.loopStartCh);
+    const loopEnd = parseChainage(lp.loopEndCh);
+    if (Number.isFinite(loopStart)) existing.loopStartCh = Math.min(existing.loopStartCh, loopStart);
+    if (Number.isFinite(loopEnd)) existing.loopEndCh = Math.max(existing.loopEndCh, loopEnd);
+    existing.tc = Math.max(existing.tc, safeNum(lp.tc, 0));
+    existing.pfWidth = Math.max(existing.pfWidth, safeNum(lp.pfWidth, 0));
+    if (lp.remarks) existing.remarks.push(String(lp.remarks).trim());
+    groups.set(key, existing);
+  });
+  return Array.from(groups.values()).map((station) => ({
+    ...station,
+    loopStartCh: Number.isFinite(station.loopStartCh) ? station.loopStartCh : NaN,
+    loopEndCh: Number.isFinite(station.loopEndCh) ? station.loopEndCh : NaN,
+  }));
+}
 
 const settingSchema = [
   ["formationWidthFill", "Formation Width (Fill) m"],
@@ -292,32 +357,223 @@ function updateDashboard() {
   const dashLength = document.getElementById("dashLength");
   const dashPoints = document.getElementById("dashPoints");
   const dashStructures = document.getElementById("dashStructures");
+  const heroTitle = document.getElementById("overviewHeroTitle");
+  const heroText = document.getElementById("overviewHeroText");
+  const healthGrid = document.getElementById("projectHealthGrid");
+  const criticalList = document.getElementById("criticalChainagesList");
+  const corridor = document.getElementById("corridorIntelligence");
+  const balanceGrid = document.getElementById("volumeBalanceGrid");
+  const alertsList = document.getElementById("designAlertsList");
 
-  if (!state.calcRows || state.calcRows.length === 0) {
+  const projectName = state.project?.name || "No active project";
+  const active = Boolean(state.project?.active);
+  const uploads = state.project?.uploads || {};
+  const rawRows = Array.isArray(state.rawRows) ? state.rawRows : [];
+  const calcRows = Array.isArray(state.calcRows) ? state.calcRows : [];
+  const groupedStations = getGroupedStations();
+  const stationPlanCount = Object.keys(state.stationPlans || {}).length;
+  const validBridges = Array.isArray(state.bridgeRows) ? state.bridgeRows.length : 0;
+  const validCurves = Array.isArray(state.curveRows) ? state.curveRows.length : 0;
+  const savedAt = state.meta?.lastSavedAt ? new Date(state.meta.lastSavedAt) : null;
+  const fillTotal = calcRows.reduce((s, r) => s + safeNum(r.fillVol, 0), 0);
+  const cutTotal = calcRows.reduce((s, r) => s + safeNum(r.cutVol, 0), 0);
+  const reusablePct = parseLooseNumber(els.pctReusableSpoil?.value, 60);
+  const reusableSpoil = cutTotal * (safeNum(reusablePct, 60) / 100);
+  const netBalance = reusableSpoil - fillTotal;
+
+  if (!calcRows || calcRows.length === 0) {
     if (dashChRange) dashChRange.textContent = "0.000 to 0.000";
     if (dashLength) dashLength.textContent = "0.000 km";
     if (dashPoints) dashPoints.textContent = "0 Cross-Sections";
     if (dashStructures) dashStructures.textContent = "0 Bridges, 0 Curves";
-    return;
+  } else {
+    const minCh = calcRows[0].chainage;
+    const maxCh = calcRows[calcRows.length - 1].chainage;
+    const totalL = Math.max(maxCh - minCh, 0);
+    if (dashChRange) {
+      dashChRange.textContent = `${formatDashboardChainage(minCh)} to ${formatDashboardChainage(maxCh)}`;
+    }
+    if (dashLength) {
+      dashLength.textContent = `${r3(totalL / 1000)} km`;
+    }
+    if (dashPoints) {
+      dashPoints.textContent = `${calcRows.length.toLocaleString()} Cross-Sections`;
+    }
+    if (dashStructures) {
+      dashStructures.textContent = `${validBridges} Bridges, ${validCurves} Curves`;
+    }
   }
 
-  const minCh = state.calcRows[0].chainage;
-  const maxCh = state.calcRows[state.calcRows.length - 1].chainage;
-  const totalL = Math.max(maxCh - minCh, 0);
+  if (heroTitle) {
+    heroTitle.textContent = active ? projectName : "No active project";
+  }
+  if (heroText) {
+    if (!active) {
+      heroText.textContent = "Create or open a project to begin importing levels, structures, loops, and map alignment.";
+    } else if (!state.project.verified) {
+      heroText.textContent = uploads.kml
+        ? "Project is active with mapped alignment. Complete review and verify before export."
+        : "Project is active. Core datasets can be verified now; add KML/KMZ to unlock geographic intelligence.";
+    } else {
+      heroText.textContent = uploads.kml
+        ? "Project is verified and geographically mapped. Review chainage hotspots, alerts, and export readiness."
+        : "Project is verified. Add KML/KMZ alignment to unlock full corridor intelligence and station mapping.";
+    }
+  }
 
-  if (dashChRange) {
-    dashChRange.textContent = `${r3(minCh >= 1000 ? minCh / 1000 : minCh)}${minCh >= 1000 ? 'km' : 'm'} to ${r3(maxCh >= 1000 ? maxCh / 1000 : maxCh)}${maxCh >= 1000 ? 'km' : 'm'}`;
+  if (healthGrid) {
+    const importCount = ["levels", "curves", "bridges", "loops"].filter((k) => uploads[k]).length;
+    healthGrid.innerHTML = [
+      ["Project", projectName, active ? (state.project.verified ? "Verified workspace" : "Draft workspace") : "No workspace loaded", active ? (state.project.verified ? "success" : "warning") : "danger"],
+      ["Core Inputs", `${importCount}/4 loaded`, uploads.kml ? "KML/KMZ alignment loaded" : "KML/KMZ optional", importCount === 4 ? "success" : (importCount > 0 ? "warning" : "danger")],
+      ["Map Readiness", uploads.kml ? "Ready" : "Pending", uploads.kml && state.kmlData?.totalDistance ? `${r3(state.kmlData.totalDistance / 1000)} km mapped` : "No geographic alignment", uploads.kml ? "info" : "warning"],
+      ["Stations", `${groupedStations.length}`, `${stationPlanCount} plans attached`, groupedStations.length > 0 ? (stationPlanCount > 0 ? "info" : "warning") : "danger"],
+      ["Verification", state.project?.verified ? "Passed" : "Pending", active ? "Use Verify before export" : "Create project first", state.project?.verified ? "success" : (active ? "warning" : "danger")],
+      ["Last Saved", savedAt ? savedAt.toLocaleString() : "Local draft", savedAt ? "Persisted in browser/project file" : "Not saved in this session", savedAt ? "neutral" : "warning"],
+    ].map(([label, value, sub, tone]) => `
+      <div class="mission-chip mission-chip-${tone}">
+        <div class="mission-chip-label">${label}</div>
+        <div class="mission-chip-value">${value}</div>
+        <div class="mission-chip-sub">${sub}</div>
+      </div>
+    `).join("");
   }
-  if (dashLength) {
-    dashLength.textContent = `${r3(totalL / 1000)} km`;
+
+  if (criticalList) {
+    const highestFill = calcRows.reduce((best, row) => safeNum(row.bank) > safeNum(best?.bank, -1) ? row : best, null);
+    const highestCut = calcRows.reduce((best, row) => safeNum(row.cut) > safeNum(best?.cut, -1) ? row : best, null);
+    const firstBridge = [...(state.bridgeRows || [])]
+      .sort((a, b) => safeNum(a.startChainage) - safeNum(b.startChainage))[0];
+    const sharpestCurve = [...(state.curveRows || [])]
+      .filter((c) => safeNum(c.radius, NaN) > 0)
+      .sort((a, b) => safeNum(a.radius) - safeNum(b.radius))[0];
+    const stationComplexity = [...groupedStations]
+      .sort((a, b) => (safeNum(b.tc) + safeNum(b.pfWidth)) - (safeNum(a.tc) + safeNum(a.pfWidth)))[0];
+    const criticalItems = [
+      highestFill ? ["Highest Fill", `Bank ${r3(highestFill.bank)} m`, formatDashboardChainage(highestFill.chainage)] : null,
+      highestCut ? ["Highest Cut", `Cut ${r3(highestCut.cut)} m`, formatDashboardChainage(highestCut.chainage)] : null,
+      firstBridge ? ["First Bridge Deduction", `${firstBridge.bridgeNo || "Bridge"} • ${firstBridge.bridgeType || "-"}`, formatDashboardChainage(firstBridge.startChainage)] : null,
+      sharpestCurve ? ["Sharpest Curve", `${sharpestCurve.curve || "Curve"} • R=${r3(sharpestCurve.radius)} m`, formatDashboardChainage(sharpestCurve.chainage)] : null,
+      stationComplexity ? ["Station Yard Complexity", `${stationComplexity.station} • TC ${r3(stationComplexity.tc)} m`, Number.isFinite(stationComplexity.csb) ? formatDashboardChainage(stationComplexity.csb) : "No CSB"] : null,
+    ].filter(Boolean);
+    criticalList.innerHTML = criticalItems.length
+      ? criticalItems.map(([title, subtitle, value]) => `
+        <div class="mission-list-item">
+          <div>
+            <strong>${title}</strong>
+            <small>${subtitle}</small>
+          </div>
+          <div class="mission-list-value">${value}</div>
+        </div>
+      `).join("")
+      : `<div class="mission-list-empty">Import and calculate project data to surface critical chainages and structural hotspots.</div>`;
   }
-  if (dashPoints) {
-    dashPoints.textContent = `${state.calcRows.length.toLocaleString()} Cross-Sections`;
+
+  if (corridor) {
+    if (calcRows.length < 2) {
+      corridor.innerHTML = `<div class="mission-list-empty">Import levels and calculate the project to generate the corridor intelligence strip.</div>`;
+    } else {
+      const minCh = safeNum(calcRows[0].chainage);
+      const maxCh = safeNum(calcRows[calcRows.length - 1].chainage);
+      const range = Math.max(maxCh - minCh, 1);
+      const bandHtml = [];
+      for (let i = 1; i < calcRows.length; i += 1) {
+        const prev = calcRows[i - 1];
+        const row = calcRows[i];
+        const startPct = ((safeNum(prev.chainage) - minCh) / range) * 100;
+        const widthPct = Math.max(((safeNum(row.chainage) - safeNum(prev.chainage)) / range) * 100, 0.3);
+        if (safeNum(row.bank) > 0.001) {
+          bandHtml.push(`<span class="corridor-band fill" style="left:${startPct}%; width:${widthPct}%;"></span>`);
+        } else if (safeNum(row.cut) > 0.001) {
+          bandHtml.push(`<span class="corridor-band cut" style="left:${startPct}%; width:${widthPct}%;"></span>`);
+        }
+      }
+      const markerItems = [
+        ...(state.bridgeRows || []).map((b) => ({ type: "bridge", at: safeNum(b.startChainage) })),
+        ...(state.curveRows || []).map((c) => ({ type: "curve", at: safeNum(c.chainage) })),
+        ...groupedStations.map((s) => ({ type: "station", at: Number.isFinite(s.csb) ? s.csb : safeNum(s.loopStartCh, NaN) })),
+      ].filter((item) => Number.isFinite(item.at));
+      const markersHtml = markerItems.map((item) => {
+        const left = ((item.at - minCh) / range) * 100;
+        return `<span class="corridor-marker ${item.type}" style="left:${Math.min(100, Math.max(0, left))}%;"></span>`;
+      }).join("");
+      corridor.innerHTML = `
+        <div class="corridor-scale">${bandHtml.join("")}${markersHtml}</div>
+        <div class="corridor-legend">
+          <span><i style="background:#22c55e"></i> Fill zones</span>
+          <span><i style="background:#f43f5e"></i> Cut zones</span>
+          <span><i style="background:#3b82f6"></i> Bridges</span>
+          <span><i style="background:#eab308"></i> Curves</span>
+          <span><i style="background:#06b6d4"></i> Stations</span>
+        </div>
+        <div class="mission-chip-grid">
+          <div class="mission-chip">
+            <div class="mission-chip-label">Corridor Start</div>
+            <div class="mission-chip-value">${formatDashboardChainage(minCh)}</div>
+            <div class="mission-chip-sub">Start of calculated chainage</div>
+          </div>
+          <div class="mission-chip">
+            <div class="mission-chip-label">Corridor End</div>
+            <div class="mission-chip-value">${formatDashboardChainage(maxCh)}</div>
+            <div class="mission-chip-sub">End of calculated chainage</div>
+          </div>
+        </div>
+      `;
+    }
   }
-  if (dashStructures) {
-    const validBridges = (state.bridgeRows || []).length;
-    const validCurves = (state.curveRows || []).length;
-    dashStructures.textContent = `${validBridges} Bridges, ${validCurves} Curves`;
+
+  if (balanceGrid) {
+    const ratioDen = fillTotal + cutTotal;
+    const fillRatio = ratioDen > 0 ? Math.round((fillTotal / ratioDen) * 100) : 0;
+    balanceGrid.innerHTML = [
+      ["Total Fill", `${formatCompactVolume(fillTotal)} m³`, "Required embankment volume"],
+      ["Total Cut", `${formatCompactVolume(cutTotal)} m³`, "Excavated volume"],
+      ["Reusable Spoil", `${formatCompactVolume(reusableSpoil)} m³`, `${safeNum(reusablePct, 60).toFixed(0)}% of cut volume`],
+      ["Net Balance", `${netBalance >= 0 ? "+" : ""}${formatCompactVolume(netBalance)} m³`, `${fillRatio}% of total volume is fill`],
+    ].map(([label, value, sub]) => `
+      <div class="balance-card">
+        <small>${label}</small>
+        <strong>${value}</strong>
+        <small>${sub}</small>
+      </div>
+    `).join("");
+  }
+
+  if (alertsList) {
+    const alerts = [];
+    if (!active) alerts.push(["No active project", "Create or open a project to begin the calculation workflow.", "Action required"]);
+    if (active && !uploads.levels) alerts.push(["Levels missing", "Import levels to unlock calculation, graphs, and corridor intelligence.", "Required"]);
+    if (active && !uploads.curves) alerts.push(["Curve list missing", "Curve widening and curve intelligence are unavailable.", "Required"]);
+    if (active && !uploads.bridges) alerts.push(["Bridge list missing", "Bridge deductions and structure highlights are incomplete.", "Required"]);
+    if (active && !uploads.loops) alerts.push(["Loops & Platforms missing", "Station yard widths and platform offsets are not applied.", "Required"]);
+    if (active && !uploads.kml) alerts.push(["KML/KMZ missing", "Map alignment and geographic overlays are unavailable.", "Optional"]);
+    if (active && uploads.loops && stationPlanCount === 0) alerts.push(["No station plans attached", "Station conceptual plans can be attached from the Alignment Map popups.", "Optional"]);
+    if (active && !state.project.verified) alerts.push(["Project not verified", "Run Verify before export to confirm structural calculations.", "Review"]);
+    const medianGap = getMedianInterval(calcRows);
+    if (Number.isFinite(medianGap)) {
+      const suspicious = [];
+      for (let i = 1; i < calcRows.length; i += 1) {
+        const gap = safeNum(calcRows[i].chainage) - safeNum(calcRows[i - 1].chainage);
+        if (gap > medianGap * 1.75) suspicious.push(`${formatDashboardChainage(calcRows[i - 1].chainage)}–${formatDashboardChainage(calcRows[i].chainage)}`);
+      }
+      if (suspicious.length) {
+        alerts.push(["Suspicious chainage gaps", suspicious.slice(0, 3).join(", "), `${suspicious.length} segment${suspicious.length === 1 ? "" : "s"}`]);
+      }
+    }
+    const badCsb = groupedStations.filter((station) => !Number.isFinite(station.csb)).length;
+    if (badCsb > 0) alerts.push(["Stations missing CSB", `${badCsb} station${badCsb === 1 ? "" : "s"} do not have a usable CSB chainage.`, "Check loop import"]);
+
+    alertsList.innerHTML = alerts.length
+      ? alerts.map(([title, text, value]) => `
+        <div class="mission-list-item">
+          <div>
+            <strong>${title}</strong>
+            <small>${text}</small>
+          </div>
+          <div class="mission-list-value">${value}</div>
+        </div>
+      `).join("")
+      : `<div class="mission-list-empty">No critical design alerts. The current dataset is complete enough for review and export.</div>`;
   }
 }
 
@@ -663,7 +919,7 @@ function parseLoopPlatformRowsFromAoa(aoa) {
     const stationRaw = String(row[idx.station] ?? "").trim();
     if (stationRaw && !/example|target chainage|add here/i.test(stationRaw)) currentStation = stationRaw;
 
-    const csbCandidate = parseLooseNumber(row[idx.csb], NaN);
+    const csbCandidate = parseChainage(row[idx.csb]);
     if (Number.isFinite(csbCandidate)) currentCsb = csbCandidate;
 
     let loopStartCh = parseChainage(row[idx.loopStartCh]);
@@ -702,7 +958,8 @@ function parseLoopPlatformRowsFromAoa(aoa) {
 
     const hasLoop = Number.isFinite(loopStartCh) && Number.isFinite(loopEndCh) && loopEndCh > loopStartCh && Number.isFinite(tc) && tc > 0;
     const hasPf = Number.isFinite(pfStartCh) && Number.isFinite(pfEndCh) && pfEndCh > pfStartCh && Number.isFinite(width) && width > 0;
-    if (!hasLoop && !hasPf) continue;
+    const hasStationIdentity = Boolean(stationRaw) || Number.isFinite(csbCandidate) || Boolean(remarks);
+    if (!hasLoop && !hasPf && !hasStationIdentity) continue;
 
     rows.push({
       station: currentStation || `LP-${rows.length + 1}`,
@@ -924,7 +1181,7 @@ function renderLoopInputs() {
   `}).join("");
   const loopRanges = rows.filter((r) => Number.isFinite(r.loopStartCh) && Number.isFinite(r.loopEndCh)).length;
   const pfRanges = rows.filter((r) => Number.isFinite(r.pfStartCh) && Number.isFinite(r.pfEndCh)).length;
-  if (els.loopMeta) els.loopMeta.textContent = `Rows: ${rows.length} | Loop ranges: ${loopRanges} | Platform ranges: ${pfRanges}`;
+  if (els.loopMeta) els.loopMeta.textContent = `Stations: ${stations.length} | Rows: ${rows.length} | Loop ranges: ${loopRanges} | Platform ranges: ${pfRanges}`;
 }
 
 function syncCurveStateFromTable() {
@@ -955,7 +1212,7 @@ function syncLoopStateFromTable() {
   rows.forEach((tr) => {
     if (!tr.querySelector('[data-loop-field="station"]')) return;
     const station = String(tr.querySelector('[data-loop-field="station"]')?.value || "").trim();
-    const csb = parseLooseNumber(tr.querySelector('[data-loop-field="csb"]')?.value ?? "", NaN);
+    const csb = parseChainage(tr.querySelector('[data-loop-field="csb"]')?.value ?? "");
     const tc = parseLooseNumber(tr.querySelector('[data-loop-field="tc"]')?.value ?? "", NaN);
     const loopStartCh = parseChainage(tr.querySelector('[data-loop-field="loopStartCh"]')?.value ?? "");
     const loopEndCh = parseChainage(tr.querySelector('[data-loop-field="loopEndCh"]')?.value ?? "");
@@ -1339,6 +1596,10 @@ function recalculate() {
   renderSideView();
   updateEstimates();
   updateDashboard();
+
+  if (state.kmlData && typeof drawAlignmentMap === "function") {
+    requestAnimationFrame(() => drawAlignmentMap());
+  }
 }
 
 function renderSummary() {
@@ -1346,6 +1607,9 @@ function renderSummary() {
   const cutTotal = state.calcRows.reduce((s, r) => s + r.cutVol, 0);
   const fillLen = state.calcRows.reduce((s, r) => s + ((r.bank > 0 ? safeNum(r.ewDiff) : 0)), 0) / 1000;
   const cutLen = state.calcRows.reduce((s, r) => s + ((r.type === "CUTTING" ? safeNum(r.ewDiff) : 0)), 0) / 1000;
+  const reusablePct = parseLooseNumber(els.pctReusableSpoil?.value, 60);
+  const reusableSpoil = cutTotal * (safeNum(reusablePct, 60) / 100);
+  const grossFillEquivalent = fillTotal + reusableSpoil;
 
   els.totalFilling.textContent = formatVolume(fillTotal);
   els.totalCutting.textContent = formatVolume(cutTotal);
@@ -1353,6 +1617,12 @@ function renderSummary() {
   if (els.actualFilling) {
     els.actualFilling.textContent = fillTotal >= 100000 ? `${Number(fillTotal).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³` : "";
     els.actualFilling.style.opacity = fillTotal >= 100000 ? "0.8" : "0";
+  }
+  if (els.reusableFilling) {
+    els.reusableFilling.textContent = reusableSpoil > 0
+      ? `Reusable Earth Deducted: ${Number(reusableSpoil).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³`
+      : "";
+    els.reusableFilling.style.opacity = reusableSpoil > 0 ? "0.92" : "0";
   }
   if (els.actualCutting) {
     els.actualCutting.textContent = cutTotal >= 100000 ? `${Number(cutTotal).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³` : "";
@@ -1370,11 +1640,25 @@ function renderSummary() {
     const fillPct = Math.round((fillTotal / grandVol) * 100);
     const cutPct = Math.round((cutTotal / grandVol) * 100);
     if (els.fillWaterNode) els.fillWaterNode.style.height = `${Math.min(fillPct, 100)}%`;
+    if (els.fillReusableHatch) {
+      const reusableShare = grossFillEquivalent > 0 ? (reusableSpoil / grossFillEquivalent) * 100 : 0;
+      els.fillReusableHatch.style.height = `${Math.max(0, Math.min(reusableShare, 100))}%`;
+      els.fillReusableHatch.style.opacity = reusableSpoil > 0 ? "0.95" : "0";
+      if (els.fillReusablePctLabel) {
+        els.fillReusablePctLabel.textContent = `${Math.round(reusableShare)}% reduced`;
+        els.fillReusablePctLabel.style.display = reusableSpoil > 0 ? "inline-flex" : "none";
+      }
+    }
     if (els.cutWaterNode) els.cutWaterNode.style.height = `${Math.min(cutPct, 100)}%`;
     if (fillCapEl) fillCapEl.textContent = `${fillPct}% capacity`;
     if (cutCapEl) cutCapEl.textContent = `${cutPct}% capacity`;
   } else {
     if (els.fillWaterNode) els.fillWaterNode.style.height = "0%";
+    if (els.fillReusableHatch) {
+      els.fillReusableHatch.style.height = "0%";
+      els.fillReusableHatch.style.opacity = "0";
+      if (els.fillReusablePctLabel) els.fillReusablePctLabel.style.display = "none";
+    }
     if (els.cutWaterNode) els.cutWaterNode.style.height = "0%";
     if (fillCapEl) fillCapEl.textContent = "0% capacity";
     if (cutCapEl) cutCapEl.textContent = "0% capacity";
@@ -1440,6 +1724,7 @@ function updateWizardUI() {
     curves: els.wizardTickCurves,
     bridges: els.wizardTickBridges,
     loops: els.wizardTickLoops,
+    kml: els.wizardTickKml,
   };
   Object.entries(tickMap).forEach(([k, el]) => {
     if (!el) return;
@@ -1449,7 +1734,9 @@ function updateWizardUI() {
   if (els.wizardCalculateBtn) els.wizardCalculateBtn.disabled = !ready;
   if (els.wizardStatus) {
     if (ready) {
-      els.wizardStatus.textContent = "All files uploaded. Project is verified and ready for calculation.";
+      els.wizardStatus.textContent = state.project.uploads.kml
+        ? "All core files and KML/KMZ alignment uploaded. Project is verified and ready for calculation."
+        : "All four core files uploaded. Project is verified and ready for calculation. KML/KMZ alignment is optional.";
     } else {
       const missing = [];
       if (!state.project.name) missing.push("Project Name");
@@ -1457,7 +1744,8 @@ function updateWizardUI() {
       if (!state.project.uploads.curves) missing.push("Curve List");
       if (!state.project.uploads.bridges) missing.push("Bridge List");
       if (!state.project.uploads.loops) missing.push("Loops & Platforms");
-      els.wizardStatus.textContent = `Pending: ${missing.join(", ")}`;
+      const optional = state.project.uploads.kml ? "" : " | Optional: KML/KMZ Alignment";
+      els.wizardStatus.textContent = `Pending: ${missing.join(", ")}${optional}`;
     }
   }
 }
@@ -1467,11 +1755,8 @@ function applyProjectGate() {
   if (els.importBtn) els.importBtn.disabled = !active;
   if (els.openSettingsBtn) els.openSettingsBtn.disabled = !active;
   if (els.saveProjectBtn) els.saveProjectBtn.disabled = !active;
-  const projectTitle = state.project.name ? `${state.project.name}` : "No active project";
-  const status = active ? (state.project.verified ? "Verified" : "Draft") : "Create Project to begin";
   if (els.projectMeta) {
-    const source = state.meta?.projectName ? ` | Base: ${state.meta.projectName}` : "";
-    els.projectMeta.textContent = `${projectTitle} | ${status}${source}`;
+    els.projectMeta.textContent = "Earthwork Calculations";
   }
 }
 
@@ -1488,11 +1773,13 @@ function collectProjectPayload() {
     bridgeRows: state.bridgeRows,
     curveRows: state.curveRows,
     loopPlatformRows: state.loopPlatformRows,
+    kmlData: state.kmlData,
+    stationPlans: state.stationPlans,
   };
 }
 
 function loadProjectFromPayload(data, options = {}) {
-  const { silent = false } = options;
+  const { silent = false, fileHandle = null } = options;
   if (!data || typeof data !== "object") {
     alert("Project file is invalid.");
     return;
@@ -1506,6 +1793,7 @@ function loadProjectFromPayload(data, options = {}) {
       curves: Boolean(data?.project?.uploads?.curves),
       bridges: Boolean(data?.project?.uploads?.bridges),
       loops: Boolean(data?.project?.uploads?.loops),
+      kml: Boolean(data?.project?.uploads?.kml) || Boolean(data?.kmlData),
     },
   };
   state.settings = { ...state.seedDefaultSettings, ...(data?.settings || {}) };
@@ -1515,7 +1803,7 @@ function loadProjectFromPayload(data, options = {}) {
   const rawLoopRows = Array.isArray(data?.loopPlatformRows) ? data.loopPlatformRows : [];
   state.loopPlatformRows = rawLoopRows.map((r, i) => ({
     station: String(r?.station || r?.name || `LP-${i + 1}`),
-    csb: Number.isFinite(parseLooseNumber(r?.csb, NaN)) ? parseLooseNumber(r.csb, NaN) : null,
+    csb: Number.isFinite(parseChainage(r?.csb)) ? parseChainage(r.csb) : null,
     tc: Number.isFinite(parseLooseNumber(r?.tc, NaN)) ? parseLooseNumber(r.tc, NaN) : 0,
     loopStartCh: Number.isFinite(parseChainage(r?.loopStartCh))
       ? parseChainage(r.loopStartCh)
@@ -1528,6 +1816,9 @@ function loadProjectFromPayload(data, options = {}) {
     pfEndCh: Number.isFinite(parseChainage(r?.pfEndCh)) ? parseChainage(r.pfEndCh) : null,
     remarks: String(r?.remarks || r?.type || ""),
   }));
+  state.kmlData = data?.kmlData && Array.isArray(data.kmlData?.points) ? data.kmlData : null;
+  state.stationPlans = data?.stationPlans && typeof data.stationPlans === "object" ? data.stationPlans : {};
+  state.projectFileHandle = fileHandle;
   renderBridgeInputs();
   renderCurveInputs();
   renderLoopInputs();
@@ -1554,7 +1845,13 @@ async function saveCurrentProject() {
   const jsonStr = JSON.stringify(payload, null, 2);
 
   try {
-    if ("showSaveFilePicker" in window) {
+    if (state.projectFileHandle) {
+      const writable = await state.projectFileHandle.createWritable();
+      await writable.write(jsonStr);
+      await writable.close();
+      state.meta = { ...(state.meta || {}), lastSavedAt: new Date().toISOString() };
+      alert(`Project updated: ${state.project.name}`);
+    } else if ("showSaveFilePicker" in window) {
       const handle = await window.showSaveFilePicker({
         suggestedName: `${fileBase}.EW`,
         types: [{
@@ -1562,9 +1859,11 @@ async function saveCurrentProject() {
           accept: { "application/json": [".EW"] },
         }],
       });
+      state.projectFileHandle = handle;
       const writable = await handle.createWritable();
       await writable.write(jsonStr);
       await writable.close();
+      state.meta = { ...(state.meta || {}), lastSavedAt: new Date().toISOString() };
       alert(`Project saved: ${state.project.name}`);
     } else {
       // Fallback for unsupported browsers
@@ -1574,6 +1873,7 @@ async function saveCurrentProject() {
       a.download = `${fileBase}.EW`;
       a.click();
       URL.revokeObjectURL(a.href);
+      state.meta = { ...(state.meta || {}), lastSavedAt: new Date().toISOString() };
       alert(`Project saved: ${state.project.name}`);
     }
   } catch (err) {
@@ -1595,18 +1895,23 @@ function resetForNewProject() {
       curves: false,
       bridges: false,
       loops: false,
+      kml: false,
     },
   };
   state.rawRows = [];
   state.bridgeRows = [];
   state.curveRows = [];
   state.loopPlatformRows = [];
+  state.kmlData = null;
+  state.stationPlans = {};
+  state.projectFileHandle = null;
   state.settings = { ...state.seedDefaultSettings };
   if (els.projectNameInput) els.projectNameInput.value = "";
   if (els.importInput) els.importInput.value = "";
   if (els.bridgeImportInput) els.bridgeImportInput.value = "";
   if (els.curveImportInput) els.curveImportInput.value = "";
   if (els.loopImportInput) els.loopImportInput.value = "";
+  if (els.kmlImportInput) els.kmlImportInput.value = "";
   if (els.projectImportInput) els.projectImportInput.value = "";
   renderBridgeInputs();
   recalculate();
@@ -1665,8 +1970,9 @@ function renderFormulaSummary() {
 
   const blanketArea = s.formationWidthFill * s.blanketThickness;
   const preparedArea = s.formationWidthFill * (s.blanketThickness + s.preparedSubgradeThickness);
-  const fmtM3 = (v) => r3(v);
-  const fmtKm = (m) => r3(m / 1000);
+  const fmtSummary = (v) => Number(v).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+  const fmtM3 = (v) => fmtSummary(v);
+  const fmtKm = (m) => fmtSummary(m / 1000);
   const firstCh = safeNum(rows[0]?.chainage, 0);
   const lastCh = safeNum(rows[rows.length - 1]?.chainage, firstCh);
   const totalLength = Math.max(lastCh - firstCh, 0);
@@ -1682,34 +1988,34 @@ function renderFormulaSummary() {
   ), 0);
 
   const inputRows = [
-    ["Formation Width (Fill)", r3(s.formationWidthFill), "m"],
-    ["Formation Width (Cut)", r3(s.cuttingWidth), "m"],
-    ["Blanket Thickness", r3(s.blanketThickness), "m"],
-    ["Prepared Subgrade Thickness", r3(s.preparedSubgradeThickness), "m"],
-    ["Berm Width", r3(s.bermWidth), "m"],
-    ["Track by side of ExgTrack", Number.isFinite(exgTrack) ? r3(exgTrack) : "-", Number.isFinite(exgTrack) ? "m" : ""],
-    ["Total Length", r3(totalLength), "m"],
-    ["Bridge Deduction Length", r3(totalBridgeLen), "m"],
+    ["Formation Width (Fill)", fmtSummary(s.formationWidthFill), "m"],
+    ["Formation Width (Cut)", fmtSummary(s.cuttingWidth), "m"],
+    ["Blanket Thickness", fmtSummary(s.blanketThickness), "m"],
+    ["Prepared Subgrade Thickness", fmtSummary(s.preparedSubgradeThickness), "m"],
+    ["Berm Width", fmtSummary(s.bermWidth), "m"],
+    ["Track by side of ExgTrack", Number.isFinite(exgTrack) ? fmtSummary(exgTrack) : "-", Number.isFinite(exgTrack) ? "m" : ""],
+    ["Total Length", fmtSummary(totalLength), "m"],
+    ["Bridge Deduction Length", fmtSummary(totalBridgeLen), "m"],
     ["Bridge Count", String(validBridges.length), ""],
     ["Loop/PF Rows", String(loopRows.length), ""],
-    ["Total Loop Range", r3(totalLoopLen), "m"],
-    ["Total Platform Range", r3(totalPfLen), "m"],
+    ["Total Loop Range", fmtSummary(totalLoopLen), "m"],
+    ["Total Platform Range", fmtSummary(totalPfLen), "m"],
   ];
   const fillRows = [
     ["Fill Length", fmtKm(fillLenM), "km"],
     ["Fill Ht <5.0m", fmtKm(fillLt5M), "km"],
     ["Fill Ht 5.0m to 10.0m", fmtKm(fill5To10M), "km"],
     ["Fill Ht >10.0m", fmtKm(fillGt10M), "km"],
-    ["Max Fill Ht", r3(max(fillValues)), "m"],
-    ["Average Fill Height", r3(avg(fillValues)), "m"],
+    ["Max Fill Ht", fmtSummary(max(fillValues)), "m"],
+    ["Average Fill Height", fmtSummary(avg(fillValues)), "m"],
   ];
   const cutRows = [
     ["Cut Length", fmtKm(cutLenM), "km"],
     ["Cut depth <5.0m", fmtKm(cutLt5M), "km"],
     ["Cut 5.0m to 10.0m", fmtKm(cut5To10M), "km"],
     ["Cut >10.0m", fmtKm(cutGt10M), "km"],
-    ["Max Cut depth", r3(max(cutValues)), "m"],
-    ["Min Cover (Blanket+Subgrade)", r3(minCover), "m"],
+    ["Max Cut depth", fmtSummary(max(cutValues)), "m"],
+    ["Min Cover (Blanket+Subgrade)", fmtSummary(minCover), "m"],
   ];
 
   const qtyRows = [
@@ -2320,13 +2626,8 @@ function renderRollDiagram() {
 
   // ── Tooltip Interaction ──────────────────────────────────────────────────
   const tooltip = document.getElementById("rollTooltip");
-  let crosshair = document.getElementById("rollCrosshair");
-  if (!crosshair && document.getElementById("rollDiagramWrap")) {
-    crosshair = document.createElement("div");
-    crosshair.id = "rollCrosshair";
-    crosshair.style.cssText = "display:none;position:absolute;top:0;width:1px;background:hsla(354, 72%, 55%, 0.85);pointer-events:none;z-index:90;box-shadow:0 0 3px hsla(354, 72%, 55%, 0.4);";
-    document.getElementById("rollDiagramWrap").appendChild(crosshair);
-  }
+  ensureRollCrosshair("rollCrosshair", "rollDiagramWrap");
+  ensureRollCrosshair("sideRollCrosshair", "sideViewWrap");
 
   if (tooltip) {
     // Store the last hovered row index so click can use it
@@ -2341,17 +2642,7 @@ function renderRollDiagram() {
       const chHit = minCh + (mouseX - PAD_L) / PX_PER_M_X;
       if (chHit >= minCh && chHit <= maxCh && mouseX >= PAD_L && mouseX <= canvasW - PAD_R) {
         // Find closest row
-        let closest = rows[0];
-        let closestIdx = 0;
-        let minDist = Infinity;
-        for (let ri = 0; ri < rows.length; ri++) {
-          const d = Math.abs(rows[ri].chainage - chHit);
-          if (d < minDist) {
-            minDist = d;
-            closest = rows[ri];
-            closestIdx = ri;
-          }
-        }
+        const { row: closest, index: closestIdx } = findClosestCalcRowByChainage(rows, chHit);
         _hoveredRowIdx = closestIdx;
 
         // Construct Tooltip content
@@ -2387,16 +2678,20 @@ function renderRollDiagram() {
           tooltip.style.top = (e.pageY - tRect.height - 15) + 'px';
         }
 
-        if (crosshair) {
-          crosshair.style.display = 'block';
-          crosshair.style.left = (canvas.offsetLeft + visualX) + 'px';
-          crosshair.style.height = canvas.clientHeight + 'px';
+        setRollCrosshairPosition("rollCrosshair", canvas, visualX);
+        const sideCanvas = els.sideViewCanvas;
+        if (sideCanvas) {
+          const closestX = getX(closest.chainage);
+          if (closestX != null) {
+            const sideVisualX = (closestX / sideCanvas.width) * sideCanvas.clientWidth;
+            setRollCrosshairPosition("sideRollCrosshair", sideCanvas, sideVisualX);
+          }
         }
 
         canvas.style.cursor = 'crosshair';
       } else {
         tooltip.style.display = 'none';
-        if (crosshair) crosshair.style.display = 'none';
+        hideRollCrosshairs();
         canvas.style.cursor = 'grab';
         _hoveredRowIdx = -1;
       }
@@ -2404,7 +2699,7 @@ function renderRollDiagram() {
 
     canvas.onmouseleave = () => {
       tooltip.style.display = 'none';
-      if (crosshair) crosshair.style.display = 'none';
+      hideRollCrosshairs();
       canvas.style.cursor = 'grab';
       _hoveredRowIdx = -1;
     };
@@ -2423,10 +2718,55 @@ function renderRollDiagram() {
       if (dx < 5 && dy < 5 && _hoveredRowIdx >= 0 && _hoveredRowIdx < state.calcRows.length) {
         drawCrossSection(state.calcRows[_hoveredRowIdx]);
         tooltip.style.display = 'none';
-        if (crosshair) crosshair.style.display = 'none';
+        hideRollCrosshairs();
       }
     });
   }
+}
+
+function ensureRollCrosshair(crosshairId, wrapId) {
+  let crosshair = document.getElementById(crosshairId);
+  const wrap = document.getElementById(wrapId);
+  if (!crosshair && wrap) {
+    crosshair = document.createElement("div");
+    crosshair.id = crosshairId;
+    crosshair.style.cssText = "display:none;position:absolute;top:0;width:1px;background:hsla(354, 72%, 55%, 0.85);pointer-events:none;z-index:90;box-shadow:0 0 3px hsla(354, 72%, 55%, 0.4);";
+    wrap.appendChild(crosshair);
+  }
+  return crosshair;
+}
+
+function setRollCrosshairPosition(crosshairId, canvas, visualX) {
+  const crosshair = ensureRollCrosshair(crosshairId, crosshairId === "rollCrosshair" ? "rollDiagramWrap" : "sideViewWrap");
+  if (!crosshair || !canvas) return;
+  crosshair.style.display = "block";
+  crosshair.style.left = `${canvas.offsetLeft + visualX}px`;
+  crosshair.style.height = `${canvas.clientHeight}px`;
+}
+
+function hideRollCrosshairs() {
+  ["rollCrosshair", "sideRollCrosshair"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
+}
+
+function findClosestCalcRowByChainage(rows, chainage) {
+  if (!Array.isArray(rows) || !rows.length || !Number.isFinite(chainage)) {
+    return { row: null, index: -1 };
+  }
+  let closest = rows[0];
+  let closestIdx = 0;
+  let minDist = Infinity;
+  for (let i = 0; i < rows.length; i += 1) {
+    const d = Math.abs(rows[i].chainage - chainage);
+    if (d < minDist) {
+      minDist = d;
+      closest = rows[i];
+      closestIdx = i;
+    }
+  }
+  return { row: closest, index: closestIdx };
 }
 
 function renderSideView() {
@@ -2821,6 +3161,39 @@ function renderSideView() {
     lx += 15 + ctx.measureText(item.lbl).width + 14;
     if (lx > canvasW - 80) break;
   }
+
+  ensureRollCrosshair("rollCrosshair", "rollDiagramWrap");
+  ensureRollCrosshair("sideRollCrosshair", "sideViewWrap");
+
+  canvas.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const visualX = e.clientX - rect.left;
+    const mouseX = visualX * scaleX;
+    const chHit = minCh + (mouseX - PAD_L) / PX_PER_M_X;
+
+    if (chHit >= minCh && chHit <= maxCh && mouseX >= PAD_L && mouseX <= canvasW - PAD_R) {
+      const { row: closest } = findClosestCalcRowByChainage(rows, chHit);
+      if (!closest) return;
+      const closestX = getX(closest.chainage);
+      if (closestX == null) return;
+      const planCanvas = els.rollDiagramCanvas;
+      if (planCanvas) {
+        const planVisualX = (closestX / planCanvas.width) * planCanvas.clientWidth;
+        setRollCrosshairPosition("rollCrosshair", planCanvas, planVisualX);
+      }
+      setRollCrosshairPosition("sideRollCrosshair", canvas, visualX);
+      canvas.style.cursor = "crosshair";
+    } else {
+      hideRollCrosshairs();
+      canvas.style.cursor = "grab";
+    }
+  };
+
+  canvas.onmouseleave = () => {
+    hideRollCrosshairs();
+    canvas.style.cursor = "grab";
+  };
 }
 
 function buildSettingsInputs() {
@@ -3644,6 +4017,23 @@ function bindEvents() {
     });
   }
 
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-overview-action]");
+    if (!btn) return;
+    const action = btn.dataset.overviewAction;
+    if (action === "create") els.createProjectBtn?.click();
+    if (action === "open") els.importProjectBtn?.click();
+    if (action === "import") els.importBtn?.click();
+    if (action === "verify") document.getElementById("verifyCalcBtn")?.click();
+    if (action === "bridge") setWorkPage("bridges");
+    if (action === "station") setWorkPage("loops");
+    if (action === "plans") setWorkPage("alignment-map");
+    if (action === "map") {
+      setWorkPage("alignment-map");
+    }
+    if (action === "export") els.openExportModalBtn?.click();
+  });
+
   if (els.createProjectBtn && els.projectWizardModal) {
     els.createProjectBtn.addEventListener("click", () => {
       resetForNewProject();
@@ -3656,7 +4046,30 @@ function bindEvents() {
   }
 
   if (els.importProjectBtn && els.projectImportInput) {
-    els.importProjectBtn.addEventListener("click", () => {
+    els.importProjectBtn.addEventListener("click", async () => {
+      if ("showOpenFilePicker" in window) {
+        try {
+          const [handle] = await window.showOpenFilePicker({
+            multiple: false,
+            types: [{
+              description: "Earthwork Project File",
+              accept: { "application/json": [".ew", ".EW"] },
+            }],
+          });
+          if (!handle) return;
+          const file = await handle.getFile();
+          const txt = await file.text();
+          const parsed = JSON.parse(txt);
+          loadProjectFromPayload(parsed, { fileHandle: handle });
+          return;
+        } catch (err) {
+          if (err?.name !== "AbortError") {
+            console.error("Project open error:", err);
+            alert(`Project import failed: ${err?.message || "Invalid .EW file."}`);
+          }
+          return;
+        }
+      }
       els.projectImportInput.click();
     });
   }
@@ -3683,6 +4096,7 @@ function bindEvents() {
         if (kind === "bridges" && els.bridgeImportInput) els.bridgeImportInput.click();
         if (kind === "curves" && els.curveImportInput) els.curveImportInput.click();
         if (kind === "loops" && els.loopImportInput) els.loopImportInput.click();
+        if (kind === "kml" && els.kmlImportInput) els.kmlImportInput.click();
       });
     });
   }
@@ -3710,13 +4124,22 @@ function bindEvents() {
       dropZone.classList.remove("drag-active");
 
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        const files = Array.from(e.dataTransfer.files).filter(f => f.name.match(/\.(xlsx|xls|csv)$/i));
+        const files = Array.from(e.dataTransfer.files).filter(f => f.name.match(/\.(xlsx|xls|csv|kml|kmz)$/i));
 
         // Show loading state on cursor 
         document.body.style.cursor = "wait";
 
         for (const file of files) {
           try {
+            if (file.name.match(/\.(kml|kmz)$/i)) {
+              if (els.kmlImportInput) {
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                els.kmlImportInput.files = dt.files;
+                els.kmlImportInput.dispatchEvent(new Event("change"));
+              }
+              continue;
+            }
             const data = await file.arrayBuffer();
             const wb = XLSX.read(data, { type: "array", cellDates: false });
             const headers = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 })[0] || [];
@@ -4088,10 +4511,7 @@ function bindEvents() {
     }
 
     const ch = parsed.map((r) => r.chainage).sort((a, b) => a - b);
-    const chainageNote = Number.isFinite(ch[0]) && Number.isFinite(ch[ch.length - 1])
-      ? ` | Range: ${r3(ch[0])} m to ${r3(ch[ch.length - 1])} m`
-      : "";
-    els.projectMeta.textContent = `Imported ${parsed.length} level rows${chainageNote} `;
+    els.projectMeta.textContent = "Earthwork Calculations";
     state.project.uploads.levels = true;
     state.project.verified = false;
     updateWizardUI();
@@ -4289,7 +4709,8 @@ function bindEvents() {
         updateWizardUI();
         applyProjectGate();
         recalculate();
-        alert(`Successfully imported ${importedRows.length} station/loop(s)!`);
+        const importedStations = [...new Set(importedRows.map((r) => String(r.station || "").trim()).filter(Boolean))];
+        alert(`Successfully imported ${importedStations.length} station(s) across ${importedRows.length} station/loop row(s)!`);
       } else {
         alert("Could not identify any Loop or Station data in that file. Check your headers.");
       }
@@ -4397,6 +4818,9 @@ function bindEvents() {
       } else if (kind === "loops" && els.loopImportInput) {
         els.importOptionsModal.close();
         els.loopImportInput.click();
+      } else if (kind === "kml" && els.kmlImportInput) {
+        els.importOptionsModal.close();
+        els.kmlImportInput.click();
       }
     });
   }
@@ -4617,7 +5041,7 @@ function bindEvents() {
         }
         const txt = await file.text();
         const parsed = JSON.parse(txt);
-        loadProjectFromPayload(parsed);
+        loadProjectFromPayload(parsed, { fileHandle: null });
       } catch (err) {
         console.error("Project import error:", err);
         alert(`Project import failed: ${err?.message || "Invalid .EW file."}`);
@@ -4666,6 +5090,8 @@ function bindEvents() {
 }
 
 function saveState() {
+  state.meta = state.meta || {};
+  state.meta.lastSavedAt = new Date().toISOString();
   const data = {
     project: state.project,
     meta: state.meta,
@@ -4727,6 +5153,18 @@ async function init() {
   // Ensure settings always has all required keys (stored state may have stale/missing fields)
   state.settings = { ...state.defaultSettings, ...(state.settings || {}) };
   state.meta = state.meta || {};
+  state.project = {
+    active: Boolean(state.project?.active),
+    verified: Boolean(state.project?.verified),
+    name: String(state.project?.name || ""),
+    uploads: {
+      levels: Boolean(state.project?.uploads?.levels),
+      curves: Boolean(state.project?.uploads?.curves),
+      bridges: Boolean(state.project?.uploads?.bridges),
+      loops: Boolean(state.project?.uploads?.loops),
+      kml: Boolean(state.project?.uploads?.kml) || Boolean(state.kmlData),
+    },
+  };
 
   bindEvents();
   bindCrossCanvasInteraction();
@@ -4751,6 +5189,107 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
+function formatReportChainage(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "-";
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  const km = Math.floor(abs / 1000);
+  const m = Math.round(abs - (km * 1000));
+  return `${sign}${km}+${String(m).padStart(3, "0")}`;
+}
+
+function createReportPage(title, subtitle = "") {
+  const page = document.createElement("div");
+  page.style.padding = "34px 42px";
+  page.style.minHeight = "750px";
+  page.style.boxSizing = "border-box";
+  if (title) {
+    const head = document.createElement("div");
+    head.style.marginBottom = "24px";
+    head.innerHTML = `
+      <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:12px;">
+        <div>
+          <div style="font-size:11px; letter-spacing:0.18em; text-transform:uppercase; color:#2563eb; font-weight:800;">Earthsoft Engineering Report</div>
+          <h1 style="margin:8px 0 0; font-size:28px; letter-spacing:-0.03em; color:#0f172a;">${title}</h1>
+        </div>
+        <div style="text-align:right; font-size:11px; color:#64748b;">
+          <div>${state.project.name || "Untitled Project"}</div>
+          <div>${new Date().toLocaleDateString()}</div>
+        </div>
+      </div>
+      ${subtitle ? `<p style="margin:0; color:#475569; font-size:13px; line-height:1.5;">${subtitle}</p>` : ""}
+    `;
+    page.appendChild(head);
+  }
+  return page;
+}
+
+function createReportSection(title, contentHtml) {
+  const section = document.createElement("section");
+  section.style.marginBottom = "18px";
+  section.innerHTML = `
+    <div style="margin-bottom:10px; display:flex; align-items:center; gap:10px;">
+      <div style="width:22px; height:4px; border-radius:999px; background:#2563eb;"></div>
+      <h2 style="margin:0; font-size:15px; color:#0f172a; letter-spacing:0.01em;">${title}</h2>
+    </div>
+    ${contentHtml}
+  `;
+  return section;
+}
+
+function reportMetricCard(label, value, tone = "slate", sub = "") {
+  const toneMap = {
+    slate: { bg: "#f8fafc", border: "#e2e8f0", value: "#0f172a" },
+    blue: { bg: "#eff6ff", border: "#bfdbfe", value: "#1d4ed8" },
+    green: { bg: "#ecfdf5", border: "#a7f3d0", value: "#047857" },
+    red: { bg: "#fef2f2", border: "#fecaca", value: "#b91c1c" },
+    amber: { bg: "#fffbeb", border: "#fde68a", value: "#b45309" },
+  };
+  const palette = toneMap[tone] || toneMap.slate;
+  return `
+    <div style="padding:14px 16px; border-radius:14px; background:${palette.bg}; border:1px solid ${palette.border};">
+      <div style="font-size:10px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase; color:#64748b;">${label}</div>
+      <div style="margin-top:8px; font-size:22px; font-weight:800; color:${palette.value};">${value}</div>
+      ${sub ? `<div style="margin-top:4px; font-size:11px; color:#64748b;">${sub}</div>` : ""}
+    </div>
+  `;
+}
+
+function buildReportContext(rows) {
+  const first = rows[0] || {};
+  const last = rows[rows.length - 1] || {};
+  const fillTotal = rows.reduce((acc, row) => acc + safeNum(row.fillVol, 0), 0);
+  const cutTotal = rows.reduce((acc, row) => acc + safeNum(row.cutVol, 0), 0);
+  const totalLength = Math.max(safeNum(last.chainage) - safeNum(first.chainage), 0);
+  const groupedStations = getGroupedStations();
+  const reusablePct = parseLooseNumber(els.pctReusableSpoil?.value, 60);
+  const reusableSpoil = cutTotal * (safeNum(reusablePct, 60) / 100);
+  const balance = reusableSpoil - fillTotal;
+  const uploads = state.project?.uploads || {};
+  const alerts = [];
+  if (!uploads.kml) alerts.push("KML/KMZ alignment not attached");
+  if (!state.project?.verified) alerts.push("Project not verified");
+  if (!uploads.loops) alerts.push("Loops & Platforms not imported");
+  if (!uploads.bridges) alerts.push("Bridge deductions not imported");
+  if (!uploads.curves) alerts.push("Curve list not imported");
+  if (!Object.keys(state.stationPlans || {}).length) alerts.push("No station conceptual plans attached");
+  return {
+    first,
+    last,
+    fillTotal,
+    cutTotal,
+    totalLength,
+    groupedStations,
+    reusablePct,
+    reusableSpoil,
+    balance,
+    alerts,
+    validBridges: Array.isArray(state.bridgeRows) ? state.bridgeRows.length : 0,
+    validCurves: Array.isArray(state.curveRows) ? state.curveRows.length : 0,
+  };
+}
 
 async function generateProjectReport(options) {
   window._isPdfExportCancelled = false;
@@ -4803,33 +5342,110 @@ async function generateProjectReport(options) {
     const cancelBtn = document.getElementById("cancelPdfExportBtn");
     if (cancelBtn) cancelBtn.style.display = "block";
 
-    // 1. Title Page
+    const reportCtx = buildReportContext(exportCalcRows);
+
+    // 1. Cover Page
     const titlePage = document.createElement("div");
-    titlePage.style.padding = "100px 60px";
-    titlePage.style.textAlign = "center";
+    titlePage.style.padding = "72px 60px";
     titlePage.style.height = "750px";
-    titlePage.style.display = "flex";
-    titlePage.style.flexDirection = "column";
-    titlePage.style.justifyContent = "center";
+    titlePage.style.boxSizing = "border-box";
+    titlePage.style.background = "linear-gradient(135deg, #eff6ff 0%, #ffffff 36%, #f8fafc 100%)";
     titlePage.innerHTML = `
-      <h1 style="font-size: 42px; margin-bottom: 20px; color: #0f172a;">Project Earthwork Report</h1>
-      <h2 style="font-size: 28px; color: #334155; margin-bottom: 40px;">${state.project.name || "Untitled Project"}</h2>
-      <p style="font-size: 18px; color: #64748b; margin-bottom: 60px;">Generated on: ${new Date().toLocaleDateString()}</p>
-      
-      <div style="text-align: left; max-width: 650px; margin: 0 auto; padding: 40px; border: 2px solid #f1f5f9; border-radius: 20px; background: #f8fafc; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);">
-        <h3 style="margin-top: 0; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 20px;">Project Summary</h3>
-        <table style="width: 100%; border-collapse: collapse; font-size: 16px;">
-          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #64748b;">Total Chainage:</td><td style="text-align: right; font-weight: 600;">${r3(exportCalcRows[0]?.chainage || 0)} m to ${r3(exportCalcRows[exportCalcRows.length - 1]?.chainage || 0)} m</td></tr>
-          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #64748b;">Total Length:</td><td style="text-align: right; font-weight: 600;">${r3((exportCalcRows[exportCalcRows.length - 1]?.chainage || 0) - (exportCalcRows[0]?.chainage || 0))} m</td></tr>
-          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #166534; font-weight: 600;">Total Filling (Bank):</td><td style="text-align: right; font-weight: 700; color: #166534;">${formatVolume(exportCalcRows.reduce((a, b) => a + (b.fillVol || 0), 0))}</td></tr>
-          <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 12px 0; color: #991b1b; font-weight: 600;">Total Cutting (Cut):</td><td style="text-align: right; font-weight: 700; color: #991b1b;">${formatVolume(exportCalcRows.reduce((a, b) => a + (b.cutVol || 0), 0))}</td></tr>
-          <tr><td style="padding: 12px 0; color: #64748b;">Total Data Points:</td><td style="text-align: right; font-weight: 600;">${exportCalcRows.length} Cross-Sections</td></tr>
-        </table>
+      <div style="display:flex; flex-direction:column; justify-content:space-between; height:100%;">
+        <div>
+          <div style="display:inline-flex; align-items:center; gap:12px; padding:10px 16px; border-radius:999px; background:rgba(37,99,235,0.08); color:#1d4ed8; font-size:12px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase;">
+            Earthsoft Professional Export
+          </div>
+          <h1 style="margin:28px 0 8px; font-size:52px; line-height:1; letter-spacing:-0.05em; color:#0f172a;">Railway Earthwork Report</h1>
+          <p style="margin:0; font-size:22px; color:#334155; font-weight:600;">${state.project.name || "Untitled Project"}</p>
+          <p style="margin:18px 0 0; max-width:760px; color:#475569; font-size:15px; line-height:1.7;">
+            Executive engineering summary including project readiness, quantity balance, calculation sheets, roll diagrams, and cross-sectional detail drawings.
+          </p>
+        </div>
+        <div style="display:grid; grid-template-columns: 1.2fr 1fr; gap:28px; align-items:end;">
+          <div style="display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px;">
+            ${reportMetricCard("Chainage Range", `${formatReportChainage(reportCtx.first.chainage)} to ${formatReportChainage(reportCtx.last.chainage)}`, "blue")}
+            ${reportMetricCard("Total Length", `${r3(reportCtx.totalLength / 1000)} km`, "slate")}
+            ${reportMetricCard("Total Fill", formatVolume(reportCtx.fillTotal), "green")}
+            ${reportMetricCard("Total Cut", formatVolume(reportCtx.cutTotal), "red")}
+          </div>
+          <div style="padding:20px 22px; border-radius:22px; background:#0f172a; color:#e2e8f0;">
+            <div style="font-size:12px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase; color:#7dd3fc;">Project Snapshot</div>
+            <table style="width:100%; margin-top:12px; border-collapse:collapse; font-size:13px;">
+              <tr><td style="padding:8px 0; color:#94a3b8;">Generated</td><td style="padding:8px 0; text-align:right; font-weight:700;">${new Date().toLocaleString()}</td></tr>
+              <tr><td style="padding:8px 0; color:#94a3b8;">Verification</td><td style="padding:8px 0; text-align:right; font-weight:700;">${state.project?.verified ? "Verified" : "Draft"}</td></tr>
+              <tr><td style="padding:8px 0; color:#94a3b8;">Cross-Sections</td><td style="padding:8px 0; text-align:right; font-weight:700;">${exportCalcRows.length}</td></tr>
+              <tr><td style="padding:8px 0; color:#94a3b8;">Bridges / Curves</td><td style="padding:8px 0; text-align:right; font-weight:700;">${reportCtx.validBridges} / ${reportCtx.validCurves}</td></tr>
+              <tr><td style="padding:8px 0; color:#94a3b8;">Mapped Stations</td><td style="padding:8px 0; text-align:right; font-weight:700;">${reportCtx.groupedStations.length}</td></tr>
+            </table>
+          </div>
+        </div>
       </div>
     `;
     container.appendChild(titlePage);
 
-    // 2. Calculation Sheet
+    // 2. Executive Summary
+    const summaryPage = createReportPage(
+      "Executive Summary",
+      "This section presents project readiness, quantity balance, imported dataset coverage, and the most relevant field intelligence before the detailed engineering sheets."
+    );
+    summaryPage.appendChild(createReportSection("Quantity Balance", `
+      <div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:12px;">
+        ${reportMetricCard("Fill Volume", formatVolume(reportCtx.fillTotal), "green", "Total embankment requirement")}
+        ${reportMetricCard("Cut Volume", formatVolume(reportCtx.cutTotal), "red", "Total excavation generated")}
+        ${reportMetricCard("Reusable Spoil", formatVolume(reportCtx.reusableSpoil), "amber", `${safeNum(reportCtx.reusablePct, 60).toFixed(0)}% reuse assumption`)}
+        ${reportMetricCard("Net Balance", `${reportCtx.balance >= 0 ? "+" : ""}${formatCompactVolume(reportCtx.balance)} m³`, reportCtx.balance >= 0 ? "blue" : "red", reportCtx.balance >= 0 ? "Potential surplus" : "Potential borrow requirement")}
+      </div>
+    `));
+    summaryPage.appendChild(createReportSection("Project Readiness", `
+      <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:18px;">
+        <div style="border:1px solid #e2e8f0; border-radius:16px; overflow:hidden;">
+          <table style="width:100%; border-collapse:collapse; font-size:12px;">
+            <tbody>
+              ${[
+                ["Project Name", state.project.name || "Untitled Project"],
+                ["Verification Status", state.project?.verified ? "Verified" : "Draft / Pending verification"],
+                ["Levels Imported", state.project?.uploads?.levels ? "Yes" : "No"],
+                ["Bridge List Imported", state.project?.uploads?.bridges ? "Yes" : "No"],
+                ["Curve List Imported", state.project?.uploads?.curves ? "Yes" : "No"],
+                ["Loops & Platforms Imported", state.project?.uploads?.loops ? "Yes" : "No"],
+                ["KML/KMZ Alignment Imported", state.project?.uploads?.kml ? "Yes" : "No"],
+                ["Station Plans Attached", `${Object.keys(state.stationPlans || {}).length}`],
+              ].map(([label, value], idx) => `
+                <tr style="background:${idx % 2 ? "#f8fafc" : "#ffffff"};">
+                  <td style="padding:10px 12px; color:#475569; font-weight:600; width:48%;">${label}</td>
+                  <td style="padding:10px 12px; color:#0f172a; font-weight:700;">${value}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+        <div style="padding:16px; border-radius:16px; border:1px solid #e2e8f0; background:#f8fafc;">
+          <div style="font-size:11px; font-weight:800; letter-spacing:0.1em; text-transform:uppercase; color:#64748b; margin-bottom:10px;">Design Notes</div>
+          ${reportCtx.alerts.length
+            ? `<ul style="margin:0; padding-left:18px; color:#334155; font-size:12px; line-height:1.7;">${reportCtx.alerts.map((item) => `<li>${item}</li>`).join("")}</ul>`
+            : `<p style="margin:0; color:#334155; font-size:12px; line-height:1.7;">No major readiness issues detected. Imported datasets are sufficient for review and export.</p>`}
+        </div>
+      </div>
+    `));
+    const sharpestCurve = [...(state.curveRows || [])]
+      .filter((c) => safeNum(c.radius, NaN) > 0)
+      .sort((a, b) => safeNum(a.radius) - safeNum(b.radius))[0];
+    const firstBridge = [...(state.bridgeRows || [])]
+      .sort((a, b) => safeNum(a.startChainage) - safeNum(b.startChainage))[0];
+    const firstStation = reportCtx.groupedStations
+      .filter((s) => Number.isFinite(s.csb))
+      .sort((a, b) => safeNum(a.csb) - safeNum(b.csb))[0];
+    summaryPage.appendChild(createReportSection("Field Intelligence", `
+      <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px;">
+        ${reportMetricCard("First Bridge", firstBridge ? `${firstBridge.bridgeNo || "Bridge"} @ ${formatReportChainage(firstBridge.startChainage)}` : "Not available", "blue", firstBridge ? (firstBridge.bridgeType || "-") : "Bridge list missing")}
+        ${reportMetricCard("Sharpest Curve", sharpestCurve ? `${sharpestCurve.curve || "Curve"} • R=${r3(sharpestCurve.radius)} m` : "Not available", "amber", sharpestCurve ? formatReportChainage(sharpestCurve.chainage) : "Curve list missing")}
+        ${reportMetricCard("First Station", firstStation ? `${firstStation.station}` : "Not available", "slate", firstStation ? formatReportChainage(firstStation.csb) : "Loop/station data missing")}
+      </div>
+    `));
+    container.appendChild(summaryPage);
+
+    // 3. Calculation Sheet
     if (options.calcSheet) {
       if (loadingText) loadingText.textContent = "Exporting Calculation Sheet...";
       // Standardize table selection
@@ -4863,12 +5479,24 @@ async function generateProjectReport(options) {
           }
 
           chunkPage.innerHTML = `
-            <div style="margin-bottom: 30px;">
-              <h2 style="margin-top: 0; color: #000; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px;">Project: ${state.project.name || "Untitled"}</h2>
-              <h3 style="color: #333; margin-bottom: 10px; font-size: 14px;">Quantities Overview</h3>
+            <div style="margin-bottom: 28px; padding:18px; border:1px solid #e2e8f0; border-radius:16px; background:#f8fafc;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:18px; margin-bottom:14px;">
+                <div>
+                  <div style="font-size:11px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase; color:#2563eb;">Calculation Summary</div>
+                  <h2 style="margin:6px 0 0; color:#0f172a; font-size:22px;">${state.project.name || "Untitled"}</h2>
+                  <p style="margin:8px 0 0; color:#475569; font-size:12px;">Calculated chainage from ${formatReportChainage(reportCtx.first.chainage)} to ${formatReportChainage(reportCtx.last.chainage)} across ${exportCalcRows.length} sections.</p>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(2, minmax(120px,1fr)); gap:10px; min-width:320px;">
+                  ${reportMetricCard("Fill", formatVolume(reportCtx.fillTotal), "green")}
+                  ${reportMetricCard("Cut", formatVolume(reportCtx.cutTotal), "red")}
+                  ${reportMetricCard("Bridges", `${reportCtx.validBridges}`, "blue")}
+                  ${reportMetricCard("Stations", `${reportCtx.groupedStations.length}`, "slate")}
+                </div>
+              </div>
+              <h3 style="color: #0f172a; margin-bottom: 10px; font-size: 14px;">Quantity Overview</h3>
               <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 20px;">
                 <thead>
-                  <tr style="background: #f1f5f9;">
+                  <tr style="background: #e2e8f0;">
                     <th style="border: 1px solid #cbd5e1; padding: 6px;">Range</th>
                     <th style="border: 1px solid #cbd5e1; padding: 6px;">Prepared</th>
                     <th style="border: 1px solid #cbd5e1; padding: 6px;">Blanket</th>
@@ -4879,10 +5507,10 @@ async function generateProjectReport(options) {
                 <tbody>${qtyRowsHtml}</tbody>
               </table>
             </div>
-            <h2 style="margin-top: 0; color: #000; border-bottom: 3px solid #000; padding-bottom: 12px; margin-bottom: 30px;">Calculation Sheet (Summary)</h2>
+            <h2 style="margin-top: 0; color: #0f172a; border-bottom: 3px solid #0f172a; padding-bottom: 12px; margin-bottom: 30px;">Detailed Calculation Sheet</h2>
           `;
         } else {
-          chunkPage.innerHTML = `<h2 style="margin-top: 0; color: #000; border-bottom: 3px solid #000; padding-bottom: 12px; margin-bottom: 30px;">Calculation Sheet (Summary) - Continued</h2>`;
+          chunkPage.innerHTML = `<h2 style="margin-top: 0; color: #0f172a; border-bottom: 3px solid #0f172a; padding-bottom: 12px; margin-bottom: 30px;">Detailed Calculation Sheet - Continued</h2>`;
         }
 
         const table = document.createElement("table");
@@ -4957,7 +5585,7 @@ async function generateProjectReport(options) {
 
     if (progressBar) progressBar.style.width = "25%";
 
-    // 3. Roll Diagram
+    // 4. Roll Diagram
     if (options.rollDiagram) {
       if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
       if (loadingText) loadingText.textContent = "Exporting Roll Diagram...";
@@ -5022,7 +5650,7 @@ async function generateProjectReport(options) {
       if (progressBar) progressBar.style.width = "30%";
     }
 
-    // 4. Cross Sections
+    // 5. Cross Sections
     if (options.crossSections) {
       const csHeaderPage = document.createElement("div");
       csHeaderPage.style.padding = "40px";

@@ -5,8 +5,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Railway Earthwork Calculator</title>
+  <meta name="theme-color" content="#0b1020" />
+  <meta name="application-name" content="Earthsoft" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Earthsoft" />
   <link rel="icon" type="image/png" sizes="any" href="./assets/favicon.png" />
   <link rel="apple-touch-icon" href="./assets/favicon.png" />
+  <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
@@ -156,9 +162,7 @@
       <header class="topbar glass">
         <div class="brand">
           <div>
-            <h1>Railway Earthwork Calculator</h1>
-            <p id="projectMeta" class="muted">No project loaded. Drag and drop a file or click Create Project to begin.
-            </p>
+            <p id="projectMeta" class="muted">Earthwork Calculations</p>
           </div>
           <span class="pro-badge">Pro</span>
         </div>
@@ -216,44 +220,174 @@
       </header>
 
       <section class="work-page active" data-work-page="overview">
-        <section id="projectDashboard"
-          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;">
-          <div class="glass-card"
-            style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
-            <div
-              style="color: var(--muted); font-size: 0.8rem; font-weight: 500; display: flex; align-items: center; gap: 6px;">
-              <i class="ri-ruler-line"></i> Chainage Range
+        <section class="overview-mission">
+          <article class="glass mission-hero">
+            <div>
+              <p class="mission-kicker">Mission Control</p>
+              <h2 id="overviewHeroTitle">No active project</h2>
+              <p id="overviewHeroText" class="muted">Create or open a project to begin importing levels, structures, loops, and map alignment.</p>
             </div>
-            <div id="dashChRange" style="font-size: 1.25rem; font-weight: 700; color: white;">0.000 to 0.000</div>
-          </div>
-          <div class="glass-card"
-            style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
-            <div
-              style="color: var(--muted); font-size: 0.8rem; font-weight: 500; display: flex; align-items: center; gap: 6px;">
-              <i class="ri-route-line"></i> Total Length
+          </article>
+
+          <section id="projectDashboard" class="mission-stats">
+            <div class="glass-card mission-stat">
+              <div class="mission-stat-label"><i class="ri-ruler-line"></i> Chainage Range</div>
+              <div id="dashChRange" class="mission-stat-value">0.000 to 0.000</div>
             </div>
-            <div id="dashLength" style="font-size: 1.25rem; font-weight: 700; color: white;">0.000 km</div>
-          </div>
-          <div class="glass-card"
-            style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
-            <div
-              style="color: var(--muted); font-size: 0.8rem; font-weight: 500; display: flex; align-items: center; gap: 6px;">
-              <i class="ri-shape-line"></i> Data Points
+            <div class="glass-card mission-stat">
+              <div class="mission-stat-label"><i class="ri-route-line"></i> Total Length</div>
+              <div id="dashLength" class="mission-stat-value">0.000 km</div>
             </div>
-            <div id="dashPoints" style="font-size: 1.25rem; font-weight: 700; color: white;">0 Cross-Sections</div>
-          </div>
-          <div class="glass-card"
-            style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
-            <div
-              style="color: var(--muted); font-size: 0.8rem; font-weight: 500; display: flex; align-items: center; gap: 6px;">
-              <i class="ri-building-line"></i> Structures
+            <div class="glass-card mission-stat">
+              <div class="mission-stat-label"><i class="ri-shape-line"></i> Data Points</div>
+              <div id="dashPoints" class="mission-stat-value">0 Cross-Sections</div>
             </div>
-            <div id="dashStructures" style="font-size: 1.25rem; font-weight: 700; color: white;">0 Bridges, 0 Curves
+            <div class="glass-card mission-stat">
+              <div class="mission-stat-label"><i class="ri-building-line"></i> Structures</div>
+              <div id="dashStructures" class="mission-stat-value">0 Bridges, 0 Curves</div>
             </div>
-          </div>
+          </section>
+
+          <section class="mission-grid">
+            <section class="cards mission-cards-swap" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <article class="glass-card stat glow-success" id="fillStatCard"
+                style="position:relative; overflow:hidden; min-height:160px; display:flex; flex-direction:column; justify-content:space-between; padding:20px;">
+                <!-- SVG Wave Water Fill -->
+                <div id="fillWaterNode"
+                  style="position:absolute; bottom:0; left:0; right:0; height:0%; transition: height 1s ease;">
+                  <div id="fillReusableHatch" class="fill-reusable-hatch" style="height:0%;">
+                    <span id="fillReusablePctLabel" class="fill-reusable-pct">0%</span>
+                  </div>
+                  <div style="position:absolute; top:0; left:0; width:200%; height:3px;">
+                    <svg viewBox="0 0 1200 20" preserveAspectRatio="none" class="wave-animation"
+                      style="width:100%; height:100%;">
+                      <path d="M0,10 C150,0 350,20 600,10 C850,0 1050,20 1200,10 L1200,20 L0,20 Z"
+                        fill="hsl(152, 69%, 37%)" />
+                    </svg>
+                  </div>
+                  <div style="position:absolute; top:1px; left:0; width:200%; height:3px;">
+                    <svg viewBox="0 0 1200 20" preserveAspectRatio="none" class="wave-animation-2"
+                      style="width:100%; height:100%;">
+                      <path d="M0,10 C150,20 350,0 600,10 C850,20 1050,0 1200,10 L1200,20 L0,20 Z"
+                        fill="hsla(152, 69%, 37%, 0.5)" />
+                    </svg>
+                  </div>
+                  <div
+                    style="position:absolute; top:3px; left:0; right:0; bottom:0; background:hsl(152,69%,37%); opacity:0.15;">
+                  </div>
+                </div>
+                <div style="position:relative; z-index:10;">
+                  <p class="t-fill" style="font-weight: 600;">Total Filling</p>
+                  <div style="display:flex; flex-direction:column;">
+                    <div style="display:flex; align-items:baseline; gap:6px;">
+                      <h2 id="totalFilling" style="font-size:1.8rem;">0.000</h2>
+                      <span style="color:var(--muted); font-size:0.85rem;">m³</span>
+                    </div>
+                    <p id="actualFilling"
+                      style="font-size:0.7rem; font-weight:400; color:var(--muted); margin:-4px 0 0 0; opacity:0; transition:opacity 0.3s ease;">
+                    </p>
+                    <p id="reusableFilling"
+                      style="font-size:0.7rem; font-weight:500; color:var(--red); margin:4px 0 0 0; opacity:0; transition:opacity 0.3s ease;">
+                    </p>
+                  </div>
+                </div>
+                <div
+                  style="position:relative; z-index:10; display:flex; align-items:center; justify-content:space-between;">
+                  <div style="display:flex; align-items:center; gap:6px; color:var(--green);">
+                    <div
+                      style="width:8px; height:8px; border-radius:50%; background:var(--green); animation: pulse 2s infinite;">
+                    </div>
+                    <span id="fillCapacity" style="font-size:0.7rem; font-weight:500;">0% capacity</span>
+                  </div>
+                  <div style="font-size:1.5rem; font-weight:700; color:var(--green); opacity:0.2;">▲</div>
+                </div>
+                <small id="fillLength" style="display:none;">Length: 0.000 km</small>
+              </article>
+
+              <article class="glass-card stat stat-cut glow-destructive" id="cutStatCard"
+                style="position:relative; overflow:hidden; min-height:160px; display:flex; flex-direction:column; justify-content:space-between; padding:20px;">
+                <!-- SVG Wave Water Fill -->
+                <div id="cutWaterNode"
+                  style="position:absolute; bottom:0; left:0; right:0; height:0%; transition: height 1s ease;">
+                  <div style="position:absolute; top:0; left:0; width:200%; height:3px;">
+                    <svg viewBox="0 0 1200 20" preserveAspectRatio="none" class="wave-animation"
+                      style="width:100%; height:100%;">
+                      <path d="M0,10 C150,0 350,20 600,10 C850,0 1050,20 1200,10 L1200,20 L0,20 Z"
+                        fill="hsl(354, 72%, 55%)" />
+                    </svg>
+                  </div>
+                  <div style="position:absolute; top:1px; left:0; width:200%; height:3px;">
+                    <svg viewBox="0 0 1200 20" preserveAspectRatio="none" class="wave-animation-2"
+                      style="width:100%; height:100%;">
+                      <path d="M0,10 C150,20 350,0 600,10 C850,20 1050,0 1200,10 L1200,20 L0,20 Z"
+                        fill="hsla(354, 72%, 55%, 0.5)" />
+                    </svg>
+                  </div>
+                  <div
+                    style="position:absolute; top:3px; left:0; right:0; bottom:0; background:hsl(354,72%,55%); opacity:0.15;">
+                  </div>
+                </div>
+                <div style="position:relative; z-index:10;">
+                  <p class="t-cut" style="font-weight: 600;">Total Cutting</p>
+                  <div style="display:flex; flex-direction:column;">
+                    <div style="display:flex; align-items:baseline; gap:6px;">
+                      <h2 id="totalCutting" style="font-size:1.8rem;">0.000</h2>
+                      <span style="color:var(--muted); font-size:0.85rem;">m³</span>
+                    </div>
+                    <p id="actualCutting"
+                      style="font-size:0.7rem; font-weight:400; color:var(--muted); margin:-4px 0 0 0; opacity:0; transition:opacity 0.3s ease;">
+                    </p>
+                  </div>
+                </div>
+                <div
+                  style="position:relative; z-index:10; display:flex; align-items:center; justify-content:space-between;">
+                  <div style="display:flex; align-items:center; gap:6px; color:var(--red);">
+                    <div
+                      style="width:8px; height:8px; border-radius:50%; background:var(--red); animation: pulse 2s infinite;">
+                    </div>
+                    <span id="cutCapacity" style="font-size:0.7rem; font-weight:500;">0% capacity</span>
+                  </div>
+                  <div style="font-size:1.5rem; font-weight:700; color:var(--red); opacity:0.2;">▼</div>
+                </div>
+                <small id="cutLength" style="display:none;">Length: 0.000 km</small>
+              </article>
+            </section>
+
+            <article class="glass mission-panel">
+              <div class="mission-panel-head">
+                <h3>Critical Chainages</h3>
+                <span class="mission-panel-tag">Hotspots</span>
+              </div>
+              <div id="criticalChainagesList" class="mission-list"></div>
+            </article>
+
+            <article class="glass mission-panel mission-panel-wide">
+              <div class="mission-panel-head">
+                <h3>Corridor Intelligence</h3>
+                <span class="mission-panel-tag">Route Story</span>
+              </div>
+              <div id="corridorIntelligence" class="corridor-panel"></div>
+            </article>
+
+            <article class="glass mission-panel">
+              <div class="mission-panel-head">
+                <h3>Volume Balance</h3>
+                <span class="mission-panel-tag">Earthwork</span>
+              </div>
+              <div id="volumeBalanceGrid" class="mission-balance-grid"></div>
+            </article>
+
+            <article class="glass mission-panel">
+              <div class="mission-panel-head">
+                <h3>Design Alerts</h3>
+                <span class="mission-panel-tag">Review</span>
+              </div>
+              <div id="designAlertsList" class="mission-list"></div>
+            </article>
+          </section>
         </section>
 
-        <section class="summary-strip">
+        <section class="summary-strip mission-summary-strip">
           <article class="glass formula-panel">
             <h3>Earthwork Result Summary</h3>
             <div class="result-tabs" id="resultTabs">
@@ -292,103 +426,13 @@
               </table>
             </div>
           </article>
-          <section class="cards" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-            <article class="glass-card stat glow-success" id="fillStatCard"
-              style="position:relative; overflow:hidden; min-height:160px; display:flex; flex-direction:column; justify-content:space-between; padding:20px;">
-              <!-- SVG Wave Water Fill -->
-              <div id="fillWaterNode"
-                style="position:absolute; bottom:0; left:0; right:0; height:0%; transition: height 1s ease;">
-                <div style="position:absolute; top:0; left:0; width:200%; height:3px;">
-                  <svg viewBox="0 0 1200 20" preserveAspectRatio="none" class="wave-animation"
-                    style="width:100%; height:100%;">
-                    <path d="M0,10 C150,0 350,20 600,10 C850,0 1050,20 1200,10 L1200,20 L0,20 Z"
-                      fill="hsl(152, 69%, 37%)" />
-                  </svg>
-                </div>
-                <div style="position:absolute; top:1px; left:0; width:200%; height:3px;">
-                  <svg viewBox="0 0 1200 20" preserveAspectRatio="none" class="wave-animation-2"
-                    style="width:100%; height:100%;">
-                    <path d="M0,10 C150,20 350,0 600,10 C850,20 1050,0 1200,10 L1200,20 L0,20 Z"
-                      fill="hsla(152, 69%, 37%, 0.5)" />
-                  </svg>
-                </div>
-                <div
-                  style="position:absolute; top:3px; left:0; right:0; bottom:0; background:hsl(152,69%,37%); opacity:0.15;">
-                </div>
-              </div>
-              <div style="position:relative; z-index:10;">
-                <p class="t-fill" style="font-weight: 600;">Total Filling</p>
-                <div style="display:flex; flex-direction:column;">
-                  <div style="display:flex; align-items:baseline; gap:6px;">
-                    <h2 id="totalFilling" style="font-size:1.8rem;">0.000</h2>
-                    <span style="color:var(--muted); font-size:0.85rem;">m³</span>
-                  </div>
-                  <p id="actualFilling"
-                    style="font-size:0.7rem; font-weight:400; color:var(--muted); margin:-4px 0 0 0; opacity:0; transition:opacity 0.3s ease;">
-                  </p>
-                </div>
-              </div>
-              <div
-                style="position:relative; z-index:10; display:flex; align-items:center; justify-content:space-between;">
-                <div style="display:flex; align-items:center; gap:6px; color:var(--green);">
-                  <div
-                    style="width:8px; height:8px; border-radius:50%; background:var(--green); animation: pulse 2s infinite;">
-                  </div>
-                  <span id="fillCapacity" style="font-size:0.7rem; font-weight:500;">0% capacity</span>
-                </div>
-                <div style="font-size:1.5rem; font-weight:700; color:var(--green); opacity:0.2;">▲</div>
-              </div>
-              <small id="fillLength" style="display:none;">Length: 0.000 km</small>
-            </article>
-
-            <article class="glass-card stat stat-cut glow-destructive" id="cutStatCard"
-              style="position:relative; overflow:hidden; min-height:160px; display:flex; flex-direction:column; justify-content:space-between; padding:20px;">
-              <!-- SVG Wave Water Fill -->
-              <div id="cutWaterNode"
-                style="position:absolute; bottom:0; left:0; right:0; height:0%; transition: height 1s ease;">
-                <div style="position:absolute; top:0; left:0; width:200%; height:3px;">
-                  <svg viewBox="0 0 1200 20" preserveAspectRatio="none" class="wave-animation"
-                    style="width:100%; height:100%;">
-                    <path d="M0,10 C150,0 350,20 600,10 C850,0 1050,20 1200,10 L1200,20 L0,20 Z"
-                      fill="hsl(354, 72%, 55%)" />
-                  </svg>
-                </div>
-                <div style="position:absolute; top:1px; left:0; width:200%; height:3px;">
-                  <svg viewBox="0 0 1200 20" preserveAspectRatio="none" class="wave-animation-2"
-                    style="width:100%; height:100%;">
-                    <path d="M0,10 C150,20 350,0 600,10 C850,20 1050,0 1200,10 L1200,20 L0,20 Z"
-                      fill="hsla(354, 72%, 55%, 0.5)" />
-                  </svg>
-                </div>
-                <div
-                  style="position:absolute; top:3px; left:0; right:0; bottom:0; background:hsl(354,72%,55%); opacity:0.15;">
-                </div>
-              </div>
-              <div style="position:relative; z-index:10;">
-                <p class="t-cut" style="font-weight: 600;">Total Cutting</p>
-                <div style="display:flex; flex-direction:column;">
-                  <div style="display:flex; align-items:baseline; gap:6px;">
-                    <h2 id="totalCutting" style="font-size:1.8rem;">0.000</h2>
-                    <span style="color:var(--muted); font-size:0.85rem;">m³</span>
-                  </div>
-                  <p id="actualCutting"
-                    style="font-size:0.7rem; font-weight:400; color:var(--muted); margin:-4px 0 0 0; opacity:0; transition:opacity 0.3s ease;">
-                  </p>
-                </div>
-              </div>
-              <div
-                style="position:relative; z-index:10; display:flex; align-items:center; justify-content:space-between;">
-                <div style="display:flex; align-items:center; gap:6px; color:var(--red);">
-                  <div
-                    style="width:8px; height:8px; border-radius:50%; background:var(--red); animation: pulse 2s infinite;">
-                  </div>
-                  <span id="cutCapacity" style="font-size:0.7rem; font-weight:500;">0% capacity</span>
-                </div>
-                <div style="font-size:1.5rem; font-weight:700; color:var(--red); opacity:0.2;">▼</div>
-              </div>
-              <small id="cutLength" style="display:none;">Length: 0.000 km</small>
-            </article>
-          </section>
+          <article class="glass mission-panel">
+            <div class="mission-panel-head">
+              <h3>Project Health</h3>
+              <span class="mission-panel-tag">Readiness</span>
+            </div>
+            <div id="projectHealthGrid" class="mission-chip-grid"></div>
+          </article>
         </section>
       </section>
 
@@ -526,13 +570,13 @@
         </section>
       </section>
 
-      <section class="work-page" data-work-page="roll-diagram">
-        <header class="page-header">
-          <div>
+      <section class="work-page roll-page" data-work-page="roll-diagram">
+        <header class="page-header roll-page-header">
+          <div class="roll-page-title">
             <h2>Alignment Diagram</h2>
             <p class="text-secondary">Plan view (top) and Side View / Elevation Profile (bottom)</p>
           </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div class="roll-page-controls">
             <button id="rollZoomIn" class="btn btn-secondary" type="button" title="Zoom In"
               style="padding:6px 12px;font-size:16px;line-height:1;">+</button>
             <button id="rollZoomOut" class="btn btn-secondary" type="button" title="Zoom Out"
@@ -541,55 +585,45 @@
               style="padding:6px 10px;font-size:12px;">Reset</button>
           </div>
         </header>
-        <div class="card glass" style="margin-top:16px;padding:0;overflow:hidden;position:relative;">
-          <div id="rollDiagramEmpty"
-            style="display:none;flex-direction:column;align-items:center;justify-content:center;height:300px;gap:12px;opacity:0.55;">
-            <svg viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M6 24h36M16 14l-10 10 10 10M32 14l10 10-10 10" />
-            </svg>
-            <p style="font-size:14px;margin:0;">Import levels data to see the alignment roll diagram.</p>
-          </div>
-          <div id="rollDiagramWrap" style="width:100%;max-height:80vh;overflow:auto;position:relative;cursor:grab;">
-            <canvas id="rollDiagramCanvas" style="display:block;image-rendering:crisp-edges;"></canvas>
-          </div>
-        </div>
-
-        <!-- SYNC CONTROLS (between the two views) -->
-        <div id="rollSyncBar"
-          style="display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 0;margin:4px 0;">
-          <button id="rollSyncBtn" type="button" style="
-            display:flex;align-items:center;gap:7px;padding:7px 20px;
-            background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.15);
-            border-radius:20px;color:rgba(255,255,255,0.7);font-size:12px;font-family:Outfit,sans-serif;
-            font-weight:600;cursor:pointer;letter-spacing:0.04em;transition:all 0.2s;
-          " title="Sync both views so they scroll together at the same chainage">
-            <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M3 9a6 6 0 000 6h12M15 9a6 6 0 000-6H3M3 15l-2-2 2-2M15 3l2 2-2 2" />
-            </svg>
-            <span>Sync Scrolling</span>
-          </button>
-          <span style="font-size:11px;color:rgba(255,255,255,0.3);">Drag to pan &nbsp;·&nbsp; Scroll wheel to
-            zoom</span>
-        </div>
-
-        <!-- SIDE VIEW (Elevation Profile) -->
-
-        <div style="margin-top:20px;">
-          <div
-            style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:rgba(255,255,255,0.045);border-radius:8px 8px 0 0;border:1px solid rgba(255,255,255,0.09);border-bottom:none;">
-            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5">
-              <polyline points="2,14 6,8 10,11 14,4 18,7" />
-              <line x1="2" y1="16" x2="18" y2="16" />
-              <line x1="2" y1="2" x2="2" y2="16" />
-            </svg>
-            <span style="font-size:13px;font-weight:600;letter-spacing:0.03em;">SIDE VIEW — Longitudinal Elevation
-              Profile</span>
-          </div>
-          <div class="card glass" style="padding:0;overflow:hidden;border-radius:0 0 8px 8px;">
-            <div id="sideViewWrap" style="width:100%;max-height:55vh;overflow:auto;position:relative;">
-              <canvas id="sideViewCanvas" style="display:block;image-rendering:crisp-edges;"></canvas>
+        <div class="roll-split-shell">
+          <section class="roll-panel glass">
+            <div class="roll-panel-head">
+              <span>TOP VIEW — Roll Diagram</span>
             </div>
+            <div id="rollDiagramEmpty" class="roll-empty-state">
+              <svg viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M6 24h36M16 14l-10 10 10 10M32 14l10 10-10 10" />
+              </svg>
+              <p style="font-size:14px;margin:0;">Import levels data to see the alignment roll diagram.</p>
+            </div>
+            <div id="rollDiagramWrap" class="roll-canvas-wrap plan-wrap">
+              <canvas id="rollDiagramCanvas" class="roll-canvas"></canvas>
+            </div>
+          </section>
+
+          <div id="rollSyncBar" class="roll-sync-bar">
+            <button id="rollSyncBtn" type="button" class="roll-sync-btn"
+              title="Sync both views so they scroll together at the same chainage">
+              <svg viewBox="0 0 18 18" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M3 9a6 6 0 000 6h12M15 9a6 6 0 000-6H3M3 15l-2-2 2-2M15 3l2 2-2 2" />
+              </svg>
+              <span>Sync Scrolling</span>
+            </button>
           </div>
+
+          <section class="roll-panel glass">
+            <div class="roll-panel-head">
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <polyline points="2,14 6,8 10,11 14,4 18,7" />
+                <line x1="2" y1="16" x2="18" y2="16" />
+                <line x1="2" y1="2" x2="2" y2="16" />
+              </svg>
+              <span>SIDE VIEW — Longitudinal Elevation Profile</span>
+            </div>
+            <div id="sideViewWrap" class="roll-canvas-wrap side-wrap">
+              <canvas id="sideViewCanvas" class="roll-canvas"></canvas>
+            </div>
+          </section>
         </div>
       </section>
 
@@ -802,6 +836,34 @@
           </div>
         </header>
         <div class="card glass" style="margin-top:16px;padding:0;overflow:hidden;position:relative;">
+          <aside id="alignmentMapLegend" class="map-legend" aria-label="Map legend">
+            <div class="map-legend-title">Map Legend</div>
+            <div class="map-legend-item">
+              <span class="map-legend-swatch map-legend-line alignment"></span>
+              <span>Alignment</span>
+            </div>
+            <div class="map-legend-item">
+              <span class="map-legend-swatch map-legend-line fill"></span>
+              <span>Filling Overlay</span>
+            </div>
+            <div class="map-legend-item">
+              <span class="map-legend-swatch map-legend-line cut"></span>
+              <span>Cutting Overlay</span>
+            </div>
+            <div class="map-legend-item">
+              <span class="map-legend-swatch map-legend-dot bridge"></span>
+              <span>Bridges</span>
+            </div>
+            <div class="map-legend-item">
+              <span class="map-legend-swatch map-legend-dot curve"></span>
+              <span>Curves</span>
+            </div>
+            <div class="map-legend-item">
+              <span class="map-legend-swatch map-legend-dot station"></span>
+              <span>Stations</span>
+            </div>
+            <div id="alignmentMapLegendNote" class="map-legend-note">Station locations are shown after KML import. Station labels are placed once per station at CSB.</div>
+          </aside>
           <div id="alignmentMapEmpty"
             style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:500px;gap:12px;opacity:0.55;">
             <svg viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -910,6 +972,26 @@
     </div> <!-- /main-content -->
   </div> <!-- /app-layout -->
 
+  <dialog id="stationPlanModal" class="modal glass">
+    <div class="modal-body">
+      <div class="modal-head">
+        <h3>Attach Station Plan</h3>
+        <button id="closeStationPlanModalBtn" type="button" class="icon-btn">✕</button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <p id="stationPlanModalText" class="muted" style="margin:0;">Select the station this conceptual plan belongs to.</p>
+        <label style="display:flex; flex-direction:column; gap:8px;">
+          <span style="font-size:0.9rem; font-weight:600;">Station</span>
+          <select id="stationPlanStationSelect" class="btn btn-secondary" style="appearance:auto; text-align:left;"></select>
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button id="cancelStationPlanModalBtn" type="button" class="btn btn-secondary">Cancel</button>
+        <button id="confirmStationPlanModalBtn" type="button" class="btn btn-primary">Attach Plan</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="settingsModal" class="modal glass">
     <form id="settingsForm" class="modal-body" method="dialog">
       <div class="modal-head">
@@ -939,16 +1021,32 @@
           List</button>
         <button type="button" class="btn btn-secondary import-option-btn" data-import-kind="loops">Import Loops &
           Platforms</button>
+        <button type="button" class="btn btn-secondary import-option-btn" data-import-kind="kml">Import KML/KMZ
+          Alignment</button>
       </div>
     </div>
   </dialog>
 
-  <dialog id="projectWizardModal" class="modal glass">
-    <div class="modal-body">
-      <div class="modal-head">
-        <h3>Create Project</h3>
+  <dialog id="projectWizardModal" class="modal glass project-wizard-modal">
+    <div class="modal-body project-wizard-body">
+      <div class="modal-head project-wizard-head">
+        <div>
+          <p class="project-wizard-kicker">Project Setup</p>
+          <h3>Create Project</h3>
+        </div>
         <button id="closeProjectWizardBtn" type="button" class="icon-btn">✕</button>
       </div>
+      <section class="project-wizard-hero">
+        <div class="project-wizard-hero-copy">
+          <h4>Build a clean project workspace in one guided pass.</h4>
+          <p>Import the four core engineering files, then add KML/KMZ alignment for geographic mapping and station plan workflows.</p>
+        </div>
+        <div class="project-wizard-hero-badges">
+          <span>4 Required Inputs</span>
+          <span>1 Optional Map Layer</span>
+          <span>Drag & Drop Ready</span>
+        </div>
+      </section>
       <div class="wizard-flow drop-zone" id="wizardDropZone">
         <div class="drop-overlay" id="wizardDropOverlay">
           <svg class="nav-icon" viewBox="0 0 24 24" style="width: 48px; height: 48px; margin-bottom: 12px;">
@@ -958,11 +1056,12 @@
           <p>We'll automatically route them to the correct lists.</p>
         </div>
         <label class="wizard-name">
-          Project Name
+          <span>Project Name</span>
           <input id="projectNameInput" type="text" placeholder="Enter project name" />
         </label>
         <div class="wizard-step" data-wizard-step="levels">
           <div class="wizard-step-left">
+            <span class="wizard-step-index">01</span>
             <strong>1. Import Levels</strong>
             <small>Ground RL + Proposed RL + Chainage/Station data.</small>
           </div>
@@ -974,6 +1073,7 @@
         </div>
         <div class="wizard-step" data-wizard-step="curves">
           <div class="wizard-step-left">
+            <span class="wizard-step-index">02</span>
             <strong>2. Import Curve List</strong>
             <small>Curve chainages, radius, and lengths.</small>
           </div>
@@ -985,6 +1085,7 @@
         </div>
         <div class="wizard-step" data-wizard-step="bridges">
           <div class="wizard-step-left">
+            <span class="wizard-step-index">03</span>
             <strong>3. Import Bridge List</strong>
             <small>Structure name, start chainage, end chainage/length for deductions.</small>
           </div>
@@ -996,6 +1097,7 @@
         </div>
         <div class="wizard-step" data-wizard-step="loops">
           <div class="wizard-step-left">
+            <span class="wizard-step-index">04</span>
             <strong>4. Import Loops & Platforms</strong>
             <small>Loop/platform locations and ranges.</small>
           </div>
@@ -1004,9 +1106,20 @@
             <span id="wizardTickLoops" class="wizard-tick">✓</span>
           </div>
         </div>
-        <p id="wizardStatus" class="muted">Upload all four files to verify the project.</p>
+        <div class="wizard-step" data-wizard-step="kml">
+          <div class="wizard-step-left">
+            <span class="wizard-step-index optional">05</span>
+            <strong>5. Import KML/KMZ Alignment</strong>
+            <small>Optional. Geographic alignment for the map view.</small>
+          </div>
+          <div class="wizard-step-right">
+            <button type="button" class="btn btn-secondary wizard-upload-btn" data-wizard-upload="kml">Upload</button>
+            <span id="wizardTickKml" class="wizard-tick">✓</span>
+          </div>
+        </div>
+        <p id="wizardStatus" class="muted wizard-status-note">Upload the four core files to verify the project. KML/KMZ is optional for map alignment.</p>
       </div>
-      <div class="modal-foot">
+      <div class="modal-foot project-wizard-foot">
         <button id="wizardSaveBtn" type="button" class="btn btn-secondary">Save Project</button>
         <button id="wizardCalculateBtn" type="button" class="btn-fluid-verify" disabled>
           <span class="btn-text-default">Verify & Calculate</span>
@@ -3097,6 +3210,15 @@
 
   <script src="./app.js"></script>
   <script src="./alignment-map.js"></script>
+  <script>
+    if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js").catch((err) => {
+          console.warn("Service worker registration failed:", err);
+        });
+      });
+    }
+  </script>
   <div id="rollTooltip" style="
     display: none; 
     position: absolute; 
