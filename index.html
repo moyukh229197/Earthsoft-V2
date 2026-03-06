@@ -23,10 +23,25 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script>
+    (function () {
+      const AUTH_STORAGE_KEY = "earthsoft_auth_session";
+      try {
+        const saved = sessionStorage.getItem(AUTH_STORAGE_KEY);
+        const auth = saved ? JSON.parse(saved) : null;
+        if (!auth?.authenticated) {
+          window.location.replace("./login.html");
+          return;
+        }
+      } catch (_) {
+        window.location.replace("./login.html");
+      }
+    })();
+  </script>
   <script src="./background-beams.js" defer></script>
 </head>
 
-<body>
+<body class="is-authenticated">
   <div class="app-layout">
     <!-- Sidebar Navigation -->
     <aside class="sidebar">
@@ -193,8 +208,9 @@
         </div>
         <div class="topbar-right"
           style="display:flex; align-items:center; gap:16px; margin-left:12px; padding-left:16px; border-left:1px solid var(--stroke);">
-          <span id="dateDisplay" class="muted"
-            style="font-size:0.85rem; font-weight:500; letter-spacing:0.02em; white-space:nowrap; color:var(--muted);"></span>
+          <button id="logoutBtn" class="btn btn-secondary" type="button" style="display:inline-flex;">
+            <i class="ri-logout-box-r-line" style="margin-right: 4px;"></i> Logout
+          </button>
           <label class="theme-capsule" title="Toggle Dark/Light Mode">
             <input type="checkbox" id="themeToggleCheckbox">
             <span class="theme-capsule-track">
@@ -3211,8 +3227,19 @@
   <script src="./app.js"></script>
   <script src="./alignment-map.js"></script>
   <script>
-    if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+    const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+    if ("serviceWorker" in navigator && (location.protocol === "https:" || isLocalhost)) {
       window.addEventListener("load", () => {
+        if (isLocalhost) {
+          navigator.serviceWorker.getRegistrations()
+            .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+            .then(() => ("caches" in window ? caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key)))) : null))
+            .catch((err) => {
+              console.warn("Local service worker cleanup failed:", err);
+            });
+          return;
+        }
+
         navigator.serviceWorker.register("./service-worker.js").catch((err) => {
           console.warn("Service worker registration failed:", err);
         });

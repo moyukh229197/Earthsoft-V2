@@ -13,6 +13,9 @@ const CROSS_SVG_H = 980;
 
 const BRIDGE_CATEGORIES = ["Minor", "Major", "Viaduct", "Important", "RoR", "Tunnel", "ROB", "MIBOR", "Aqueduct"];
 const BRIDGE_TYPES = ["Box", "PSC Slab", "Composite Girder", "OWG", "Other"];
+const AUTH_STORAGE_KEY = "earthsoft_auth_session";
+const AUTH_USERNAME = "admin";
+const AUTH_PASSWORD = "earthsoft123";
 
 const state = {
   meta: null,
@@ -46,9 +49,21 @@ const state = {
   kmlData: null,
   stationPlans: {},
   projectFileHandle: null,
+  auth: {
+    authenticated: false,
+    user: "",
+  },
 };
 
 const els = {
+  loginScreen: document.getElementById("loginScreen"),
+  loginForm: document.getElementById("loginForm"),
+  loginUsername: document.getElementById("loginUsername"),
+  loginPassword: document.getElementById("loginPassword"),
+  loginError: document.getElementById("loginError"),
+  loginSubmitBtn: document.getElementById("loginSubmitBtn"),
+  logoutBtn: document.getElementById("logoutBtn"),
+  loginUserChip: document.getElementById("loginUserChip"),
   projectMeta: document.getElementById("projectMeta"),
   rollDiagramCanvas: document.getElementById("rollDiagramCanvas"),
   rollDiagramWrap: document.getElementById("rollDiagramWrap"),
@@ -174,6 +189,99 @@ const els = {
   confirmExportBtn: document.getElementById("confirmExportBtn"),
   cancelExportBtn: document.getElementById("cancelExportBtn"),
 };
+
+function loadAuthState() {
+  try {
+    const saved = sessionStorage.getItem(AUTH_STORAGE_KEY);
+    if (!saved) return;
+    const parsed = JSON.parse(saved);
+    state.auth = {
+      authenticated: Boolean(parsed?.authenticated),
+      user: String(parsed?.user || "").trim(),
+    };
+  } catch (error) {
+    console.warn("Failed to load auth session:", error);
+  }
+}
+
+function saveAuthState() {
+  try {
+    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(state.auth));
+  } catch (error) {
+    console.warn("Failed to save auth session:", error);
+  }
+}
+
+function updateAuthUI() {
+  const authenticated = Boolean(state.auth?.authenticated);
+  document.body.classList.toggle("is-authenticated", authenticated);
+
+  if (!authenticated && !els.loginForm) {
+    window.location.replace("./login.html");
+    return;
+  }
+
+  if (els.logoutBtn) els.logoutBtn.style.display = authenticated ? "inline-flex" : "none";
+  if (els.loginUserChip) {
+    els.loginUserChip.style.display = authenticated ? "inline-flex" : "none";
+    els.loginUserChip.textContent = authenticated && state.auth.user ? `Signed in: ${state.auth.user}` : "";
+  }
+  if (els.loginError) els.loginError.textContent = "";
+
+  if (!authenticated) {
+    requestAnimationFrame(() => {
+      els.loginUsername?.focus();
+    });
+  }
+}
+
+function setAuthState(authenticated, user = "") {
+  state.auth = {
+    authenticated: Boolean(authenticated),
+    user: authenticated ? String(user || "").trim() : "",
+  };
+  saveAuthState();
+  updateAuthUI();
+
+  if (!authenticated && !els.loginForm) {
+    window.location.replace("./login.html");
+  }
+}
+
+function logout() {
+  state.auth = {
+    authenticated: false,
+    user: "",
+  };
+  try {
+    sessionStorage.removeItem(AUTH_STORAGE_KEY);
+  } catch (error) {
+    console.warn("Failed to clear auth session:", error);
+  }
+  window.location.replace("./login.html");
+}
+
+function attemptLogin() {
+  const username = String(els.loginUsername?.value || "").trim();
+  const password = String(els.loginPassword?.value || "").trim();
+
+  if (!username || !password) {
+    if (els.loginError) els.loginError.textContent = "Enter both username and password to continue.";
+    return;
+  }
+
+  if (username.toLowerCase() !== AUTH_USERNAME || password !== AUTH_PASSWORD) {
+    if (els.loginError) els.loginError.textContent = "Invalid username or password.";
+    if (els.loginPassword) els.loginPassword.value = "";
+    els.loginPassword?.focus();
+    return;
+  }
+
+  setAuthState(true, AUTH_USERNAME);
+  if (els.loginPassword) els.loginPassword.value = "";
+  setWorkPage("overview");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
 
 function formatDashboardChainage(value) {
   const n = Number(value);
@@ -3633,6 +3741,26 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
 }
 
 function bindEvents() {
+  if (els.loginForm) {
+    els.loginForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      attemptLogin();
+    });
+  }
+
+  if (els.loginSubmitBtn) {
+    els.loginSubmitBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      attemptLogin();
+    });
+  }
+
+  if (els.logoutBtn) {
+    els.logoutBtn.addEventListener("click", () => {
+      logout();
+    });
+  }
+
   if (els.workNav) {
     els.workNav.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-work-page-btn]");
@@ -3929,6 +4057,11 @@ function bindEvents() {
         const modalTitle = document.getElementById("verifyModalTitle");
 
         if (errors.length === 0) {
+          state.project.verified = true;
+          updateWizardUI();
+          applyProjectGate();
+          updateEstimates();
+          updateDashboard();
           verifyBtn.classList.add("verified");
           if (modalTitle) modalTitle.textContent = "Verification Successful";
           if (modalIcon) {
@@ -3963,6 +4096,11 @@ function bindEvents() {
           }, 2000);
 
         } else {
+          state.project.verified = false;
+          updateWizardUI();
+          applyProjectGate();
+          updateEstimates();
+          updateDashboard();
           verifyBtn.disabled = false;
           if (modalTitle) modalTitle.textContent = "Verification Failed";
           if (modalIcon) {
@@ -5150,6 +5288,7 @@ async function init() {
   state.snapshots = [];
 
   loadStoredState();
+  loadAuthState();
   // Ensure settings always has all required keys (stored state may have stale/missing fields)
   state.settings = { ...state.defaultSettings, ...(state.settings || {}) };
   state.meta = state.meta || {};
@@ -5170,6 +5309,7 @@ async function init() {
   bindCrossCanvasInteraction();
   setWorkPage("overview");
   setResultTab("qty");
+  updateAuthUI();
   updateWizardUI();
   applyProjectGate();
   recalculate();
