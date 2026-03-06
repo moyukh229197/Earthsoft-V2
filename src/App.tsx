@@ -56,7 +56,7 @@ export default function App() {
 
       <div className="relative z-10 flex min-h-screen items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-7xl rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,rgba(8,24,66,0.88),rgba(2,10,28,0.78)_40%,rgba(2,8,20,0.84)_100%)] p-4 shadow-2xl shadow-black/60 backdrop-blur-2xl sm:p-6 lg:p-8">
-          <div className="grid gap-6 lg:min-h-[760px] lg:grid-cols-[1.18fr_0.82fr]">
+          <div className="grid gap-6 lg:min-h-[760px] lg:grid-cols-[1.24fr_0.76fr]">
             <section className="flex h-full flex-col justify-between rounded-[1.75rem] px-5 py-5 sm:px-8 sm:py-7 lg:px-10 lg:py-10">
               <div className="space-y-10 lg:space-y-14">
                 <div className="flex items-center gap-5">
@@ -99,7 +99,7 @@ export default function App() {
               </div>
             </section>
 
-            <section className="rounded-[2rem] border border-white/10 bg-[rgba(1,8,24,0.86)] p-6 shadow-2xl shadow-black/40 backdrop-blur-2xl sm:p-8 lg:p-10">
+            <section className="rounded-[2rem] border border-white/10 bg-[rgba(1,8,24,0.58)] p-5 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-6 lg:mx-4 lg:p-7">
               <form className="space-y-6" onSubmit={handleSubmit}>
                 <div className="space-y-2">
                   <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.24em] text-white/55">
@@ -116,7 +116,7 @@ export default function App() {
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-white/70">Username</span>
                     <input
-                      className="w-full rounded-2xl border border-white/10 bg-[rgba(5,17,48,0.72)] px-4 py-3 text-white outline-none transition focus:border-blue-400/80 focus:bg-[rgba(7,23,63,0.9)] focus:ring-4 focus:ring-blue-500/20"
+                      className="w-full rounded-2xl border border-white/10 bg-[rgba(5,17,48,0.5)] px-4 py-3 text-white outline-none transition focus:border-blue-400/80 focus:bg-[rgba(7,23,63,0.72)] focus:ring-4 focus:ring-blue-500/20"
                       value={username}
                       onChange={(event) => setUsername(event.target.value)}
                       autoComplete="username"
@@ -127,7 +127,7 @@ export default function App() {
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-white/70">Password</span>
                     <input
-                      className="w-full rounded-2xl border border-white/10 bg-[rgba(5,17,48,0.72)] px-4 py-3 text-white outline-none transition focus:border-blue-400/80 focus:bg-[rgba(7,23,63,0.9)] focus:ring-4 focus:ring-blue-500/20"
+                      className="w-full rounded-2xl border border-white/10 bg-[rgba(5,17,48,0.5)] px-4 py-3 text-white outline-none transition focus:border-blue-400/80 focus:bg-[rgba(7,23,63,0.72)] focus:ring-4 focus:ring-blue-500/20"
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       autoComplete="current-password"
@@ -139,7 +139,7 @@ export default function App() {
 
                 <div className="min-h-6 text-sm text-red-300">{error}</div>
 
-                <div className="rounded-[1.75rem] border border-blue-500/35 bg-[rgba(7,23,63,0.45)] p-6 text-white/80">
+                <div className="rounded-[1.75rem] border border-blue-500/25 bg-[rgba(7,23,63,0.24)] p-5 text-white/80">
                   <div className="text-xl font-semibold text-white">Demo Login</div>
                   <div className="mt-3 space-y-2 text-base">
                     <p>
