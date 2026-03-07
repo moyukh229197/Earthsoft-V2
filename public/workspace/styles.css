@@ -1461,6 +1461,12 @@ h1 {
   padding: 0;
 }
 
+.roll-page-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .roll-panel-head {
   display: flex;
   align-items: center;
@@ -1483,6 +1489,11 @@ h1 {
   overflow: auto;
   position: relative;
   cursor: grab;
+}
+
+.roll-canvas-wrap.is-panning {
+  cursor: grabbing;
+  user-select: none;
 }
 
 .roll-canvas {
@@ -1543,6 +1554,82 @@ h1 {
 .roll-sync-note {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.35);
+}
+
+.roll-fullscreen-modal {
+  width: min(100vw, 100vw);
+  max-width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  padding: 0;
+  border: none;
+  background: rgba(3, 8, 24, 0.9);
+}
+
+.roll-fullscreen-modal::backdrop {
+  background: rgba(2, 6, 18, 0.82);
+  backdrop-filter: blur(10px);
+}
+
+.roll-fullscreen-body {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  background: linear-gradient(180deg, rgba(5, 12, 28, 0.94), rgba(5, 12, 28, 0.82));
+}
+
+.roll-fullscreen-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px 0;
+  color: var(--text);
+}
+
+.roll-fullscreen-topbar h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.roll-fullscreen-topbar p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.roll-fullscreen-viewport {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.roll-fullscreen-modal .roll-page-header {
+  margin-bottom: 8px;
+}
+
+.roll-fullscreen-modal .roll-split-shell {
+  flex: 1;
+  min-height: 0;
+  gap: 10px;
+}
+
+.roll-fullscreen-modal .roll-panel {
+  border-radius: 18px;
+}
+
+.roll-fullscreen-modal .roll-panel-head {
+  padding: 10px 16px;
+  font-size: 0.74rem;
+}
+
+.roll-fullscreen-modal .roll-canvas-wrap {
+  background: rgba(4, 10, 24, 0.45);
 }
 
 .light .roll-sync-btn {

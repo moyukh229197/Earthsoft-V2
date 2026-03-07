@@ -66,6 +66,13 @@ const els = {
   rollDiagramEmpty: document.getElementById("rollDiagramEmpty"),
   sideViewCanvas: document.getElementById("sideViewCanvas"),
   sideViewWrap: document.getElementById("sideViewWrap"),
+  rollPageHeader: document.getElementById("rollPageHeader"),
+  rollSplitShell: document.getElementById("rollSplitShell"),
+  rollZoomFit: document.getElementById("rollZoomFit"),
+  rollFullscreenBtn: document.getElementById("rollFullscreenBtn"),
+  rollFullscreenCloseBtn: document.getElementById("rollFullscreenCloseBtn"),
+  rollFullscreenModal: document.getElementById("rollFullscreenModal"),
+  rollFullscreenViewport: document.getElementById("rollFullscreenViewport"),
   tableBody: document.getElementById("tableBody"),
   totalFilling: document.getElementById("totalFilling"),
   totalCutting: document.getElementById("totalCutting"),
@@ -3872,18 +3879,42 @@ function bindEvents() {
     const zoomIn = document.getElementById("rollZoomIn");
     const zoomOut = document.getElementById("rollZoomOut");
     const zoomReset = document.getElementById("rollZoomReset");
+    const zoomFit = document.getElementById("rollZoomFit");
+    const fullscreenBtn = document.getElementById("rollFullscreenBtn");
+    const fullscreenCloseBtn = document.getElementById("rollFullscreenCloseBtn");
+    const fullscreenModal = document.getElementById("rollFullscreenModal");
+    const fullscreenViewport = document.getElementById("rollFullscreenViewport");
+    const rollPageHeader = document.getElementById("rollPageHeader");
+    const rollSplitShell = document.getElementById("rollSplitShell");
 
     let synced = false;
     let syncLock = false;
+    let spacePanActive = false;
+    let fullscreenOpen = false;
+    let headerPlaceholder = null;
+    let shellPlaceholder = null;
+
+    function renderRollViews() {
+      if (!state.calcRows.length) return;
+      renderRollDiagram();
+      renderSideView();
+    }
+
+    function setSyncButtonState() {
+      if (!syncBtn) return;
+      syncBtn.style.background = synced ? "rgba(34,211,238,0.18)" : "rgba(255,255,255,0.06)";
+      syncBtn.style.borderColor = synced ? "rgba(34,211,238,0.6)" : "rgba(255,255,255,0.15)";
+      syncBtn.style.color = synced ? "#67e8f9" : "rgba(255,255,255,0.7)";
+      if (syncBtn.querySelector("span")) {
+        syncBtn.querySelector("span").textContent = synced ? "Synced ✓" : "Sync Scrolling";
+      }
+    }
 
     // ── Sync button ─────────────────────────────────────────────────────────
     if (syncBtn) {
       syncBtn.addEventListener("click", () => {
         synced = !synced;
-        syncBtn.style.background = synced ? "rgba(34,211,238,0.18)" : "rgba(255,255,255,0.06)";
-        syncBtn.style.borderColor = synced ? "rgba(34,211,238,0.6)" : "rgba(255,255,255,0.15)";
-        syncBtn.style.color = synced ? "#67e8f9" : "rgba(255,255,255,0.7)";
-        syncBtn.querySelector("span") && (syncBtn.querySelector("span").textContent = synced ? "Synced ✓" : "Sync Scrolling");
+        setSyncButtonState();
         if (synced && planWrap && sideWrap) {
           window._sideScale = window._planScale || 1;
           if (state.calcRows.length) renderSideView();
@@ -3891,6 +3922,7 @@ function bindEvents() {
         }
       });
     }
+    setSyncButtonState();
 
     function syncScrollLeft(from, to) {
       if (!synced || syncLock || !from || !to) return;
@@ -3899,14 +3931,51 @@ function bindEvents() {
       syncLock = false;
     }
 
+    function getFitScaleForWrap(wrap, kind) {
+      if (!wrap || !state.calcRows.length) return 1;
+      const rows = state.calcRows;
+      const minCh = rows[0].chainage;
+      const maxCh = rows[rows.length - 1].chainage;
+      const totalL = Math.max(maxCh - minCh, 1);
+      const pads = kind === "plan" ? { left: 60, right: 40 } : { left: 72, right: 30 };
+      const usableWidth = Math.max(wrap.clientWidth - pads.left - pads.right - 24, 240);
+      return Math.max(0.05, Math.min(40, usableWidth / (totalL * 0.4)));
+    }
+
+    function fitRollViews() {
+      if (!state.calcRows.length) return;
+      const planFit = getFitScaleForWrap(planWrap, "plan");
+      const sideFit = getFitScaleForWrap(sideWrap, "side");
+      if (synced) {
+        const sharedScale = Math.min(planFit, sideFit);
+        window._planScale = sharedScale;
+        window._sideScale = sharedScale;
+      } else {
+        window._planScale = planFit;
+        window._sideScale = sideFit;
+      }
+      renderRollViews();
+      requestAnimationFrame(() => {
+        if (planWrap) {
+          planWrap.scrollLeft = 0;
+          planWrap.scrollTop = 0;
+        }
+        if (sideWrap) {
+          sideWrap.scrollLeft = 0;
+          sideWrap.scrollTop = 0;
+        }
+      });
+    }
+
     // ── Drag-to-pan ─────────────────────────────────────────────────────────
     function addDragPan(wrap) {
       if (!wrap) return;
       let dragging = false, lx = 0, ly = 0;
       wrap.addEventListener("mousedown", (e) => {
-        if (e.button !== 0) return;
+        const shouldPan = e.button === 1 || e.button === 0 || (spacePanActive && e.button === 0);
+        if (!shouldPan) return;
         dragging = true; lx = e.clientX; ly = e.clientY;
-        wrap.style.cursor = "grabbing"; wrap.style.userSelect = "none";
+        wrap.classList.add("is-panning");
         e.preventDefault();
       });
       wrap.addEventListener("mousemove", (e) => {
@@ -3920,7 +3989,10 @@ function bindEvents() {
         }
       });
       ["mouseup", "mouseleave"].forEach(ev => {
-        wrap.addEventListener(ev, () => { dragging = false; wrap.style.cursor = "grab"; wrap.style.userSelect = ""; });
+        wrap.addEventListener(ev, () => {
+          dragging = false;
+          wrap.classList.remove("is-panning");
+        });
       });
       // Touch support
       let tlx = 0, tly = 0;
@@ -3932,6 +4004,9 @@ function bindEvents() {
         if (synced) { const other = wrap === planWrap ? sideWrap : planWrap; syncScrollLeft(wrap, other); }
         e.preventDefault();
       }, { passive: false });
+      wrap.addEventListener("dblclick", () => {
+        if (fullscreenOpen) fitRollViews();
+      });
     }
 
     addDragPan(planWrap);
@@ -3946,6 +4021,7 @@ function bindEvents() {
       if (!wrap) return;
       wrap.addEventListener("wheel", (e) => {
         e.preventDefault();
+        if (!state.calcRows.length) return;
         const ZOOM_STEP = 1.12;
         const factor = e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;   // scroll up = zoom in
         const isPlan = wrap === planWrap;
@@ -3962,14 +4038,14 @@ function bindEvents() {
         if (synced) {
           window._planScale = newScale;
           window._sideScale = newScale;
-          if (state.calcRows.length) { renderRollDiagram(); renderSideView(); }
+          renderRollViews();
         } else {
           if (isPlan) {
             window._planScale = newScale;
-            if (state.calcRows.length) renderRollDiagram();
+            renderRollDiagram();
           } else {
             window._sideScale = newScale;
-            if (state.calcRows.length) renderSideView();
+            renderSideView();
           }
         }
 
@@ -3990,8 +4066,12 @@ function bindEvents() {
     addWheelZoom(sideWrap);
 
     // ── +/−/Reset zoom buttons ───────────────────────────────────────────────
-    function zoomButtons(factor, isReset) {
+    function zoomButtons(factor, isReset, isFit) {
       if (!state.calcRows.length) return;
+      if (isFit) {
+        fitRollViews();
+        return;
+      }
 
       const oldPlan = window._planScale || 1, oldSide = window._sideScale || 1;
       const newPlan = isReset ? 1 : Math.max(0.05, oldPlan * factor);
@@ -4009,8 +4089,7 @@ function bindEvents() {
       const scx = sideWrap ? sideWrap.scrollLeft + sideWrap.clientWidth / 2 : 0;
       const scy = sideWrap ? sideWrap.scrollTop + sideWrap.clientHeight / 2 : 0;
 
-      renderRollDiagram();
-      renderSideView();
+      renderRollViews();
 
       requestAnimationFrame(() => {
         if (planWrap) {
@@ -4031,6 +4110,86 @@ function bindEvents() {
     if (zoomIn) zoomIn.addEventListener("click", () => zoomButtons(1.4, false));
     if (zoomOut) zoomOut.addEventListener("click", () => zoomButtons(1 / 1.4, false));
     if (zoomReset) zoomReset.addEventListener("click", () => zoomButtons(1, true));
+    if (zoomFit) zoomFit.addEventListener("click", () => zoomButtons(1, false, true));
+
+    function restoreRollLayout() {
+      if (!fullscreenOpen) return;
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+      if (rollPageHeader && headerPlaceholder && headerPlaceholder.parentNode) {
+        headerPlaceholder.parentNode.insertBefore(rollPageHeader, headerPlaceholder);
+        headerPlaceholder.remove();
+        headerPlaceholder = null;
+      }
+      if (rollSplitShell && shellPlaceholder && shellPlaceholder.parentNode) {
+        shellPlaceholder.parentNode.insertBefore(rollSplitShell, shellPlaceholder);
+        shellPlaceholder.remove();
+        shellPlaceholder = null;
+      }
+      if (fullscreenCloseBtn) fullscreenCloseBtn.style.display = "none";
+      if (fullscreenBtn) fullscreenBtn.style.display = "inline-flex";
+      if (fullscreenModal && fullscreenModal.open) fullscreenModal.close();
+      fullscreenOpen = false;
+    }
+
+    function openRollFullscreen() {
+      if (fullscreenOpen || !fullscreenModal || !fullscreenViewport || !rollPageHeader || !rollSplitShell) return;
+      headerPlaceholder = document.createComment("roll-page-header-placeholder");
+      shellPlaceholder = document.createComment("roll-split-shell-placeholder");
+      rollPageHeader.parentNode.insertBefore(headerPlaceholder, rollPageHeader);
+      rollSplitShell.parentNode.insertBefore(shellPlaceholder, rollSplitShell);
+      fullscreenViewport.appendChild(rollPageHeader);
+      fullscreenViewport.appendChild(rollSplitShell);
+      if (fullscreenBtn) fullscreenBtn.style.display = "none";
+      if (fullscreenCloseBtn) fullscreenCloseBtn.style.display = "inline-flex";
+      fullscreenModal.showModal();
+      fullscreenOpen = true;
+      requestAnimationFrame(() => {
+        fitRollViews();
+        const fullscreenTarget = fullscreenModal.querySelector(".roll-fullscreen-body");
+        if (fullscreenTarget && fullscreenTarget.requestFullscreen) {
+          fullscreenTarget.requestFullscreen().catch(() => {});
+        }
+      });
+    }
+
+    if (fullscreenBtn) fullscreenBtn.addEventListener("click", openRollFullscreen);
+    if (fullscreenCloseBtn) fullscreenCloseBtn.addEventListener("click", restoreRollLayout);
+
+    if (fullscreenModal) {
+      fullscreenModal.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        restoreRollLayout();
+      });
+      fullscreenModal.addEventListener("close", restoreRollLayout);
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.code === "Space" && !event.repeat) {
+        spacePanActive = true;
+      }
+      if (!fullscreenOpen) return;
+      if (event.key === "0") {
+        event.preventDefault();
+        fitRollViews();
+      } else if (event.key === "+" || event.key === "=") {
+        event.preventDefault();
+        zoomButtons(1.2, false);
+      } else if (event.key === "-" || event.key === "_") {
+        event.preventDefault();
+        zoomButtons(1 / 1.2, false);
+      } else if (event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        fitRollViews();
+      }
+    });
+
+    document.addEventListener("keyup", (event) => {
+      if (event.code === "Space") {
+        spacePanActive = false;
+      }
+    });
   })();
 
   // Verify Calculations button

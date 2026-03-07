@@ -585,21 +585,31 @@
       </section>
 
       <section class="work-page roll-page" data-work-page="roll-diagram">
-        <header class="page-header roll-page-header">
+        <header id="rollPageHeader" class="page-header roll-page-header">
           <div class="roll-page-title">
             <h2>Alignment Diagram</h2>
             <p class="text-secondary">Plan view (top) and Side View / Elevation Profile (bottom)</p>
           </div>
           <div class="roll-page-controls">
+            <button id="rollZoomFit" class="btn btn-secondary" type="button" title="Fit Both Diagrams"
+              style="padding:6px 12px;font-size:12px;">Fit</button>
             <button id="rollZoomIn" class="btn btn-secondary" type="button" title="Zoom In"
               style="padding:6px 12px;font-size:16px;line-height:1;">+</button>
             <button id="rollZoomOut" class="btn btn-secondary" type="button" title="Zoom Out"
               style="padding:6px 12px;font-size:16px;line-height:1;">−</button>
             <button id="rollZoomReset" class="btn btn-secondary" type="button" title="Reset Zoom"
               style="padding:6px 10px;font-size:12px;">Reset</button>
+            <button id="rollFullscreenBtn" class="btn btn-secondary" type="button" title="Maximize Roll Diagrams"
+              style="padding:6px 12px;font-size:12px;">
+              <i class="ri-fullscreen-line" style="margin-right: 6px;"></i> Maximize
+            </button>
+            <button id="rollFullscreenCloseBtn" class="btn btn-secondary" type="button" title="Exit Fullscreen"
+              style="display:none;padding:6px 12px;font-size:12px;">
+              <i class="ri-close-line" style="margin-right: 6px;"></i> Close
+            </button>
           </div>
         </header>
-        <div class="roll-split-shell">
+        <div id="rollSplitShell" class="roll-split-shell">
           <section class="roll-panel glass">
             <div class="roll-panel-head">
               <span>TOP VIEW — Roll Diagram</span>
@@ -1208,6 +1218,18 @@
           <div id="snapshotList" class="snapshot-list"></div>
         </div>
       </div>
+    </div>
+  </dialog>
+
+  <dialog id="rollFullscreenModal" class="modal glass roll-fullscreen-modal">
+    <div class="modal-body roll-fullscreen-body">
+      <div class="roll-fullscreen-topbar">
+        <div>
+          <h3>Roll Diagram Fullscreen</h3>
+          <p>Wheel to zoom at cursor. Drag to pan. Press 0 to fit, + or - to zoom.</p>
+        </div>
+      </div>
+      <div id="rollFullscreenViewport" class="roll-fullscreen-viewport"></div>
     </div>
   </dialog>
 
