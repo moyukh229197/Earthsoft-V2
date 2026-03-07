@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { LockKeyhole, LogIn, ShieldCheck, ChartNoAxesColumn } from "lucide-react"
+import { ArrowRightToLine, ChartNoAxesColumn, LockKeyhole, ShieldCheck } from "lucide-react"
 
 import { HeroGeometric } from "@/components/ui/shape-landing-hero"
 
@@ -24,7 +24,7 @@ export default function App() {
           window.location.replace(destination)
         }
       } catch {
-        // Local dev may not have the Vercel session endpoint.
+        // Local dev may not expose the Vercel session endpoint.
       }
     }
 
@@ -83,59 +83,47 @@ export default function App() {
         <HeroGeometric showContent={false} />
       </div>
 
-      <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-10">
-        <div className="grid w-full max-w-6xl gap-8 rounded-[2rem] border border-white/8 bg-transparent p-4 backdrop-blur-sm lg:grid-cols-[1.1fr_0.9fr] lg:p-6">
-          <section className="flex flex-col justify-between rounded-[1.6rem] border border-white/8 bg-transparent p-8 lg:p-10">
-            <div className="space-y-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-orange-400/20 bg-orange-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-orange-200">
-                <ShieldCheck className="h-4 w-4" />
-                Earthsoft Control Layer
-              </div>
+      <div className="relative z-10 flex min-h-screen items-center justify-center px-5 py-8 md:px-8">
+        <div className="relative w-full max-w-6xl overflow-hidden rounded-[2rem] border border-cyan-400/12 bg-[linear-gradient(135deg,rgba(40,90,255,0.08),rgba(3,8,24,0.03)_36%,rgba(8,16,34,0.03)_64%,rgba(32,196,163,0.08))] p-3 shadow-[0_30px_100px_rgba(0,0,0,0.45)] backdrop-blur-md">
+          <div className="pointer-events-none absolute inset-0 rounded-[2rem] ring-1 ring-inset ring-white/6" />
+          <div className="grid gap-6 rounded-[1.6rem] border border-white/6 bg-black/10 p-4 backdrop-blur-sm lg:grid-cols-[1.15fr_0.75fr] lg:p-6">
+            <section className="flex min-h-[520px] flex-col justify-between rounded-[1.45rem] border border-white/6 bg-[radial-gradient(circle_at_top_left,rgba(53,120,255,0.12),rgba(255,255,255,0.01)_36%,rgba(255,255,255,0.01)_100%)] p-6 md:p-8">
+              <div className="space-y-8">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-24 w-24 items-center justify-center rounded-[1.8rem] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(32,179,255,0.28),rgba(68,84,255,0.18))] shadow-[0_10px_40px_rgba(43,120,255,0.25)] backdrop-blur-md">
+                    <img src="/workspace/assets/logo_silhouette.png" alt="Earthsoft" className="h-14 w-14 object-contain" />
+                  </div>
 
-              <div className="space-y-4">
-                <h1 className="max-w-xl text-4xl font-semibold tracking-[-0.05em] text-white md:text-6xl">
-                  Plan, check, and deliver railway earthwork data.
-                </h1>
-                <p className="max-w-2xl text-base leading-7 text-white/68 md:text-lg">
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.38em] text-cyan-200/90">Earthwork Suite</p>
+                    <h1 className="text-4xl font-semibold tracking-[-0.06em] text-white md:text-6xl">Earthsoft Access</h1>
+                  </div>
+                </div>
+
+                <p className="max-w-2xl text-lg leading-8 text-white/70">
                   Estimate quantities, review profiles, manage bridges and curves, and export project-ready outputs.
                 </p>
               </div>
-            </div>
 
-            <div className="mt-8 grid gap-4 sm:grid-cols-3">
-              <FeatureCard
-                icon={<LockKeyhole className="h-5 w-5" />}
-                title="Quantities"
-                copy="Cut, fill, and section calculations."
-              />
-              <FeatureCard
-                icon={<ChartNoAxesColumn className="h-5 w-5" />}
-                title="Profiles"
-                copy="L-sections, graphs, and roll views."
-              />
-              <FeatureCard
-                icon={<ShieldCheck className="h-5 w-5" />}
-                title="Exports"
-                copy="Reports, drawings, and project data."
-              />
-            </div>
-          </section>
-
-          <div className="rounded-[1.6rem] border border-white/8 bg-transparent p-6 lg:p-8">
-            <section className="mx-auto flex h-full max-w-md flex-col justify-center">
-              <div className="mb-8 space-y-3">
-                <h2 className="text-3xl font-semibold tracking-[-0.04em]">Workspace access</h2>
-                <p className="text-sm leading-6 text-white/60">
-                  Sign in to continue to your Earthsoft project workspace.
-                </p>
+              <div className="grid gap-3 pt-10 sm:grid-cols-3">
+                <MetaPill icon={<LockKeyhole className="h-4 w-4" />} text="Quantity calculations" />
+                <MetaPill icon={<ChartNoAxesColumn className="h-4 w-4" />} text="Profiles and diagrams" />
+                <MetaPill icon={<ShieldCheck className="h-4 w-4" />} text="Project-ready exports" />
               </div>
+            </section>
 
-              <form className="space-y-5" onSubmit={handleSubmit}>
-                <div className="space-y-4">
+            <section className="flex rounded-[1.45rem] border border-white/7 bg-[linear-gradient(180deg,rgba(7,19,45,0.28),rgba(7,19,45,0.14))] p-4 backdrop-blur-md md:p-6">
+              <form className="flex w-full flex-col justify-between rounded-[1.25rem] border border-cyan-300/10 bg-black/10 p-5 md:p-6" onSubmit={handleSubmit}>
+                <div className="space-y-5">
+                  <div className="space-y-2">
+                    <h2 className="text-2xl font-semibold tracking-[-0.04em] text-white">Sign in</h2>
+                    <p className="text-sm leading-6 text-white/58">Continue to your Earthsoft workspace.</p>
+                  </div>
+
                   <label className="block space-y-2">
-                    <span className="text-sm font-medium text-white/70">Username</span>
+                    <span className="text-sm font-medium text-white/74">Username</span>
                     <input
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-orange-400/60 focus:bg-white/10"
+                      className="w-full rounded-[1.15rem] border border-cyan-300/20 bg-[rgba(6,18,42,0.32)] px-4 py-4 text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300/60 focus:bg-[rgba(8,28,62,0.42)]"
                       value={username}
                       onChange={(event) => setUsername(event.target.value)}
                       autoComplete="username"
@@ -144,9 +132,9 @@ export default function App() {
                   </label>
 
                   <label className="block space-y-2">
-                    <span className="text-sm font-medium text-white/70">Password</span>
+                    <span className="text-sm font-medium text-white/74">Password</span>
                     <input
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-orange-400/60 focus:bg-white/10"
+                      className="w-full rounded-[1.15rem] border border-white/10 bg-[rgba(6,18,42,0.26)] px-4 py-4 text-white outline-none transition placeholder:text-white/30 focus:border-cyan-300/50 focus:bg-[rgba(8,28,62,0.38)]"
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       autoComplete="current-password"
@@ -154,17 +142,17 @@ export default function App() {
                       type="password"
                     />
                   </label>
-                </div>
 
-                <div className="min-h-6 text-sm text-red-300">{error}</div>
+                  <div className="min-h-6 text-sm text-red-300">{error}</div>
+                </div>
 
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 font-semibold text-black transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="mt-8 inline-flex w-full items-center justify-center gap-3 rounded-[1.15rem] bg-[linear-gradient(90deg,#3254ff,#2c67ff)] px-4 py-4 font-semibold text-white shadow-[0_12px_30px_rgba(50,84,255,0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  <LogIn className="h-4 w-4" />
-                  {isSubmitting ? "Opening Workspace..." : "Enter Earthsoft"}
+                  <ArrowRightToLine className="h-4 w-4" />
+                  {isSubmitting ? "Opening Workspace..." : "Sign In"}
                 </button>
               </form>
             </section>
@@ -175,20 +163,16 @@ export default function App() {
   )
 }
 
-type FeatureCardProps = {
+type MetaPillProps = {
   icon: React.ReactNode
-  title: string
-  copy: string
+  text: string
 }
 
-function FeatureCard({ icon, title, copy }: FeatureCardProps) {
+function MetaPill({ icon, text }: MetaPillProps) {
   return (
-    <article className="rounded-3xl border border-white/10 bg-black/20 p-5">
-      <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-500/15 text-orange-200">
-        {icon}
-      </div>
-      <h3 className="text-base font-semibold text-white">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-white/60">{copy}</p>
-    </article>
+    <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-black/8 px-4 py-3 text-sm text-white/72 backdrop-blur-sm">
+      <span className="text-cyan-200">{icon}</span>
+      <span>{text}</span>
+    </div>
   )
 }
