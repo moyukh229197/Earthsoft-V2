@@ -3331,6 +3331,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   const s = state.settings;
   const fl = row.proposedLevel;
   const gl = row.groundLevel;
+  const topWidthM = Math.max(safeNum(row.topWidth), 0) || safeNum(s.formationWidthFill);
 
   const sqCategory = Math.min(3, Math.max(1, Math.round(s.activeSqCategory || 3)));
   const sqName = sqCategory === 1 ? "SQ1" : (sqCategory === 2 ? "SQ2" : "SQ3");
@@ -3372,7 +3373,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
       </tr>
     `;
     els.dimTbody.innerHTML = `
-      <tr><th>Formation Width (Top)</th><td>${r3(s.formationWidthFill)} m</td></tr>
+      <tr><th>Formation Width (Top)</th><td>${r3(topWidthM)} m</td></tr>
       <tr><th>Berm Width (Each Berm)</th><td>${r3(s.bermWidth)} m (${Math.round(s.bermWidth * 1000)} mm)</td></tr>
       <tr><th>Berms per Side (Drawing)</th><td>${row.bank >= 8 ? 2 : (row.bank >= 4 ? 1 : 0)}</td></tr>
       <tr><th>Bottom Width (Fill)</th><td>${r3(row.fillBottom)} m</td></tr>
@@ -3392,7 +3393,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   const marginX = 280;
   const centerX = svgW / 2;
   const layerTotalM = ballastThickness + blanketRuleThickness + topLayerThickness;
-  const halfTopM = s.formationWidthFill / 2;
+  const halfTopM = topWidthM / 2;
   const slopeHV = 2; // 2:1 slopes per requirement
   const fillRunM = row.bank * slopeHV;
   const cutRunM = row.cut * slopeHV;
@@ -3452,7 +3453,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   const layerRects = [];
   // crowned ballast cushion with shoulders 0.60m each, 1:30 crossfall
   const shoulderWm = 0.6;
-  const crownWm = Math.max(s.formationWidthFill - 2 * shoulderWm, 0.5);
+  const crownWm = Math.max(topWidthM - 2 * shoulderWm, 0.5);
   const shoulderPx = shoulderWm * pxPerM;
   const crownPx = crownWm * pxPerM;
   const dropPxRaw = (shoulderWm / 30) * pxPerM;
@@ -3637,7 +3638,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   const segLeftShoulder = 0.35;
   const segRightShoulder = 0.35;
   const segRightOuter = 1.2;
-  const segMiddle = Math.max(s.formationWidthFill - (segLeftOuter + segLeftShoulder + segRightShoulder + segRightOuter), 0.5);
+  const segMiddle = Math.max(topWidthM - (segLeftOuter + segLeftShoulder + segRightShoulder + segRightOuter), 0.5);
   const segs = [segLeftOuter, segLeftShoulder, segMiddle, segRightShoulder, segRightOuter];
   const segLabels = [`${r3(segLeftOuter)}m`, `${r3(segLeftShoulder)}m`, `${r3(segMiddle)}m`, `${r3(segRightShoulder)}m`, `${r3(segRightOuter)}m`];
   let cursorX = centerX - halfTop;
@@ -3714,7 +3715,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     ${layerRects.join("")}
     <line x1="${centerX - halfTop}" y1="${topY}" x2="${centerX + halfTop}" y2="${topY}" stroke="#2e3b49" stroke-width="2.4" />
     <text x="${centerX + halfTop + 16}" y="${topY - 2}" fill="#253748" font-size="14" font-weight="700">Top of Formation</text>
-    ${drawDim(centerX - halfTop, centerX + halfTop, trackTopY - 84, `${r3(s.formationWidthFill)} m`)}
+    ${drawDim(centerX - halfTop, centerX + halfTop, trackTopY - 84, `${r3(topWidthM)} m`)}
     ${segDims.join("")}
     ${segLabelRows}
     ${layerCallouts}
