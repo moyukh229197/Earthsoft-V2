@@ -3341,7 +3341,11 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   const gl = row.groundLevel;
   const topWidthM = Math.max(safeNum(row.topWidth), 0) || safeNum(s.formationWidthFill);
   const fmtDim = (value) => `${Number(safeNum(value)).toFixed(1)} m`;
+  const ballastTopWidthM = 3.45;
+  const ballastBottomWidthM = 6.1;
+  const standardTrackCenterM = 5.3;
 
+  try {
   const sqCategory = Math.min(3, Math.max(1, Math.round(s.activeSqCategory || 3)));
   const sqName = sqCategory === 1 ? "SQ1" : (sqCategory === 2 ? "SQ2" : "SQ3");
   const blanketBySq = { 1: 1.0, 2: 0.75, 3: 0.6 };
@@ -3455,9 +3459,6 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   const blanketHDraw = row.bank > 0 ? Math.min(blanketH, fillH) : blanketH;
   const topLayerHDraw = row.bank > 0 ? Math.min(topLayerH, Math.max(fillH - blanketHDraw, 0)) : topLayerH;
   const trackTopY = topY - ballastH;
-  const ballastTopWidthM = 3.45;
-  const ballastBottomWidthM = 6.1;
-  const standardTrackCenterM = 5.3;
   const extraTrackCount = Math.max(0, Math.round(safeNum(row.loopTc, 0) / standardTrackCenterM));
   const trackCount = 1 + extraTrackCount;
   const trackCenterSpacingM = extraTrackCount > 0
@@ -3768,6 +3769,21 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   if (targetEl === els.crossSvg) {
     resetCrossView();
     els.crossSectionModal.showModal();
+  }
+  } catch (error) {
+    console.error("Cross-section render failed:", error);
+    const fallbackSvg = `
+      <rect x="0" y="0" width="${CROSS_SVG_W}" height="${CROSS_SVG_H}" fill="#f8fcff" />
+      <rect x="${(CROSS_SVG_W / 2) - 220}" y="${(CROSS_SVG_H / 2) - 30}" width="440" height="60" rx="10" fill="#e8eef5" stroke="#8ca0b4" />
+      <text x="${CROSS_SVG_W / 2}" y="${(CROSS_SVG_H / 2) - 8}" text-anchor="middle" fill="#22384a" font-size="20" font-weight="700">Cross Section</text>
+      <text x="${CROSS_SVG_W / 2}" y="${(CROSS_SVG_H / 2) + 18}" text-anchor="middle" fill="#4a6174" font-size="13">CH ${r3(row?.chainage)} m | Top Width ${r3(topWidthM)} m</text>
+    `;
+    targetEl.innerHTML = fallbackSvg;
+    if (targetEl === els.crossSvg) {
+      els.crossTitle.textContent = `Cross-Section @ CH ${r3(row?.chainage)} m`;
+      els.crossMeta.textContent = "Renderer fallback opened. Refresh and try again after recalculation.";
+      els.crossSectionModal.showModal();
+    }
   }
 }
 
