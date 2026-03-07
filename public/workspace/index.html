@@ -28,11 +28,11 @@
       fetch("/api/session", { credentials: "same-origin" })
         .then((response) => {
           if (!response.ok) {
-            window.location.replace("./login.html");
+            window.location.replace("/");
           }
         })
         .catch(() => {
-          window.location.replace("./login.html");
+          window.location.replace("/");
         });
     })();
   </script>

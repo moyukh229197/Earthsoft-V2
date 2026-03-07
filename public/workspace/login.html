@@ -16,15 +16,7 @@
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet" />
   <script>
     (function () {
-      fetch("/api/session", { credentials: "same-origin" })
-        .then((response) => {
-          if (response.ok) {
-            window.location.replace("./index.html");
-          }
-        })
-        .catch(() => {
-          // Local dev may not expose the Vercel auth endpoints.
-        });
+      window.location.replace("/");
     })();
   </script>
   <script src="./background-beams.js" defer></script>
@@ -40,95 +32,17 @@
           </div>
           <div class="login-screen__brand-copy">
             <p class="login-screen__eyebrow">EARTHWORK SUITE</p>
-            <h1 id="loginTitle">Earthsoft Access</h1>
+            <h1 id="loginTitle">Redirecting to Earthsoft login</h1>
           </div>
         </div>
-        <p class="login-screen__copy">Sign in to open the project workspace and continue with earthwork design, verification, and estimates.</p>
-        <div class="login-screen__meta">
-          <span><i class="ri-shield-keyhole-line"></i> Session-based local access</span>
-          <span><i class="ri-line-chart-line"></i> Railway earthwork workspace</span>
-        </div>
+        <p class="login-screen__copy">Use the main homepage login at the root URL.</p>
       </div>
-      <form id="loginForm" class="login-form">
-        <label class="login-field">
-          <span>Username</span>
-          <input id="loginUsername" type="text" autocomplete="username" placeholder="Enter your username" />
-        </label>
-        <label class="login-field">
-          <span>Password</span>
-          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Enter your password" />
-        </label>
-        <p id="loginError" class="login-error" aria-live="polite"></p>
-        <button id="loginSubmitBtn" class="btn btn-primary login-submit" type="submit">
-          <i class="ri-login-box-line" style="margin-right: 6px;"></i>
-          Sign In
-        </button>
-      </form>
     </div>
   </section>
 
   <script>
-    const loginForm = document.getElementById("loginForm");
-    const loginUsername = document.getElementById("loginUsername");
-    const loginPassword = document.getElementById("loginPassword");
-    const loginError = document.getElementById("loginError");
-    const loginSubmitBtn = document.getElementById("loginSubmitBtn");
-
-    function setLoginError(message) {
-      if (loginError) loginError.textContent = message || "";
-    }
-
-    async function attemptLogin() {
-      const username = String(loginUsername?.value || "").trim();
-      const password = String(loginPassword?.value || "").trim();
-
-      if (!username || !password) {
-        setLoginError("Enter both username and password to continue.");
-        return;
-      }
-
-      try {
-        const response = await fetch("/api/login", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          credentials: "same-origin",
-          body: JSON.stringify({
-            username: username.toLowerCase(),
-            password
-          })
-        });
-
-        const payload = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          setLoginError(payload.error || "Login failed.");
-          if (loginPassword) loginPassword.value = "";
-          loginPassword?.focus();
-          return;
-        }
-
-        window.location.replace("./index.html");
-      } catch (_) {
-        setLoginError("Login is unavailable right now. Try again later.");
-        if (loginPassword) loginPassword.value = "";
-        loginPassword?.focus();
-      }
-    }
-
-    loginForm?.addEventListener("submit", (event) => {
-      event.preventDefault();
-      attemptLogin();
-    });
-
-    loginSubmitBtn?.addEventListener("click", (event) => {
-      event.preventDefault();
-      attemptLogin();
-    });
-
     window.addEventListener("load", () => {
-      loginUsername?.focus();
+      window.location.replace("/");
     });
   </script>
 </body>

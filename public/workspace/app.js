@@ -238,7 +238,7 @@ async function logout() {
     console.warn("Failed to clear auth session:", error);
   }
   setAuthState(false, "");
-  window.location.replace("./login.html");
+  window.location.replace("/");
 }
 
 async function attemptLogin() {

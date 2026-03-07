@@ -63,7 +63,7 @@ export default async function middleware(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const loginUrl = new URL("/workspace/login.html", request.url)
+  const loginUrl = new URL("/", request.url)
   return Response.redirect(loginUrl, 307)
 }
 
