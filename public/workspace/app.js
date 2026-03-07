@@ -2541,12 +2541,12 @@ function renderRollDiagram() {
   else if (PX_PER_M_Y * 10 >= minSpacPx) { yMajor = 50; yMinor = 10; }
   else { yMajor = 100; yMinor = 20; }
 
-  const maxYMetres = Math.ceil(Math.max(centerY - PAD_T, canvasH - PAD_B - centerY) / PX_PER_M_Y);
+  const axisExtentM = Math.max(yMinor, Math.ceil(maxHalfW / yMinor) * yMinor);
   ctx.fillStyle = "rgba(255,255,255,0.4)";
   ctx.font = `9px Outfit,sans-serif`;
   ctx.textAlign = "left";
 
-  for (let ym = 0; ym <= maxYMetres; ym += yMinor) {
+  for (let ym = 0; ym <= axisExtentM; ym += yMinor) {
     if (ym === 0) continue; // Skip centerline
     const isMajor = (ym % yMajor === 0);
     ctx.strokeStyle = isMajor ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.035)";
