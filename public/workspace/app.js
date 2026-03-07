@@ -3332,6 +3332,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   const fl = row.proposedLevel;
   const gl = row.groundLevel;
   const topWidthM = Math.max(safeNum(row.topWidth), 0) || safeNum(s.formationWidthFill);
+  const fmtDim = (value) => `${Number(safeNum(value)).toFixed(1)} m`;
 
   const sqCategory = Math.min(3, Math.max(1, Math.round(s.activeSqCategory || 3)));
   const sqName = sqCategory === 1 ? "SQ1" : (sqCategory === 2 ? "SQ2" : "SQ3");
@@ -3374,7 +3375,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     `;
     els.dimTbody.innerHTML = `
       <tr><th>Formation Width (Top)</th><td>${r3(topWidthM)} m</td></tr>
-      <tr><th>Berm Width (Each Berm)</th><td>${r3(s.bermWidth)} m (${Math.round(s.bermWidth * 1000)} mm)</td></tr>
+      <tr><th>Berm Width (Each Berm)</th><td>${fmtDim(s.bermWidth)}</td></tr>
       <tr><th>Berms per Side (Drawing)</th><td>${row.bank >= 8 ? 2 : (row.bank >= 4 ? 1 : 0)}</td></tr>
       <tr><th>Bottom Width (Fill)</th><td>${r3(row.fillBottom)} m</td></tr>
       <tr><th>Bottom Width (Cut)</th><td>${r3(row.cutBottom)} m</td></tr>
@@ -3500,7 +3501,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     layerRects.push(`<rect x="${centerX - halfTop}" y="${topY + blanketH}" width="${halfTop * 2}" height="${topLayerH}" fill="#edd6bf" stroke="#9a856c" />`);
   }
 
-  const bermLabel = `${Math.round(s.bermWidth * 1000)} mm (${r3(s.bermWidth)} m)`;
+  const bermLabel = fmtDim(s.bermWidth);
   let cutPoly = "";
   let fillPoly = "";
   let berms = "";
