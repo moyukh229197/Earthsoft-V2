@@ -3768,7 +3768,9 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   `;
   if (targetEl === els.crossSvg) {
     resetCrossView();
-    els.crossSectionModal.showModal();
+    if (!els.crossSectionModal.open) {
+      els.crossSectionModal.showModal();
+    }
   }
   } catch (error) {
     console.error("Cross-section render failed:", error);
@@ -3782,7 +3784,9 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     if (targetEl === els.crossSvg) {
       els.crossTitle.textContent = `Cross-Section @ CH ${r3(row?.chainage)} m`;
       els.crossMeta.textContent = "Renderer fallback opened. Refresh and try again after recalculation.";
-      els.crossSectionModal.showModal();
+      if (!els.crossSectionModal.open) {
+        els.crossSectionModal.showModal();
+      }
     }
   }
 }
