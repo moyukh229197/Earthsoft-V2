@@ -16,16 +16,15 @@
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet" />
   <script>
     (function () {
-      const AUTH_STORAGE_KEY = "earthsoft_auth_session";
-      try {
-        const saved = sessionStorage.getItem(AUTH_STORAGE_KEY);
-        const auth = saved ? JSON.parse(saved) : null;
-        if (auth?.authenticated) {
-          window.location.replace("./index.html");
-        }
-      } catch (_) {
-        sessionStorage.removeItem(AUTH_STORAGE_KEY);
-      }
+      fetch("/api/session", { credentials: "same-origin" })
+        .then((response) => {
+          if (response.ok) {
+            window.location.replace("./index.html");
+          }
+        })
+        .catch(() => {
+          // Local dev may not expose the Vercel auth endpoints.
+        });
     })();
   </script>
   <script src="./background-beams.js" defer></script>
@@ -53,17 +52,12 @@
       <form id="loginForm" class="login-form">
         <label class="login-field">
           <span>Username</span>
-          <input id="loginUsername" type="text" autocomplete="username" placeholder="Enter your username" value="admin" />
+          <input id="loginUsername" type="text" autocomplete="username" placeholder="Enter your username" />
         </label>
         <label class="login-field">
           <span>Password</span>
-          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Enter your password" value="earthsoft123" />
+          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Enter your password" />
         </label>
-        <div class="login-credentials">
-          <span><strong>Demo Login</strong></span>
-          <span>Username: <strong>admin</strong></span>
-          <span>Password: <strong>earthsoft123</strong></span>
-        </div>
         <p id="loginError" class="login-error" aria-live="polite"></p>
         <button id="loginSubmitBtn" class="btn btn-primary login-submit" type="submit">
           <i class="ri-login-box-line" style="margin-right: 6px;"></i>
@@ -74,10 +68,6 @@
   </section>
 
   <script>
-    const AUTH_STORAGE_KEY = "earthsoft_auth_session";
-    const AUTH_USERNAME = "admin";
-    const AUTH_PASSWORD = "earthsoft123";
-
     const loginForm = document.getElementById("loginForm");
     const loginUsername = document.getElementById("loginUsername");
     const loginPassword = document.getElementById("loginPassword");
@@ -88,7 +78,7 @@
       if (loginError) loginError.textContent = message || "";
     }
 
-    function attemptLogin() {
+    async function attemptLogin() {
       const username = String(loginUsername?.value || "").trim();
       const password = String(loginPassword?.value || "").trim();
 
@@ -97,18 +87,34 @@
         return;
       }
 
-      if (username.toLowerCase() !== AUTH_USERNAME || password !== AUTH_PASSWORD) {
-        setLoginError("Invalid username or password.");
+      try {
+        const response = await fetch("/api/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            username: username.toLowerCase(),
+            password
+          })
+        });
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          setLoginError(payload.error || "Login failed.");
+          if (loginPassword) loginPassword.value = "";
+          loginPassword?.focus();
+          return;
+        }
+
+        window.location.replace("./index.html");
+      } catch (_) {
+        setLoginError("Login is unavailable right now. Try again later.");
         if (loginPassword) loginPassword.value = "";
         loginPassword?.focus();
-        return;
       }
-
-      sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
-        authenticated: true,
-        user: AUTH_USERNAME,
-      }));
-      window.location.replace("./index.html");
     }
 
     loginForm?.addEventListener("submit", (event) => {

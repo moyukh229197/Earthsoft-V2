@@ -13,10 +13,6 @@ const CROSS_SVG_H = 980;
 
 const BRIDGE_CATEGORIES = ["Minor", "Major", "Viaduct", "Important", "RoR", "Tunnel", "ROB", "MIBOR", "Aqueduct"];
 const BRIDGE_TYPES = ["Box", "PSC Slab", "Composite Girder", "OWG", "Other"];
-const AUTH_STORAGE_KEY = "earthsoft_auth_session";
-const AUTH_USERNAME = "admin";
-const AUTH_PASSWORD = "earthsoft123";
-
 const state = {
   meta: null,
   rawRows: [],
@@ -190,36 +186,25 @@ const els = {
   cancelExportBtn: document.getElementById("cancelExportBtn"),
 };
 
-function loadAuthState() {
+async function loadAuthState() {
   try {
-    const saved = sessionStorage.getItem(AUTH_STORAGE_KEY);
-    if (!saved) return;
-    const parsed = JSON.parse(saved);
+    const response = await fetch("/api/session", {
+      credentials: "same-origin",
+    });
+    if (!response.ok) return;
+    const session = await response.json();
     state.auth = {
-      authenticated: Boolean(parsed?.authenticated),
-      user: String(parsed?.user || "").trim(),
+      authenticated: Boolean(session?.authenticated),
+      user: String(session?.user || "").trim(),
     };
   } catch (error) {
     console.warn("Failed to load auth session:", error);
   }
 }
 
-function saveAuthState() {
-  try {
-    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(state.auth));
-  } catch (error) {
-    console.warn("Failed to save auth session:", error);
-  }
-}
-
 function updateAuthUI() {
   const authenticated = Boolean(state.auth?.authenticated);
   document.body.classList.toggle("is-authenticated", authenticated);
-
-  if (!authenticated && !els.loginForm) {
-    window.location.replace("./login.html");
-    return;
-  }
 
   if (els.logoutBtn) els.logoutBtn.style.display = authenticated ? "inline-flex" : "none";
   if (els.loginUserChip) {
@@ -240,28 +225,23 @@ function setAuthState(authenticated, user = "") {
     authenticated: Boolean(authenticated),
     user: authenticated ? String(user || "").trim() : "",
   };
-  saveAuthState();
   updateAuthUI();
-
-  if (!authenticated && !els.loginForm) {
-    window.location.replace("./login.html");
-  }
 }
 
-function logout() {
-  state.auth = {
-    authenticated: false,
-    user: "",
-  };
+async function logout() {
   try {
-    sessionStorage.removeItem(AUTH_STORAGE_KEY);
+    await fetch("/api/logout", {
+      method: "POST",
+      credentials: "same-origin",
+    });
   } catch (error) {
     console.warn("Failed to clear auth session:", error);
   }
+  setAuthState(false, "");
   window.location.replace("./login.html");
 }
 
-function attemptLogin() {
+async function attemptLogin() {
   const username = String(els.loginUsername?.value || "").trim();
   const password = String(els.loginPassword?.value || "").trim();
 
@@ -270,17 +250,32 @@ function attemptLogin() {
     return;
   }
 
-  if (username.toLowerCase() !== AUTH_USERNAME || password !== AUTH_PASSWORD) {
-    if (els.loginError) els.loginError.textContent = "Invalid username or password.";
+  try {
+    const response = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        username: username.toLowerCase(),
+        password,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (els.loginError) els.loginError.textContent = payload.error || "Invalid username or password.";
+      if (els.loginPassword) els.loginPassword.value = "";
+      els.loginPassword?.focus();
+      return;
+    }
+    setAuthState(true, payload.user || username.toLowerCase());
+    if (els.loginPassword) els.loginPassword.value = "";
+    setWorkPage("overview");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (error) {
+    if (els.loginError) els.loginError.textContent = "Login is unavailable right now.";
     if (els.loginPassword) els.loginPassword.value = "";
     els.loginPassword?.focus();
-    return;
   }
-
-  setAuthState(true, AUTH_USERNAME);
-  if (els.loginPassword) els.loginPassword.value = "";
-  setWorkPage("overview");
-  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function formatDashboardChainage(value) {
@@ -5288,7 +5283,7 @@ async function init() {
   state.snapshots = [];
 
   loadStoredState();
-  loadAuthState();
+  await loadAuthState();
   // Ensure settings always has all required keys (stored state may have stale/missing fields)
   state.settings = { ...state.defaultSettings, ...(state.settings || {}) };
   state.meta = state.meta || {};
