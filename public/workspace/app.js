@@ -1658,6 +1658,7 @@ function recalculate() {
     const fillBottom = fillTop + (2 * settings.sideSlopeFactor * bank);
     const cutTop = settings.cuttingWidth;
     const cutBottom = cutTop + (2 * settings.sideSlopeFactor * cut);
+    const topWidth = bank > 0 ? fillTop : (cut > 0 ? cutTop : effectiveFormationWidth);
 
     const fillArea = bank > 0 ? ((fillTop + fillBottom) * 0.5 * bank) : 0;
     const cutArea = cut > 0 ? ((cutTop + cutBottom) * 0.5 * cut) : 0;
@@ -1688,6 +1689,7 @@ function recalculate() {
       bridgeRefs,
       bridgeDeductLen,
       type,
+      topWidth,
       fillBottom,
       cutBottom,
     };
@@ -2231,6 +2233,7 @@ function renderTable() {
         <td>${r.rlDiff ? r3(r.rlDiff) : "—"}</td>
         <td class="t-fill">${r.bank > 0.0001 ? r3(r.bank) : "—"}</td>
         <td class="t-cut">${r.cut > 0.0001 ? r3(r.cut) : "—"}</td>
+        <td>${r.topWidth > 0.0001 ? r3(r.topWidth) : "—"}</td>
         <td class="t-fill">${r.fillArea > 0.0001 ? r3(r.fillArea) : "—"}</td>
         <td class="t-cut">${r.cutArea > 0.0001 ? r3(r.cutArea) : "—"}</td>
         <td class="t-fill">${r.fillVol > 0.0001 ? r3(r.fillVol) : "—"}</td>
