@@ -76,11 +76,13 @@ function HeroGeometric({
   title1 = "Plan Railway Earthworks",
   title2 = "With Precision And Control",
   description = "Securely manage chainage data, cross-sections, bridges, curves, loops, and project outputs from one Earthsoft workspace.",
+  showContent = true,
 }: {
   badge?: string
   title1?: string
   title2?: string
   description?: string
+  showContent?: boolean
 }) {
   const heroEase = [0.25, 0.4, 0.25, 1] as const
 
@@ -148,38 +150,42 @@ function HeroGeometric({
         />
       </div>
 
-      <div className="relative z-10 container mx-auto px-4 md:px-6">
-        <div className="mx-auto max-w-3xl text-center">
-          <motion.div
-            custom={0}
-            variants={fadeUpVariants}
-            initial="hidden"
-            animate="visible"
-            className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 md:mb-12"
-          >
-            <Circle className="h-2 w-2 fill-rose-500/80" />
-            <span className="text-sm tracking-wide text-white/60">{badge}</span>
-          </motion.div>
+      {showContent ? (
+        <div className="relative z-10 container mx-auto px-4 md:px-6">
+          <div className="mx-auto max-w-3xl text-center">
+            <motion.div
+              custom={0}
+              variants={fadeUpVariants}
+              initial="hidden"
+              animate="visible"
+              className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 md:mb-12"
+            >
+              <Circle className="h-2 w-2 fill-rose-500/80" />
+              <span className="text-sm tracking-wide text-white/60">{badge}</span>
+            </motion.div>
 
-          <motion.div custom={1} variants={fadeUpVariants} initial="hidden" animate="visible">
-            <h1 className="mb-6 text-4xl font-bold tracking-tight sm:text-6xl md:mb-8 md:text-8xl">
-              <span className="bg-gradient-to-b from-white to-white/80 bg-clip-text text-transparent">
-                {title1}
-              </span>
-              <br />
-              <span className={cn("bg-gradient-to-r from-indigo-300 via-white/90 to-rose-300 bg-clip-text text-transparent")}>
-                {title2}
-              </span>
-            </h1>
-          </motion.div>
+            <motion.div custom={1} variants={fadeUpVariants} initial="hidden" animate="visible">
+              <h1 className="mb-6 text-4xl font-bold tracking-tight sm:text-6xl md:mb-8 md:text-8xl">
+                <span className="bg-gradient-to-b from-white to-white/80 bg-clip-text text-transparent">
+                  {title1}
+                </span>
+                <br />
+                <span
+                  className={cn("bg-gradient-to-r from-indigo-300 via-white/90 to-rose-300 bg-clip-text text-transparent")}
+                >
+                  {title2}
+                </span>
+              </h1>
+            </motion.div>
 
-          <motion.div custom={2} variants={fadeUpVariants} initial="hidden" animate="visible">
-            <p className="mx-auto mb-8 max-w-xl px-4 text-base font-light leading-relaxed tracking-wide text-white/40 sm:text-lg md:text-xl">
-              {description}
-            </p>
-          </motion.div>
+            <motion.div custom={2} variants={fadeUpVariants} initial="hidden" animate="visible">
+              <p className="mx-auto mb-8 max-w-xl px-4 text-base font-light leading-relaxed tracking-wide text-white/40 sm:text-lg md:text-xl">
+                {description}
+              </p>
+            </motion.div>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#030303] via-transparent to-[#030303]/80" />
     </div>

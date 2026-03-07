@@ -79,7 +79,9 @@ export default function App() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-neutral-950 text-white">
-      <HeroGeometric />
+      <div className="absolute inset-0">
+        <HeroGeometric showContent={false} />
+      </div>
 
       <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-10">
         <div className="grid w-full max-w-6xl gap-8 rounded-[2rem] border border-white/10 bg-black/45 p-4 shadow-[0_40px_120px_rgba(0,0,0,0.55)] backdrop-blur-xl lg:grid-cols-[1.1fr_0.9fr] lg:p-6">
