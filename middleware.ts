@@ -68,5 +68,5 @@ export default async function middleware(request: Request) {
 }
 
 export const config = {
-  matcher: ["/workspace/:path*", "/api/extract-data"],
+  matcher: ["/workspace/index.html", "/api/extract-data"],
 }
