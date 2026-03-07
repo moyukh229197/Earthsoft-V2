@@ -84,14 +84,14 @@ export default function App() {
       </div>
 
       <div className="relative z-10 flex min-h-screen items-center justify-center px-5 py-8 md:px-8">
-        <div className="relative w-full max-w-6xl overflow-hidden rounded-[2rem] border border-cyan-400/12 bg-[linear-gradient(135deg,rgba(40,90,255,0.08),rgba(3,8,24,0.03)_36%,rgba(8,16,34,0.03)_64%,rgba(32,196,163,0.08))] p-3 shadow-[0_30px_100px_rgba(0,0,0,0.45)] backdrop-blur-md">
+        <div className="relative w-full max-w-6xl overflow-hidden rounded-[2rem] border border-cyan-400/12 bg-[linear-gradient(135deg,rgba(40,90,255,0.08),rgba(3,8,24,0.03)_36%,rgba(8,16,34,0.03)_64%,rgba(32,196,163,0.08))] p-4 shadow-[0_30px_100px_rgba(0,0,0,0.45)] backdrop-blur-md lg:p-6">
           <div className="pointer-events-none absolute inset-0 rounded-[2rem] ring-1 ring-inset ring-white/6" />
-          <div className="grid gap-6 rounded-[1.6rem] border border-white/6 bg-black/10 p-4 backdrop-blur-sm lg:grid-cols-[1.15fr_0.75fr] lg:p-6">
-            <section className="flex min-h-[520px] flex-col justify-between rounded-[1.45rem] border border-white/6 bg-[radial-gradient(circle_at_top_left,rgba(53,120,255,0.12),rgba(255,255,255,0.01)_36%,rgba(255,255,255,0.01)_100%)] p-6 md:p-8">
+          <div className="grid gap-8 rounded-[1.55rem] bg-black/8 p-2 backdrop-blur-sm lg:grid-cols-[1.15fr_0.75fr] lg:p-3">
+            <section className="flex min-h-[520px] flex-col justify-between p-6 md:p-8">
               <div className="space-y-8">
                 <div className="flex items-center gap-4">
-                  <div className="flex h-24 w-24 items-center justify-center rounded-[1.8rem] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(32,179,255,0.28),rgba(68,84,255,0.18))] shadow-[0_10px_40px_rgba(43,120,255,0.25)] backdrop-blur-md">
-                    <img src="/workspace/assets/logo_silhouette.png" alt="Earthsoft" className="h-14 w-14 object-contain" />
+                  <div className="h-24 w-24 overflow-hidden rounded-[1.8rem] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(32,179,255,0.28),rgba(68,84,255,0.18))] shadow-[0_10px_40px_rgba(43,120,255,0.25)]">
+                    <img src="/workspace/assets/logo_silhouette.png" alt="Earthsoft" className="h-full w-full object-cover" />
                   </div>
 
                   <div className="space-y-3">
@@ -112,8 +112,8 @@ export default function App() {
               </div>
             </section>
 
-            <section className="flex rounded-[1.45rem] border border-white/7 bg-[linear-gradient(180deg,rgba(7,19,45,0.28),rgba(7,19,45,0.14))] p-4 backdrop-blur-md md:p-6">
-              <form className="flex w-full flex-col justify-between rounded-[1.25rem] border border-cyan-300/10 bg-black/10 p-5 md:p-6" onSubmit={handleSubmit}>
+            <section className="flex p-2 md:p-4">
+              <form className="flex w-full flex-col justify-between rounded-[1.25rem] border border-cyan-300/10 bg-[linear-gradient(180deg,rgba(7,19,45,0.22),rgba(7,19,45,0.08))] p-5 backdrop-blur-md md:p-6" onSubmit={handleSubmit}>
                 <div className="space-y-5">
                   <div className="space-y-2">
                     <h2 className="text-2xl font-semibold tracking-[-0.04em] text-white">Sign in</h2>
