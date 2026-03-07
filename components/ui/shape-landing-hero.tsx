@@ -72,13 +72,15 @@ function ElegantShape({
 }
 
 function HeroGeometric({
-  badge = "Design Collective",
-  title1 = "Elevate Your Digital Vision",
-  title2 = "Crafting Exceptional Websites",
+  badge = "Earthwork Intelligence Suite",
+  title1 = "Plan Railway Earthworks",
+  title2 = "With Precision And Control",
+  description = "Securely manage chainage data, cross-sections, bridges, curves, loops, and project outputs from one Earthsoft workspace.",
 }: {
   badge?: string
   title1?: string
   title2?: string
+  description?: string
 }) {
   const heroEase = [0.25, 0.4, 0.25, 1] as const
 
@@ -173,7 +175,7 @@ function HeroGeometric({
 
           <motion.div custom={2} variants={fadeUpVariants} initial="hidden" animate="visible">
             <p className="mx-auto mb-8 max-w-xl px-4 text-base font-light leading-relaxed tracking-wide text-white/40 sm:text-lg md:text-xl">
-              Crafting exceptional digital experiences through innovative design and cutting-edge technology.
+              {description}
             </p>
           </motion.div>
         </div>
