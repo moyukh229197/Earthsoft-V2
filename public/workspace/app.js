@@ -3461,18 +3461,6 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   const blanketHDraw = row.bank > 0 ? Math.min(blanketH, fillH) : blanketH;
   const topLayerHDraw = row.bank > 0 ? Math.min(topLayerH, Math.max(fillH - blanketHDraw, 0)) : topLayerH;
   const trackTopY = topY - ballastH;
-  const extraTrackCount = Math.max(0, Math.round(safeNum(row.loopTc, 0) / standardTrackCenterM));
-  const trackCount = 1 + extraTrackCount;
-  const trackCenterSpacingM = extraTrackCount > 0
-    ? Math.max(safeNum(row.loopTc, 0) / extraTrackCount, standardTrackCenterM)
-    : standardTrackCenterM;
-  const trackCenterOffsetsM = Array.from({ length: trackCount }, (_, index) => (
-    (index - ((trackCount - 1) / 2)) * trackCenterSpacingM
-  ));
-  const ballastTopHalfPx = (ballastTopWidthM * pxPerM) / 2;
-  const ballastBottomHalfPx = (ballastBottomWidthM * pxPerM) / 2;
-  const topTrackLeftX = Math.min(...trackCenterOffsetsM.map((offset) => centerX + (offset * pxPerM) - ballastTopHalfPx));
-  const topTrackRightX = Math.max(...trackCenterOffsetsM.map((offset) => centerX + (offset * pxPerM) + ballastTopHalfPx));
   const layerCalloutStyles = {
     ballast: { stroke: "#7f8a95", text: "#6f7a86" },
     blanket: { stroke: "#90886c", text: "#7f775b" },
@@ -3480,41 +3468,37 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   };
 
   const layerRects = [];
+  const shoulderWm = 0.6;
+  const crownWm = Math.max(topWidthM - (2 * shoulderWm), 0.5);
+  const shoulderPx = shoulderWm * pxPerM;
+  const crownPx = crownWm * pxPerM;
+  const dropPxRaw = (shoulderWm / 30) * pxPerM;
+  const dropPx = Math.max(dropPxRaw, 2);
+  const bx0 = centerX - halfTop;
+  const bx1 = bx0 + shoulderPx;
+  const bx2 = bx1 + crownPx;
+  const bx3 = bx2 + shoulderPx;
+  const byCenter = trackTopY;
+  const byEdge = trackTopY + dropPx;
   const centerFill = "#cbd2d8";
-  const ballastTracks = trackCenterOffsetsM.map((offsetM) => {
-    const trackCenterX = centerX + (offsetM * pxPerM);
-    const topLeftX = trackCenterX - ballastTopHalfPx;
-    const topRightX = trackCenterX + ballastTopHalfPx;
-    const bottomLeftX = trackCenterX - ballastBottomHalfPx;
-    const bottomRightX = trackCenterX + ballastBottomHalfPx;
-    return `
-      <polygon
-        points="${topLeftX},${trackTopY} ${topRightX},${trackTopY} ${bottomRightX},${trackTopY + ballastH} ${bottomLeftX},${trackTopY + ballastH}"
-        fill="${centerFill}"
-        stroke="#7f8a95"
-      />
-    `;
-  }).join("");
-  layerRects.push(ballastTracks);
+  const shoulderLeft = `<polygon points="${bx0},${byEdge} ${bx1},${byCenter} ${bx1},${byCenter + ballastH} ${bx0},${byEdge + ballastH}" fill="url(#hatchFill)" stroke="#7f8a95" />`;
+  const shoulderRight = `<polygon points="${bx2},${byCenter} ${bx3},${byEdge} ${bx3},${byEdge + ballastH} ${bx2},${byCenter + ballastH}" fill="url(#hatchFill)" stroke="#7f8a95" />`;
+  const centerBallast = `<rect x="${bx1}" y="${byCenter}" width="${crownPx}" height="${ballastH}" fill="${centerFill}" stroke="#7f8a95" />`;
+  layerRects.push(`${shoulderLeft}${centerBallast}${shoulderRight}`);
 
-  const blanketTopLeftX = Math.max(centerX - halfTop, topTrackLeftX - ((ballastBottomHalfPx - ballastTopHalfPx) * 0.25));
-  const blanketTopRightX = Math.min(centerX + halfTop, topTrackRightX + ((ballastBottomHalfPx - ballastTopHalfPx) * 0.25));
-  const blanketBottomLeftX = Math.max(centerX - halfTop, Math.min(...trackCenterOffsetsM.map((offset) => centerX + (offset * pxPerM) - ballastBottomHalfPx)));
-  const blanketBottomRightX = Math.min(centerX + halfTop, Math.max(...trackCenterOffsetsM.map((offset) => centerX + (offset * pxPerM) + ballastBottomHalfPx)));
-  layerRects.push(`
-    <polygon
-      points="${blanketTopLeftX},${trackTopY + ballastH} ${blanketTopRightX},${trackTopY + ballastH} ${blanketBottomRightX},${trackTopY + ballastH + blanketHDraw} ${blanketBottomLeftX},${trackTopY + ballastH + blanketHDraw}"
-      fill="#f5eecf"
-      stroke="#90886c"
-    />
-  `);
-  layerRects.push(`
-    <polygon
-      points="${blanketBottomLeftX},${trackTopY + ballastH + blanketHDraw} ${blanketBottomRightX},${trackTopY + ballastH + blanketHDraw} ${centerX + halfTop},${trackTopY + ballastH + blanketHDraw + topLayerHDraw} ${centerX - halfTop},${trackTopY + ballastH + blanketHDraw + topLayerHDraw}"
-      fill="#edd6bf"
-      stroke="#9a856c"
-    />
-  `);
+  const bltTopY0 = byEdge + ballastH;
+  const bltTopY1 = byCenter + ballastH;
+  const blanketLeft = `<polygon points="${bx0},${bltTopY0} ${bx1},${bltTopY1} ${bx1},${bltTopY1 + blanketHDraw} ${bx0},${bltTopY0 + blanketHDraw}" fill="#f5eecf" stroke="#90886c" />`;
+  const blanketRight = `<polygon points="${bx2},${bltTopY1} ${bx3},${bltTopY0} ${bx3},${bltTopY0 + blanketHDraw} ${bx2},${bltTopY1 + blanketHDraw}" fill="#f5eecf" stroke="#90886c" />`;
+  const blanketCenter = `<rect x="${bx1}" y="${bltTopY1}" width="${crownPx}" height="${blanketHDraw}" fill="#f5eecf" stroke="#90886c" />`;
+  layerRects.push(`${blanketLeft}${blanketCenter}${blanketRight}`);
+
+  const tlTopY0 = bltTopY0 + blanketHDraw;
+  const tlTopY1 = bltTopY1 + blanketHDraw;
+  const topLayerLeft = `<polygon points="${bx0},${tlTopY0} ${bx1},${tlTopY1} ${bx1},${tlTopY1 + topLayerHDraw} ${bx0},${tlTopY0 + topLayerHDraw}" fill="#edd6bf" stroke="#9a856c" />`;
+  const topLayerRight = `<polygon points="${bx2},${tlTopY1} ${bx3},${tlTopY0} ${bx3},${tlTopY0 + topLayerHDraw} ${bx2},${tlTopY1 + topLayerHDraw}" fill="#edd6bf" stroke="#9a856c" />`;
+  const topLayerCenter = `<rect x="${bx1}" y="${tlTopY1}" width="${crownPx}" height="${topLayerHDraw}" fill="#edd6bf" stroke="#9a856c" />`;
+  layerRects.push(`${topLayerLeft}${topLayerCenter}${topLayerRight}`);
 
   if (row.bank > 0) {
     const halfBlanketBottom = halfTop + (blanketHDraw * s.sideSlopeFactor);
@@ -3664,26 +3648,28 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     berms = bermDimSnippets.join("");
   }
 
-  const segDims = trackCenterOffsetsM.map((offsetM, index) => {
-    const trackCenterX = centerX + (offsetM * pxPerM);
-    const leftX = trackCenterX - ballastTopHalfPx;
-    const rightX = trackCenterX + ballastTopHalfPx;
-    const topLabelY = trackTopY - 56 - ((index % 2) * 12);
-    return `
-      ${drawDimLine(leftX, rightX, trackTopY - 42)}
-      <line x1="${leftX}" y1="${trackTopY - 24}" x2="${leftX}" y2="${topY + 2}" stroke="#7c93a8" stroke-dasharray="3 3" />
-      <line x1="${rightX}" y1="${trackTopY - 24}" x2="${rightX}" y2="${topY + 2}" stroke="#7c93a8" stroke-dasharray="3 3" />
-      <text x="${trackCenterX}" y="${topLabelY}" text-anchor="middle" fill="#2f4d6a" font-size="11" font-weight="700">${r3(ballastTopWidthM)} m</text>
-    `;
-  }).join("");
-  const centerSpacingDims = trackCenterOffsetsM.slice(1).map((offsetM, index) => {
-    const leftTrackCenterX = centerX + (trackCenterOffsetsM[index] * pxPerM);
-    const rightTrackCenterX = centerX + (offsetM * pxPerM);
-    return `
-      ${drawDim(leftTrackCenterX, rightTrackCenterX, trackTopY - 88 - (index * 16), `${r3(trackCenterSpacingM)} m c/c`)}
-      <line x1="${leftTrackCenterX}" y1="${trackTopY - 72 - (index * 16)}" x2="${leftTrackCenterX}" y2="${trackTopY + 6}" stroke="#7c93a8" stroke-dasharray="3 3" />
-      <line x1="${rightTrackCenterX}" y1="${trackTopY - 72 - (index * 16)}" x2="${rightTrackCenterX}" y2="${trackTopY + 6}" stroke="#7c93a8" stroke-dasharray="3 3" />
-    `;
+  const segLeftOuter = 1.2;
+  const segLeftShoulder = 0.35;
+  const segRightShoulder = 0.35;
+  const segRightOuter = 1.2;
+  const segMiddle = Math.max(topWidthM - (segLeftOuter + segLeftShoulder + segRightShoulder + segRightOuter), 0.5);
+  const segs = [segLeftOuter, segLeftShoulder, segMiddle, segRightShoulder, segRightOuter];
+  const segLabels = [`${r3(segLeftOuter)}m`, `${r3(segLeftShoulder)}m`, `${r3(segMiddle)}m`, `${r3(segRightShoulder)}m`, `${r3(segRightOuter)}m`];
+  let cursorX = centerX - halfTop;
+  const segDims = [];
+  const segMidPoints = [];
+  for (let i = 0; i < segs.length; i += 1) {
+    const w = segs[i] * pxPerM;
+    const nextX = cursorX + w;
+    segDims.push(drawDimLine(cursorX, nextX, trackTopY - 42));
+    segDims.push(`<line x1="${cursorX}" y1="${trackTopY - 24}" x2="${cursorX}" y2="${topY + 2}" stroke="#7c93a8" stroke-dasharray="3 3" />`);
+    segMidPoints.push((cursorX + nextX) / 2);
+    cursorX = nextX;
+  }
+  segDims.push(`<line x1="${centerX + halfTop}" y1="${trackTopY - 24}" x2="${centerX + halfTop}" y2="${topY + 2}" stroke="#7c93a8" stroke-dasharray="3 3" />`);
+  const segLabelRows = segLabels.map((label, i) => {
+    const y = (i % 2 === 0) ? (trackTopY - 54) : (trackTopY - 64);
+    return `<text x="${segMidPoints[i]}" y="${y}" text-anchor="middle" fill="#2f4d6a" font-size="11" font-weight="700">${label}</text>`;
   }).join("");
   const bodyLabel = row.type === "CUTTING" ? "Cutting Profile" : "Embankment Fill";
   const bodySubLabel = row.type === "CUTTING" ? "" : "(SQ1/SQ2/SQ3 Category Soils)";
@@ -3745,7 +3731,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     <text x="${centerX + halfTop + 16}" y="${topY - 2}" fill="#253748" font-size="14" font-weight="700">Top of Formation</text>
     ${drawDim(centerX - halfTop, centerX + halfTop, trackTopY - 84, `${r3(topWidthM)} m`)}
     ${segDims.join("")}
-    ${centerSpacingDims}
+    ${segLabelRows}
     ${layerCallouts}
     <line x1="${centerX}" y1="${topY}" x2="${centerX}" y2="${centerRef}" stroke="#2f4d6a" stroke-width="1.8" marker-start="url(#arrowSmall)" marker-end="url(#arrowSmall)" />
     <text x="${centerX + 10}" y="${(topY + centerRef) / 2}" fill="#2f4d6a" font-size="12" font-weight="700">${row.type === "CUTTING" ? `Cut = ${r3(row.cut)} m` : `e = ${r3(row.bank)} m`}</text>
