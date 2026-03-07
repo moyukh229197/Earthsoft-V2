@@ -3344,8 +3344,6 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   const ballastTopWidthM = 3.45;
   const ballastBottomWidthM = 6.1;
   const standardTrackCenterM = 5.3;
-
-  try {
   const sqCategory = Math.min(3, Math.max(1, Math.round(s.activeSqCategory || 3)));
   const sqName = sqCategory === 1 ? "SQ1" : (sqCategory === 2 ? "SQ2" : "SQ3");
   const blanketBySq = { 1: 1.0, 2: 0.75, 3: 0.6 };
@@ -3364,43 +3362,47 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   const layerRows = layers;
 
   if (targetEl === els.crossSvg) {
-    els.layerTbody.innerHTML = layerRows.map((l) => `
-      <tr>
-        <td>${l.name}</td>
-        <td>${r3(l.t)}</td>
-        <td>${r3(l.top)}</td>
-        <td>${r3(l.bottom)}</td>
-      </tr>
-    `).join("") + `
-      <tr>
-        <td><strong>Formation RL</strong></td>
-        <td>-</td>
-        <td>${r3(fl)}</td>
-        <td>${r3(fl)}</td>
-      </tr>
-      <tr>
-        <td><strong>Ground RL (GL)</strong></td>
-        <td>-</td>
-        <td>${r3(gl)}</td>
-        <td>${r3(gl)}</td>
-      </tr>
-    `;
-    els.dimTbody.innerHTML = `
-      <tr><th>Formation Width (Top)</th><td>${r3(topWidthM)} m</td></tr>
-      <tr><th>Ballast Top Width (Each Track)</th><td>3.45 m</td></tr>
-      <tr><th>Ballast Bottom Width (Each Track)</th><td>6.10 m</td></tr>
-      <tr><th>Berm Width (Each Berm)</th><td>${fmtDim(s.bermWidth)}</td></tr>
-      <tr><th>Berms per Side (Drawing)</th><td>${row.bank >= 8 ? 2 : (row.bank >= 4 ? 1 : 0)}</td></tr>
-      <tr><th>Bottom Width (Fill)</th><td>${r3(row.fillBottom)} m</td></tr>
-      <tr><th>Bottom Width (Cut)</th><td>${r3(row.cutBottom)} m</td></tr>
-      <tr><th>Embankment Height</th><td>${r3(row.bank)} m</td></tr>
-      <tr><th>Cut Depth</th><td>${r3(row.cut)} m</td></tr>
-      <tr><th>Side Slope Factor</th><td>${r3(s.sideSlopeFactor)}</td></tr>
-      <tr><th>Blanket Rule</th><td>SQ3=0.600 m, SQ2=0.750 m, SQ1=1.000 m</td></tr>
-    `;
+    try {
+      els.layerTbody.innerHTML = layerRows.map((l) => `
+        <tr>
+          <td>${l.name}</td>
+          <td>${r3(l.t)}</td>
+          <td>${r3(l.top)}</td>
+          <td>${r3(l.bottom)}</td>
+        </tr>
+      `).join("") + `
+        <tr>
+          <td><strong>Formation RL</strong></td>
+          <td>-</td>
+          <td>${r3(fl)}</td>
+          <td>${r3(fl)}</td>
+        </tr>
+        <tr>
+          <td><strong>Ground RL (GL)</strong></td>
+          <td>-</td>
+          <td>${r3(gl)}</td>
+          <td>${r3(gl)}</td>
+        </tr>
+      `;
+      els.dimTbody.innerHTML = `
+        <tr><th>Formation Width (Top)</th><td>${r3(topWidthM)} m</td></tr>
+        <tr><th>Ballast Top Width (Each Track)</th><td>3.45 m</td></tr>
+        <tr><th>Ballast Bottom Width (Each Track)</th><td>6.10 m</td></tr>
+        <tr><th>Berm Width (Each Berm)</th><td>${fmtDim(s.bermWidth)}</td></tr>
+        <tr><th>Berms per Side (Drawing)</th><td>${row.bank >= 8 ? 2 : (row.bank >= 4 ? 1 : 0)}</td></tr>
+        <tr><th>Bottom Width (Fill)</th><td>${r3(row.fillBottom)} m</td></tr>
+        <tr><th>Bottom Width (Cut)</th><td>${r3(row.cutBottom)} m</td></tr>
+        <tr><th>Embankment Height</th><td>${r3(row.bank)} m</td></tr>
+        <tr><th>Cut Depth</th><td>${r3(row.cut)} m</td></tr>
+        <tr><th>Side Slope Factor</th><td>${r3(s.sideSlopeFactor)}</td></tr>
+        <tr><th>Blanket Rule</th><td>SQ3=0.600 m, SQ2=0.750 m, SQ1=1.000 m</td></tr>
+      `;
 
-    els.crossTitle.textContent = `Cross-Section @ CH ${r3(row.chainage)} m`;
-    els.crossMeta.textContent = `Type: ${row.type} | Ground RL: ${r3(gl)} | Proposed RL: ${r3(fl)} | Bank: ${r3(row.bank)} | Cut: ${r3(row.cut)}`;
+      els.crossTitle.textContent = `Cross-Section @ CH ${r3(row.chainage)} m`;
+      els.crossMeta.textContent = `Type: ${row.type} | Ground RL: ${r3(gl)} | Proposed RL: ${r3(fl)} | Bank: ${r3(row.bank)} | Cut: ${r3(row.cut)}`;
+    } catch (error) {
+      console.error("Cross-section side panel update failed:", error);
+    }
   }
 
   const svgW = CROSS_SVG_W;
@@ -3768,25 +3770,12 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   `;
   if (targetEl === els.crossSvg) {
     resetCrossView();
-    if (!els.crossSectionModal.open) {
-      els.crossSectionModal.showModal();
-    }
-  }
-  } catch (error) {
-    console.error("Cross-section render failed:", error);
-    const fallbackSvg = `
-      <rect x="0" y="0" width="${CROSS_SVG_W}" height="${CROSS_SVG_H}" fill="#f8fcff" />
-      <rect x="${(CROSS_SVG_W / 2) - 220}" y="${(CROSS_SVG_H / 2) - 30}" width="440" height="60" rx="10" fill="#e8eef5" stroke="#8ca0b4" />
-      <text x="${CROSS_SVG_W / 2}" y="${(CROSS_SVG_H / 2) - 8}" text-anchor="middle" fill="#22384a" font-size="20" font-weight="700">Cross Section</text>
-      <text x="${CROSS_SVG_W / 2}" y="${(CROSS_SVG_H / 2) + 18}" text-anchor="middle" fill="#4a6174" font-size="13">CH ${r3(row?.chainage)} m | Top Width ${r3(topWidthM)} m</text>
-    `;
-    targetEl.innerHTML = fallbackSvg;
-    if (targetEl === els.crossSvg) {
-      els.crossTitle.textContent = `Cross-Section @ CH ${r3(row?.chainage)} m`;
-      els.crossMeta.textContent = "Renderer fallback opened. Refresh and try again after recalculation.";
+    try {
       if (!els.crossSectionModal.open) {
         els.crossSectionModal.showModal();
       }
+    } catch (error) {
+      console.error("Cross-section modal open failed:", error);
     }
   }
 }
