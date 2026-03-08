@@ -5,8 +5,12 @@ import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const githubRepo = process.env.GITHUB_REPOSITORY?.split("/")[1]
+const base =
+  process.env.GITHUB_ACTIONS && githubRepo ? `/${githubRepo}/` : "/"
 
 export default defineConfig({
+  base,
   plugins: [react(), tailwindcss()],
   publicDir: "public",
   build: {
