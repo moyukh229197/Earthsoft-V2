@@ -3458,6 +3458,8 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   const ballastH = ballastThickness * pxPerM;
   const blanketH = blanketRuleThickness * pxPerM;
   const topLayerH = topLayerEffectiveThickness * pxPerM;
+  const sleeperThicknessPx = Math.max((s.sleeperThickness || 0.25) * pxPerM, 8);
+  const railHeightPx = Math.max((s.railHeight || 0.18) * pxPerM, 5);
   const blanketHDraw = row.bank > 0 ? Math.min(blanketH, fillH) : blanketH;
   const topLayerHDraw = row.bank > 0 ? Math.min(topLayerH, Math.max(fillH - blanketHDraw, 0)) : topLayerH;
   const trackTopY = topY - ballastH;
@@ -3499,6 +3501,26 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   const topLayerRight = `<polygon points="${bx2},${tlTopY1} ${bx3},${tlTopY0} ${bx3},${tlTopY0 + topLayerHDraw} ${bx2},${tlTopY1 + topLayerHDraw}" fill="#edd6bf" stroke="#9a856c" />`;
   const topLayerCenter = `<rect x="${bx1}" y="${tlTopY1}" width="${crownPx}" height="${topLayerHDraw}" fill="#edd6bf" stroke="#9a856c" />`;
   layerRects.push(`${topLayerLeft}${topLayerCenter}${topLayerRight}`);
+
+  const sleeperWidthPx = Math.max(2.75 * pxPerM, 60);
+  const sleeperY = trackTopY - sleeperThicknessPx;
+  const sleeperX = centerX - (sleeperWidthPx / 2);
+  const railGaugePx = 1.676 * pxPerM;
+  const railHeadWidthPx = Math.max(0.07 * pxPerM, 6);
+  const railWebWidthPx = Math.max(0.016 * pxPerM, 3);
+  const railFootWidthPx = Math.max(0.13 * pxPerM, 10);
+  const railTopY = sleeperY - railHeightPx;
+  const railBaseY = sleeperY;
+  const buildRail = (railCenterX) => `
+    <rect x="${railCenterX - (railFootWidthPx / 2)}" y="${railBaseY - Math.max(railHeightPx * 0.22, 3)}" width="${railFootWidthPx}" height="${Math.max(railHeightPx * 0.22, 3)}" rx="1.5" fill="#818894" stroke="#5b6470" />
+    <rect x="${railCenterX - (railWebWidthPx / 2)}" y="${railTopY + Math.max(railHeightPx * 0.18, 2)}" width="${railWebWidthPx}" height="${Math.max(railHeightPx * 0.6, 6)}" fill="#737b88" />
+    <rect x="${railCenterX - (railHeadWidthPx / 2)}" y="${railTopY}" width="${railHeadWidthPx}" height="${Math.max(railHeightPx * 0.2, 4)}" rx="1.5" fill="#9aa3af" stroke="#5b6470" />
+  `;
+  const trackAssembly = `
+    <rect x="${sleeperX}" y="${sleeperY}" width="${sleeperWidthPx}" height="${sleeperThicknessPx}" rx="4" fill="#7c8490" stroke="#5a6370" />
+    ${buildRail(centerX - (railGaugePx / 2))}
+    ${buildRail(centerX + (railGaugePx / 2))}
+  `;
 
   if (row.bank > 0) {
     const halfBlanketBottom = halfTop + (blanketHDraw * s.sideSlopeFactor);
@@ -3727,6 +3749,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     ${cutPoly}
     ${berms}
     ${layerRects.join("")}
+    ${trackAssembly}
     <line x1="${centerX - halfTop}" y1="${topY}" x2="${centerX + halfTop}" y2="${topY}" stroke="#2e3b49" stroke-width="2.4" />
     <text x="${centerX + halfTop + 16}" y="${topY - 2}" fill="#253748" font-size="14" font-weight="700">Top of Formation</text>
     ${drawDim(centerX - halfTop, centerX + halfTop, trackTopY - 84, `${r3(topWidthM)} m`)}
