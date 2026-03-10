@@ -86,6 +86,8 @@ For each station row, extract:
         {
             "station": "string (Name of station)",
                 "csb": "number (Center of station board chainage in meters, or null)",
+                    "lineType": "string (Loop, Platform, Main Line, etc. if available)",
+                        "side": "string (Left/Right if available)",
                     "loopStartCh": "number (in meters)",
                         "loopEndCh": "number (in meters)",
                             "pfWidth": "number (platform width in meters)",

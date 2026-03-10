@@ -1312,6 +1312,7 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  position: relative;
 }
 
 .corridor-scale {
@@ -1366,6 +1367,22 @@ h1 {
   height: 10px;
   border-radius: 999px;
   display: inline-block;
+}
+
+.corridor-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: rgba(15, 23, 42, 0.92);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  z-index: 20;
+  white-space: nowrap;
 }
 
 .mission-balance-grid {
@@ -3316,14 +3333,15 @@ td:first-child {
   }
 
   .work-page[data-work-page="table"] .chainage-link.theme-ch {
-    color: #e2e8f0;
+    color: #38bdf8;
     text-decoration: none;
-    font-weight: 500;
-    letter-spacing: 0.02em;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    font-family: "JetBrains Mono", "SFMono-Regular", "Menlo", "Consolas", "Liberation Mono", monospace;
   }
 
   .work-page[data-work-page="table"] .chainage-link.theme-ch:hover {
-    color: #fff;
+    color: #7dd3fc;
   }
 
   /* Specific highlight colors from the user's theme */
