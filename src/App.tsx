@@ -10,9 +10,20 @@ export default function App() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const destination = useMemo(() => "/workspace/index.html", [])
+  const isLocalDev = useMemo(() => {
+    if (typeof window === "undefined") return false
+    return window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost"
+  }, [])
 
   useEffect(() => {
     let cancelled = false
+
+    if (isLocalDev) {
+      window.location.replace(destination)
+      return () => {
+        cancelled = true
+      }
+    }
 
     async function checkSession() {
       try {
@@ -33,7 +44,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [destination])
+  }, [destination, isLocalDev])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()

@@ -10,9 +10,36 @@ function formatVolume(v) {
 }
 const CROSS_SVG_W = 1700;
 const CROSS_SVG_H = 980;
+const CROSS_VIEW_MARGIN_X = 420;
+const CROSS_VIEW_MARGIN_Y = 180;
+const CROSS_DEFAULT_VIEWBOX = {
+  x: -CROSS_VIEW_MARGIN_X,
+  y: -CROSS_VIEW_MARGIN_Y,
+  w: CROSS_SVG_W + (CROSS_VIEW_MARGIN_X * 2),
+  h: CROSS_SVG_H + (CROSS_VIEW_MARGIN_Y * 2),
+};
 
 const BRIDGE_CATEGORIES = ["Minor", "Major", "Viaduct", "Important", "RoR", "Tunnel", "ROB", "MIBOR", "Aqueduct"];
 const BRIDGE_TYPES = ["Box", "PSC Slab", "Composite Girder", "OWG", "Other"];
+const LOOP_LINE_TYPES = ["Loop", "TM Siding", "Ballast Siding", "Connecting Line", "Main Line", "Platform"];
+const LOOP_SIDES = ["Left", "Right"];
+
+function createEmptyLoopRow(index = 0, overrides = {}) {
+  return {
+    station: `LP-${index + 1}`,
+    lineType: "",
+    side: "",
+    csb: null,
+    tc: 0,
+    loopStartCh: null,
+    loopEndCh: null,
+    pfWidth: 0,
+    pfStartCh: null,
+    pfEndCh: null,
+    remarks: "",
+    ...overrides,
+  };
+}
 const state = {
   meta: null,
   rawRows: [],
@@ -40,8 +67,11 @@ const state = {
   activeWorkPage: "overview",
   activeResultTab: "inputs",
   charts: { lSection: null, volume: null },
-  crossViewBox: { x: 0, y: 0, w: CROSS_SVG_W, h: CROSS_SVG_H },
+  currentCrossIndex: null,
+  crossViewBox: { ...CROSS_DEFAULT_VIEWBOX },
   crossPan: { active: false, lastX: 0, lastY: 0 },
+  crossTouch: { mode: "none", startDistance: 0, startViewBox: null, startCenter: null, lastX: 0, lastY: 0 },
+  crossZoomFrame: null,
   kmlData: null,
   stationPlans: {},
   projectFileHandle: null,
@@ -146,6 +176,8 @@ const els = {
   volumeChart: document.getElementById("volumeChart"),
   crossSectionModal: document.getElementById("crossSectionModal"),
   crossTitle: document.getElementById("crossTitle"),
+  crossPrevBtn: document.getElementById("crossPrevBtn"),
+  crossNextBtn: document.getElementById("crossNextBtn"),
   closeCrossBtn: document.getElementById("closeCrossBtn"),
   crossSvg: document.getElementById("crossSvg"),
   rateClearing: document.getElementById("rateClearing"),
@@ -194,6 +226,18 @@ const els = {
 };
 
 async function loadAuthState() {
+  const isLocalDev =
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "localhost";
+
+  if (isLocalDev) {
+    state.auth = {
+      authenticated: true,
+      user: "Local Dev",
+    };
+    return;
+  }
+
   try {
     const response = await fetch("/api/session", {
       credentials: "same-origin",
@@ -991,6 +1035,8 @@ function parseLoopPlatformRowsFromAoa(aoa) {
   const header = Array.isArray(aoa[headerRow]) ? aoa[headerRow] : [];
   const norm = header.map((h) => normalizeHeaderToken(h));
   const cStation = norm.findIndex((h) => h === "stations" || h.includes("station"));
+  const cLineName = norm.findIndex((h) => h === "linename" || h.includes("line"));
+  const cSide = norm.findIndex((h) => h === "side" || h.includes("lhside") || h.includes("rhside"));
   const cCsb = norm.findIndex((h) => h === "csb");
   const cLoopStart = norm.findIndex((h) => h.includes("loopstartch") || h.includes("loopstartchain"));
   const cLoopEnd = norm.findIndex((h) => h.includes("loopendch") || h.includes("loopendchain"));
@@ -1027,6 +1073,8 @@ function parseLoopPlatformRowsFromAoa(aoa) {
     if (!row.length) continue;
 
     const stationRaw = String(row[idx.station] ?? "").trim();
+    const lineType = cLineName >= 0 ? String(row[cLineName] ?? "").trim() : "";
+    const side = cSide >= 0 ? String(row[cSide] ?? "").trim() : "";
     if (stationRaw && !/example|target chainage|add here/i.test(stationRaw)) currentStation = stationRaw;
 
     const csbCandidate = parseChainage(row[idx.csb]);
@@ -1073,6 +1121,8 @@ function parseLoopPlatformRowsFromAoa(aoa) {
 
     rows.push({
       station: currentStation || `LP-${rows.length + 1}`,
+      lineType,
+      side,
       csb: Number.isFinite(currentCsb) ? currentCsb : null,
       tc: Number.isFinite(tc) ? tc : 0,
       loopStartCh: Number.isFinite(loopStartCh) ? loopStartCh : null,
@@ -1266,7 +1316,7 @@ function renderLoopInputs() {
   if (!els.loopTableBody) return;
   const rows = Array.isArray(state.loopPlatformRows) ? state.loopPlatformRows : [];
   if (!rows.length) {
-    els.loopTableBody.innerHTML = `<tr><td colspan="10" class="muted">No station/loop rows loaded. Use Import Data > Import Loops & Platforms.</td></tr>`;
+    els.loopTableBody.innerHTML = `<tr><td colspan="12" class="muted">No station/loop rows loaded. Use Import Data > Import Loops & Platforms.</td></tr>`;
     if (els.loopMeta) els.loopMeta.textContent = "No station/loops data imported.";
     return;
   }
@@ -1280,18 +1330,36 @@ function renderLoopInputs() {
   els.loopTableBody.innerHTML = rows.map((r, i) => {
     const sColor = stationColors[r.station] || 'transparent';
     const bgStyle = sColor !== 'transparent' ? sColor.replace('hsl', 'hsla').replace(')', ', 0.08)') : 'transparent';
+    const isMainLine = r.lineType === "Main Line";
     return `
     <tr data-loop-row="${i}" style="border-left: 4px solid ${sColor}; background: ${bgStyle};">
-      <td><input data-loop-field="station" value="${String(r.station || "")}" /></td>
-      <td><input data-loop-field="csb" value="${Number.isFinite(r.csb) ? r3(r.csb) : ""}" /></td>
+      <td><input data-loop-field="station" value="${String(r.station || "")}" ${isMainLine ? "disabled" : ""} /></td>
+      <td>
+        <select data-loop-field="lineType">
+          <option value=""></option>
+          ${LOOP_LINE_TYPES.map((type) => `<option value="${type}" ${r.lineType === type ? "selected" : ""}>${type}</option>`).join("")}
+        </select>
+      </td>
+      <td>
+        <select data-loop-field="side" ${isMainLine ? "disabled" : ""}>
+          <option value=""></option>
+          ${LOOP_SIDES.map((side) => `<option value="${side}" ${r.side === side ? "selected" : ""}>${side}</option>`).join("")}
+        </select>
+      </td>
+      <td><input data-loop-field="csb" value="${Number.isFinite(r.csb) ? r3(r.csb) : ""}" ${isMainLine ? "disabled" : ""} /></td>
       <td><input data-loop-field="tc" value="${Number.isFinite(r.tc) ? r3(r.tc) : ""}" /></td>
       <td><input data-loop-field="loopStartCh" value="${Number.isFinite(r.loopStartCh) ? r3(r.loopStartCh) : ""}" /></td>
       <td><input data-loop-field="loopEndCh" value="${Number.isFinite(r.loopEndCh) ? r3(r.loopEndCh) : ""}" /></td>
-      <td><input data-loop-field="pfWidth" value="${Number.isFinite(r.pfWidth) ? r3(r.pfWidth) : ""}" /></td>
-      <td><input data-loop-field="pfStartCh" value="${Number.isFinite(r.pfStartCh) ? r3(r.pfStartCh) : ""}" /></td>
-      <td><input data-loop-field="pfEndCh" value="${Number.isFinite(r.pfEndCh) ? r3(r.pfEndCh) : ""}" /></td>
-      <td><input data-loop-field="remarks" value="${String(r.remarks || "")}" /></td>
+      <td><input data-loop-field="pfWidth" value="${Number.isFinite(r.pfWidth) ? r3(r.pfWidth) : ""}" ${isMainLine ? "disabled" : ""} /></td>
+      <td><input data-loop-field="pfStartCh" value="${Number.isFinite(r.pfStartCh) ? r3(r.pfStartCh) : ""}" ${isMainLine ? "disabled" : ""} /></td>
+      <td><input data-loop-field="pfEndCh" value="${Number.isFinite(r.pfEndCh) ? r3(r.pfEndCh) : ""}" ${isMainLine ? "disabled" : ""} /></td>
+      <td><input data-loop-field="remarks" value="${String(r.remarks || "")}" ${isMainLine ? "disabled" : ""} /></td>
       <td><button type="button" class="bridge-del" data-loop-del="${i}">Delete</button></td>
+    </tr>
+    <tr class="loop-insert-row" data-loop-insert-row="${i}">
+      <td colspan="12">
+        <button type="button" class="loop-insert-btn" data-loop-insert="${i + 1}" aria-label="Add line between rows">+</button>
+      </td>
     </tr>
   `}).join("");
   const loopRanges = rows.filter((r) => Number.isFinite(r.loopStartCh) && Number.isFinite(r.loopEndCh)).length;
@@ -1327,6 +1395,8 @@ function syncLoopStateFromTable() {
   rows.forEach((tr) => {
     if (!tr.querySelector('[data-loop-field="station"]')) return;
     const station = String(tr.querySelector('[data-loop-field="station"]')?.value || "").trim();
+    const lineType = String(tr.querySelector('[data-loop-field="lineType"]')?.value || "").trim();
+    const side = String(tr.querySelector('[data-loop-field="side"]')?.value || "").trim();
     const csb = parseChainage(tr.querySelector('[data-loop-field="csb"]')?.value ?? "");
     const tc = parseLooseNumber(tr.querySelector('[data-loop-field="tc"]')?.value ?? "", NaN);
     const loopStartCh = parseChainage(tr.querySelector('[data-loop-field="loopStartCh"]')?.value ?? "");
@@ -1336,6 +1406,8 @@ function syncLoopStateFromTable() {
     const pfEndCh = parseChainage(tr.querySelector('[data-loop-field="pfEndCh"]')?.value ?? "");
     const remarks = String(tr.querySelector('[data-loop-field="remarks"]')?.value || "").trim();
     if (!station
+      && !lineType
+      && !side
       && !Number.isFinite(csb)
       && !Number.isFinite(tc)
       && !Number.isFinite(loopStartCh)
@@ -1346,6 +1418,8 @@ function syncLoopStateFromTable() {
       && !remarks) return;
     next.push({
       station: station || `LP-${next.length + 1}`,
+      lineType,
+      side,
       csb: Number.isFinite(csb) ? csb : null,
       tc: Number.isFinite(tc) ? tc : 0,
       loopStartCh: Number.isFinite(loopStartCh) ? loopStartCh : null,
@@ -1413,18 +1487,20 @@ function clamp(v, min, max) {
 }
 
 function setCrossViewBox(vb) {
-  const minW = CROSS_SVG_W * 0.08;
-  const maxW = CROSS_SVG_W * 5.5;
-  const minH = CROSS_SVG_H * 0.08;
-  const maxH = CROSS_SVG_H * 5.5;
+  const baseW = CROSS_DEFAULT_VIEWBOX.w;
+  const baseH = CROSS_DEFAULT_VIEWBOX.h;
+  const minW = baseW * 0.08;
+  const maxW = baseW * 5.5;
+  const minH = baseH * 0.08;
+  const maxH = baseH * 5.5;
   const w = Math.min(maxW, Math.max(minW, vb.w));
   const h = Math.min(maxH, Math.max(minH, vb.h));
   const panPadX = w * 0.24;
   const panPadY = h * 0.24;
-  const minX = -panPadX;
-  const minY = -panPadY;
-  const maxX = CROSS_SVG_W - w + panPadX;
-  const maxY = CROSS_SVG_H - h + panPadY;
+  const minX = CROSS_DEFAULT_VIEWBOX.x - panPadX;
+  const minY = CROSS_DEFAULT_VIEWBOX.y - panPadY;
+  const maxX = (CROSS_DEFAULT_VIEWBOX.x + CROSS_DEFAULT_VIEWBOX.w) - w + panPadX;
+  const maxY = (CROSS_DEFAULT_VIEWBOX.y + CROSS_DEFAULT_VIEWBOX.h) - h + panPadY;
   const x = minX <= maxX ? clamp(vb.x, minX, maxX) : (minX + maxX) / 2;
   const y = minY <= maxY ? clamp(vb.y, minY, maxY) : (minY + maxY) / 2;
   state.crossViewBox = { x, y, w, h };
@@ -1433,14 +1509,39 @@ function setCrossViewBox(vb) {
   }
 }
 
-function resetCrossView() {
-  setCrossViewBox({ x: 0, y: 0, w: CROSS_SVG_W, h: CROSS_SVG_H });
+function animateCrossViewBox(targetVb, duration = 140) {
+  if (state.crossZoomFrame) {
+    cancelAnimationFrame(state.crossZoomFrame);
+    state.crossZoomFrame = null;
+  }
+  const startVb = { ...state.crossViewBox };
+  const startTime = performance.now();
+  const step = (now) => {
+    const t = Math.min(1, (now - startTime) / duration);
+    const eased = 1 - ((1 - t) * (1 - t) * (1 - t));
+    setCrossViewBox({
+      x: startVb.x + ((targetVb.x - startVb.x) * eased),
+      y: startVb.y + ((targetVb.y - startVb.y) * eased),
+      w: startVb.w + ((targetVb.w - startVb.w) * eased),
+      h: startVb.h + ((targetVb.h - startVb.h) * eased),
+    });
+    if (t < 1) {
+      state.crossZoomFrame = requestAnimationFrame(step);
+    } else {
+      state.crossZoomFrame = null;
+    }
+  };
+  state.crossZoomFrame = requestAnimationFrame(step);
 }
 
-function zoomCrossAt(clientX, clientY, factor) {
+function resetCrossView() {
+  animateCrossViewBox({ ...CROSS_DEFAULT_VIEWBOX }, 180);
+}
+
+function computeZoomedCrossViewBox(clientX, clientY, factor) {
   if (!els.crossSvg || !Number.isFinite(factor) || factor <= 0) return;
   const rect = els.crossSvg.getBoundingClientRect();
-  if (!rect.width || !rect.height) return;
+  if (!rect.width || !rect.height) return null;
   const rx = (clientX - rect.left) / rect.width;
   const ry = (clientY - rect.top) / rect.height;
   const curr = state.crossViewBox;
@@ -1448,7 +1549,21 @@ function zoomCrossAt(clientX, clientY, factor) {
   const newH = curr.h * factor;
   const newX = curr.x + ((curr.w - newW) * rx);
   const newY = curr.y + ((curr.h - newH) * ry);
-  setCrossViewBox({ x: newX, y: newY, w: newW, h: newH });
+  return { x: newX, y: newY, w: newW, h: newH };
+}
+
+function zoomCrossAt(clientX, clientY, factor, mode = "animated") {
+  const nextViewBox = computeZoomedCrossViewBox(clientX, clientY, factor);
+  if (!nextViewBox) return;
+  if (mode === "instant") {
+    if (state.crossZoomFrame) {
+      cancelAnimationFrame(state.crossZoomFrame);
+      state.crossZoomFrame = null;
+    }
+    setCrossViewBox(nextViewBox);
+    return;
+  }
+  animateCrossViewBox(nextViewBox);
 }
 
 function wheelToZoomFactor(e) {
@@ -1458,17 +1573,47 @@ function wheelToZoomFactor(e) {
   return Math.exp(normalized * sensitivity);
 }
 
+function getTouchDistance(t0, t1) {
+  return Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+}
+
+function getTouchCenter(t0, t1) {
+  return {
+    x: (t0.clientX + t1.clientX) / 2,
+    y: (t0.clientY + t1.clientY) / 2,
+  };
+}
+
 function bindCrossCanvasInteraction() {
   if (!els.crossSvg || !els.crossGraphicWrap) return;
   els.crossSvg.style.cursor = "grab";
   els.crossGraphicWrap.addEventListener("wheel", (e) => {
     e.preventDefault();
     const factor = wheelToZoomFactor(e);
-    zoomCrossAt(e.clientX, e.clientY, factor);
+    zoomCrossAt(e.clientX, e.clientY, factor, e.ctrlKey ? "instant" : "animated");
+  }, { passive: false });
+  const handleGestureEvent = (e) => {
+    e.preventDefault();
+    if (state.crossZoomFrame) {
+      cancelAnimationFrame(state.crossZoomFrame);
+      state.crossZoomFrame = null;
+    }
+    const gestureScale = Number.isFinite(e.scale) && e.scale > 0 ? e.scale : 1;
+    const factor = 1 / gestureScale;
+    zoomCrossAt(e.clientX, e.clientY, factor, "instant");
+  };
+  els.crossGraphicWrap.addEventListener("gesturestart", handleGestureEvent, { passive: false });
+  els.crossGraphicWrap.addEventListener("gesturechange", handleGestureEvent, { passive: false });
+  els.crossGraphicWrap.addEventListener("gestureend", (e) => {
+    e.preventDefault();
   }, { passive: false });
   els.crossSvg.addEventListener("mousedown", (e) => {
     if (e.button !== 0 && e.button !== 1) return;
     e.preventDefault();
+    if (state.crossZoomFrame) {
+      cancelAnimationFrame(state.crossZoomFrame);
+      state.crossZoomFrame = null;
+    }
     state.crossPan.active = true;
     state.crossPan.lastX = e.clientX;
     state.crossPan.lastY = e.clientY;
@@ -1495,6 +1640,93 @@ function bindCrossCanvasInteraction() {
     if (!state.crossPan.active || !els.crossSvg) return;
     state.crossPan.active = false;
     els.crossSvg.style.cursor = "grab";
+  });
+
+  els.crossGraphicWrap.addEventListener("touchstart", (e) => {
+    if (!els.crossSvg) return;
+    if (state.crossZoomFrame) {
+      cancelAnimationFrame(state.crossZoomFrame);
+      state.crossZoomFrame = null;
+    }
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      state.crossTouch.mode = "pan";
+      state.crossTouch.lastX = touch.clientX;
+      state.crossTouch.lastY = touch.clientY;
+    } else if (e.touches.length >= 2) {
+      const t0 = e.touches[0];
+      const t1 = e.touches[1];
+      state.crossTouch.mode = "pinch";
+      state.crossTouch.startDistance = getTouchDistance(t0, t1);
+      state.crossTouch.startCenter = getTouchCenter(t0, t1);
+      state.crossTouch.startViewBox = { ...state.crossViewBox };
+    }
+  }, { passive: true });
+
+  els.crossGraphicWrap.addEventListener("touchmove", (e) => {
+    if (!els.crossSvg) return;
+    if (state.crossTouch.mode === "pinch" && e.touches.length >= 2) {
+      e.preventDefault();
+      const rect = els.crossSvg.getBoundingClientRect();
+      if (!rect.width || !rect.height || !state.crossTouch.startViewBox || !state.crossTouch.startCenter) return;
+      const t0 = e.touches[0];
+      const t1 = e.touches[1];
+      const center = getTouchCenter(t0, t1);
+      const distance = getTouchDistance(t0, t1);
+      if (!distance || !state.crossTouch.startDistance) return;
+      const scale = state.crossTouch.startDistance / distance;
+      const startVb = state.crossTouch.startViewBox;
+      const rx = (center.x - rect.left) / rect.width;
+      const ry = (center.y - rect.top) / rect.height;
+      const newW = startVb.w * scale;
+      const newH = startVb.h * scale;
+      const newX = startVb.x + ((startVb.w - newW) * rx);
+      const newY = startVb.y + ((startVb.h - newH) * ry);
+      setCrossViewBox({ x: newX, y: newY, w: newW, h: newH });
+      return;
+    }
+    if (state.crossTouch.mode === "pan" && e.touches.length === 1) {
+      e.preventDefault();
+      const rect = els.crossSvg.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const touch = e.touches[0];
+      const dxPx = touch.clientX - state.crossTouch.lastX;
+      const dyPx = touch.clientY - state.crossTouch.lastY;
+      state.crossTouch.lastX = touch.clientX;
+      state.crossTouch.lastY = touch.clientY;
+      const dx = (dxPx / rect.width) * state.crossViewBox.w;
+      const dy = (dyPx / rect.height) * state.crossViewBox.h;
+      setCrossViewBox({
+        x: state.crossViewBox.x - dx,
+        y: state.crossViewBox.y - dy,
+        w: state.crossViewBox.w,
+        h: state.crossViewBox.h,
+      });
+    }
+  }, { passive: false });
+
+  els.crossGraphicWrap.addEventListener("touchend", (e) => {
+    if (e.touches.length >= 2) {
+      const t0 = e.touches[0];
+      const t1 = e.touches[1];
+      state.crossTouch.mode = "pinch";
+      state.crossTouch.startDistance = getTouchDistance(t0, t1);
+      state.crossTouch.startCenter = getTouchCenter(t0, t1);
+      state.crossTouch.startViewBox = { ...state.crossViewBox };
+      return;
+    }
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      state.crossTouch.mode = "pan";
+      state.crossTouch.lastX = touch.clientX;
+      state.crossTouch.lastY = touch.clientY;
+      state.crossTouch.startViewBox = null;
+      return;
+    }
+    state.crossTouch.mode = "none";
+    state.crossTouch.startDistance = 0;
+    state.crossTouch.startViewBox = null;
+    state.crossTouch.startCenter = null;
   });
 
   const tooltip = document.getElementById("svgTooltip");
@@ -1922,6 +2154,8 @@ function loadProjectFromPayload(data, options = {}) {
   const rawLoopRows = Array.isArray(data?.loopPlatformRows) ? data.loopPlatformRows : [];
   state.loopPlatformRows = rawLoopRows.map((r, i) => ({
     station: String(r?.station || r?.name || `LP-${i + 1}`),
+    lineType: String(r?.lineType || r?.lineName || r?.line || ""),
+    side: /right/i.test(String(r?.side || "")) ? "Right" : (/left/i.test(String(r?.side || "")) ? "Left" : ""),
     csb: Number.isFinite(parseChainage(r?.csb)) ? parseChainage(r.csb) : null,
     tc: Number.isFinite(parseLooseNumber(r?.tc, NaN)) ? parseLooseNumber(r.tc, NaN) : 0,
     loopStartCh: Number.isFinite(parseChainage(r?.loopStartCh))
@@ -2254,6 +2488,18 @@ function renderTable() {
 }
 
 function renderCharts() {
+  if (typeof Chart === "undefined") {
+    if (state.charts.lSection) {
+      state.charts.lSection.destroy();
+      state.charts.lSection = null;
+    }
+    if (state.charts.volume) {
+      state.charts.volume.destroy();
+      state.charts.volume = null;
+    }
+    return;
+  }
+
   // Force destruction of any existing charts bound to the canvas via Chart.js globals.
   Chart.getChart("lSectionChart")?.destroy();
   Chart.getChart("volumeChart")?.destroy();
@@ -2837,7 +3083,7 @@ function renderRollDiagram() {
       const dy = Math.abs(e.clientY - _downY);
       // Only treat as a click if mouse moved less than 5px (not a drag)
       if (dx < 5 && dy < 5 && _hoveredRowIdx >= 0 && _hoveredRowIdx < state.calcRows.length) {
-        drawCrossSection(state.calcRows[_hoveredRowIdx]);
+        openCrossSectionByIndex(_hoveredRowIdx);
         tooltip.style.display = 'none';
         hideRollCrosshairs();
       }
@@ -3334,21 +3580,62 @@ function applySettingsFromForm() {
   recalculate();
 }
 
+function updateCrossSectionNav() {
+  if (els.crossPrevBtn) {
+    els.crossPrevBtn.disabled = !Number.isFinite(state.currentCrossIndex) || state.currentCrossIndex <= 0;
+  }
+  if (els.crossNextBtn) {
+    els.crossNextBtn.disabled = !Number.isFinite(state.currentCrossIndex) || state.currentCrossIndex >= state.calcRows.length - 1;
+  }
+}
+
+function openCrossSectionByIndex(index) {
+  if (!Number.isFinite(index)) return;
+  const boundedIndex = Math.max(0, Math.min(Math.trunc(index), state.calcRows.length - 1));
+  const row = state.calcRows[boundedIndex];
+  if (!row) return;
+  state.currentCrossIndex = boundedIndex;
+  drawCrossSection(row);
+}
+
 function drawCrossSection(row, targetEl = els.crossSvg) {
   if (!targetEl) return;
+  if (targetEl === els.crossSvg) {
+    const rowIndex = state.calcRows.indexOf(row);
+    if (rowIndex >= 0) {
+      state.currentCrossIndex = rowIndex;
+    }
+    updateCrossSectionNav();
+  }
   const s = state.settings;
   const fl = row.proposedLevel;
   const gl = row.groundLevel;
   const topWidthM = Math.max(safeNum(row.topWidth), 0) || safeNum(s.formationWidthFill);
+  const activeLoopTrackOffsets = (state.loopPlatformRows || [])
+    .filter((lp) =>
+      Number.isFinite(lp.loopStartCh) &&
+      Number.isFinite(lp.loopEndCh) &&
+      row.chainage >= lp.loopStartCh &&
+      row.chainage <= lp.loopEndCh &&
+      safeNum(lp.tc, 0) > 0,
+    )
+    .map((lp) => safeNum(lp.tc, 0))
+    .sort((a, b) => a - b)
+    .filter((offset, index, arr) => index === 0 || Math.abs(offset - arr[index - 1]) > 0.001);
+  const allTrackCenterOffsets = [0, ...activeLoopTrackOffsets];
+  const trackOffsetMidpoint = allTrackCenterOffsets.length > 1
+    ? (Math.min(...allTrackCenterOffsets) + Math.max(...allTrackCenterOffsets)) / 2
+    : 0;
   const fmtDim = (value) => `${Number(safeNum(value)).toFixed(1)} m`;
   const ballastTopWidthM = 3.45;
   const ballastBottomWidthM = 6.1;
+  const ballastHeightM = 0.35;
   const standardTrackCenterM = 5.3;
   const sqCategory = Math.min(3, Math.max(1, Math.round(s.activeSqCategory || 3)));
   const sqName = sqCategory === 1 ? "SQ1" : (sqCategory === 2 ? "SQ2" : "SQ3");
   const blanketBySq = { 1: 1.0, 2: 0.75, 3: 0.6 };
   const blanketRuleThickness = blanketBySq[sqCategory];
-  const ballastThickness = Math.max(0, s.ballastCushionThickness || 0.35);
+  const ballastThickness = ballastHeightM;
   const topLayerThickness = Math.max(0, s.topLayerThickness || 0.5);
   const topLayerEffectiveThickness = Math.min(topLayerThickness, Math.max(row.bank, 0));
   const embankmentCoreThickness = Math.max(row.bank - topLayerEffectiveThickness, 0);
@@ -3386,8 +3673,11 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
       `;
       els.dimTbody.innerHTML = `
         <tr><th>Formation Width (Top)</th><td>${r3(topWidthM)} m</td></tr>
+        <tr><th>Tracks in Section</th><td>${allTrackCenterOffsets.length}</td></tr>
+        <tr><th>Track Centres</th><td>${allTrackCenterOffsets.map((offset) => offset === 0 ? "Main Line" : `${r3(offset)} m Loop`).join(", ")}</td></tr>
         <tr><th>Ballast Top Width (Each Track)</th><td>3.45 m</td></tr>
         <tr><th>Ballast Bottom Width (Each Track)</th><td>6.10 m</td></tr>
+        <tr><th>Ballast Height</th><td>0.35 m</td></tr>
         <tr><th>Berm Width (Each Berm)</th><td>${fmtDim(s.bermWidth)}</td></tr>
         <tr><th>Berms per Side (Drawing)</th><td>${row.bank >= 8 ? 2 : (row.bank >= 4 ? 1 : 0)}</td></tr>
         <tr><th>Bottom Width (Fill)</th><td>${r3(row.fillBottom)} m</td></tr>
@@ -3470,61 +3760,89 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   };
 
   const layerRects = [];
-  const shoulderWm = 0.6;
-  const crownWm = Math.max(topWidthM - (2 * shoulderWm), 0.5);
-  const shoulderPx = shoulderWm * pxPerM;
-  const crownPx = crownWm * pxPerM;
-  const dropPxRaw = (shoulderWm / 30) * pxPerM;
-  const dropPx = Math.max(dropPxRaw, 2);
-  const bx0 = centerX - halfTop;
-  const bx1 = bx0 + shoulderPx;
-  const bx2 = bx1 + crownPx;
-  const bx3 = bx2 + shoulderPx;
-  const byCenter = trackTopY;
-  const byEdge = trackTopY + dropPx;
-  const centerFill = "#cbd2d8";
-  const shoulderLeft = `<polygon points="${bx0},${byEdge} ${bx1},${byCenter} ${bx1},${byCenter + ballastH} ${bx0},${byEdge + ballastH}" fill="url(#hatchFill)" stroke="#7f8a95" />`;
-  const shoulderRight = `<polygon points="${bx2},${byCenter} ${bx3},${byEdge} ${bx3},${byEdge + ballastH} ${bx2},${byCenter + ballastH}" fill="url(#hatchFill)" stroke="#7f8a95" />`;
-  const centerBallast = `<rect x="${bx1}" y="${byCenter}" width="${crownPx}" height="${ballastH}" fill="${centerFill}" stroke="#7f8a95" />`;
-  layerRects.push(`${shoulderLeft}${centerBallast}${shoulderRight}`);
+  const ballastTopHalfPx = (ballastTopWidthM * pxPerM) / 2;
+  const ballastBottomHalfPx = (ballastBottomWidthM * pxPerM) / 2;
+  const byTop = trackTopY;
+  const byBottom = trackTopY + ballastH;
+  const buildBallastPolygon = (trackCenterX) => {
+    const bx0 = trackCenterX - ballastBottomHalfPx;
+    const bx1 = trackCenterX - ballastTopHalfPx;
+    const bx2 = trackCenterX + ballastTopHalfPx;
+    const bx3 = trackCenterX + ballastBottomHalfPx;
+    return {
+      leftBottom: bx0,
+      leftTop: bx1,
+      rightTop: bx2,
+      rightBottom: bx3,
+      svg: `<polygon points="${bx1},${byTop} ${bx2},${byTop} ${bx3},${byBottom} ${bx0},${byBottom}" fill="#cbd2d8" stroke="#7f8a95" />`,
+    };
+  };
+  const trackCentersX = allTrackCenterOffsets.map((offset) => ({
+    offset,
+    visualOffset: offset - trackOffsetMidpoint,
+    x: centerX - ((offset - trackOffsetMidpoint) * pxPerM),
+  }));
+  const trackCenterMap = new Map(trackCentersX.map((track) => [track.offset, track]));
+  const mainTrackLayout = trackCenterMap.get(0) || { x: centerX };
+  const mainTrackBallast = buildBallastPolygon(mainTrackLayout.x);
+  const ballastPolygons = trackCentersX
+    .map((track) => buildBallastPolygon(track.x).svg)
+    .join("");
+  layerRects.push(ballastPolygons);
 
-  const bltTopY0 = byEdge + ballastH;
-  const bltTopY1 = byCenter + ballastH;
-  const blanketLeft = `<polygon points="${bx0},${bltTopY0} ${bx1},${bltTopY1} ${bx1},${bltTopY1 + blanketHDraw} ${bx0},${bltTopY0 + blanketHDraw}" fill="#f5eecf" stroke="#90886c" />`;
-  const blanketRight = `<polygon points="${bx2},${bltTopY1} ${bx3},${bltTopY0} ${bx3},${bltTopY0 + blanketHDraw} ${bx2},${bltTopY1 + blanketHDraw}" fill="#f5eecf" stroke="#90886c" />`;
-  const blanketCenter = `<rect x="${bx1}" y="${bltTopY1}" width="${crownPx}" height="${blanketHDraw}" fill="#f5eecf" stroke="#90886c" />`;
+  const bltTopY0 = byBottom;
+  const bltTopY1 = byBottom;
+  const blanketLeft = `<polygon points="${mainTrackBallast.leftBottom},${bltTopY0} ${mainTrackBallast.leftTop},${bltTopY1} ${mainTrackBallast.leftTop},${bltTopY1 + blanketHDraw} ${mainTrackBallast.leftBottom},${bltTopY0 + blanketHDraw}" fill="#f5eecf" stroke="#90886c" />`;
+  const blanketRight = `<polygon points="${mainTrackBallast.rightTop},${bltTopY1} ${mainTrackBallast.rightBottom},${bltTopY0} ${mainTrackBallast.rightBottom},${bltTopY0 + blanketHDraw} ${mainTrackBallast.rightTop},${bltTopY1 + blanketHDraw}" fill="#f5eecf" stroke="#90886c" />`;
+  const blanketCenter = `<rect x="${mainTrackBallast.leftTop}" y="${bltTopY1}" width="${mainTrackBallast.rightTop - mainTrackBallast.leftTop}" height="${blanketHDraw}" fill="#f5eecf" stroke="#90886c" />`;
   layerRects.push(`${blanketLeft}${blanketCenter}${blanketRight}`);
 
   const tlTopY0 = bltTopY0 + blanketHDraw;
   const tlTopY1 = bltTopY1 + blanketHDraw;
-  const topLayerLeft = `<polygon points="${bx0},${tlTopY0} ${bx1},${tlTopY1} ${bx1},${tlTopY1 + topLayerHDraw} ${bx0},${tlTopY0 + topLayerHDraw}" fill="#edd6bf" stroke="#9a856c" />`;
-  const topLayerRight = `<polygon points="${bx2},${tlTopY1} ${bx3},${tlTopY0} ${bx3},${tlTopY0 + topLayerHDraw} ${bx2},${tlTopY1 + topLayerHDraw}" fill="#edd6bf" stroke="#9a856c" />`;
-  const topLayerCenter = `<rect x="${bx1}" y="${tlTopY1}" width="${crownPx}" height="${topLayerHDraw}" fill="#edd6bf" stroke="#9a856c" />`;
+  const topLayerLeft = `<polygon points="${mainTrackBallast.leftBottom},${tlTopY0} ${mainTrackBallast.leftTop},${tlTopY1} ${mainTrackBallast.leftTop},${tlTopY1 + topLayerHDraw} ${mainTrackBallast.leftBottom},${tlTopY0 + topLayerHDraw}" fill="#edd6bf" stroke="#9a856c" />`;
+  const topLayerRight = `<polygon points="${mainTrackBallast.rightTop},${tlTopY1} ${mainTrackBallast.rightBottom},${tlTopY0} ${mainTrackBallast.rightBottom},${tlTopY0 + topLayerHDraw} ${mainTrackBallast.rightTop},${tlTopY1 + topLayerHDraw}" fill="#edd6bf" stroke="#9a856c" />`;
+  const topLayerCenter = `<rect x="${mainTrackBallast.leftTop}" y="${tlTopY1}" width="${mainTrackBallast.rightTop - mainTrackBallast.leftTop}" height="${topLayerHDraw}" fill="#edd6bf" stroke="#9a856c" />`;
   layerRects.push(`${topLayerLeft}${topLayerCenter}${topLayerRight}`);
 
   const sleeperWidthPx = Math.max(2.75 * pxPerM, 60);
   const sleeperY = trackTopY - sleeperThicknessPx;
-  const sleeperX = centerX - (sleeperWidthPx / 2);
   const railGaugePx = 1.676 * pxPerM;
-  const railHeadWidthPx = Math.max(0.07 * pxPerM, 6);
-  const railWebWidthPx = Math.max(0.016 * pxPerM, 3);
-  const railFootWidthPx = Math.max(0.13 * pxPerM, 10);
+  const railHeadWidthPx = Math.max(0.09 * pxPerM, 8);
+  const railWebWidthPx = Math.max(0.02 * pxPerM, 4);
+  const railFootWidthPx = Math.max(0.15 * pxPerM, 12);
   const railTopY = sleeperY - railHeightPx;
   const railBaseY = sleeperY;
   const buildRail = (railCenterX) => `
-    <rect x="${railCenterX - (railFootWidthPx / 2)}" y="${railBaseY - Math.max(railHeightPx * 0.22, 3)}" width="${railFootWidthPx}" height="${Math.max(railHeightPx * 0.22, 3)}" rx="1.5" fill="#818894" stroke="#5b6470" />
-    <rect x="${railCenterX - (railWebWidthPx / 2)}" y="${railTopY + Math.max(railHeightPx * 0.18, 2)}" width="${railWebWidthPx}" height="${Math.max(railHeightPx * 0.6, 6)}" fill="#737b88" />
-    <rect x="${railCenterX - (railHeadWidthPx / 2)}" y="${railTopY}" width="${railHeadWidthPx}" height="${Math.max(railHeightPx * 0.2, 4)}" rx="1.5" fill="#9aa3af" stroke="#5b6470" />
+    <rect x="${railCenterX - (railFootWidthPx / 2)}" y="${railBaseY - Math.max(railHeightPx * 0.22, 3)}" width="${railFootWidthPx}" height="${Math.max(railHeightPx * 0.22, 3)}" rx="1.5" fill="#747f8c" stroke="#42505d" stroke-width="1.2" />
+    <rect x="${railCenterX - (railWebWidthPx / 2)}" y="${railTopY + Math.max(railHeightPx * 0.18, 2)}" width="${railWebWidthPx}" height="${Math.max(railHeightPx * 0.6, 6)}" fill="#697583" stroke="#42505d" stroke-width="0.8" />
+    <rect x="${railCenterX - (railHeadWidthPx / 2)}" y="${railTopY}" width="${railHeadWidthPx}" height="${Math.max(railHeightPx * 0.2, 4)}" rx="1.5" fill="#b3bcc6" stroke="#42505d" stroke-width="1.2" />
   `;
-  const trackAssembly = `
-    <rect x="${sleeperX}" y="${sleeperY}" width="${sleeperWidthPx}" height="${sleeperThicknessPx}" rx="4" fill="#7c8490" stroke="#5a6370" />
-    ${buildRail(centerX - (railGaugePx / 2))}
-    ${buildRail(centerX + (railGaugePx / 2))}
-  `;
+  const buildTrackAssembly = (trackCenterX) => {
+    const sleeperX = trackCenterX - (sleeperWidthPx / 2);
+    return `
+      <rect x="${sleeperX}" y="${sleeperY}" width="${sleeperWidthPx}" height="${sleeperThicknessPx}" rx="4" fill="#838d99" stroke="#42505d" stroke-width="1.4" />
+      ${buildRail(trackCenterX - (railGaugePx / 2))}
+      ${buildRail(trackCenterX + (railGaugePx / 2))}
+    `;
+  };
+  const trackAssembly = trackCentersX
+    .map((track) => buildTrackAssembly(track.x))
+    .join("");
+  const trackCenterDims = trackCentersX
+    .slice(1)
+    .map((track, index) => {
+      const dimY = trackTopY - 106 - (index * 22);
+      return `
+        <line x1="${mainTrackLayout.x}" y1="${trackTopY - 6}" x2="${mainTrackLayout.x}" y2="${dimY + 4}" stroke="#53718b" stroke-dasharray="4 4" />
+        <line x1="${track.x}" y1="${trackTopY - 6}" x2="${track.x}" y2="${dimY + 4}" stroke="#53718b" stroke-dasharray="4 4" />
+        ${drawDim(mainTrackLayout.x, track.x, dimY, `TC ${r3(track.offset)} m`)}
+      `;
+    })
+    .join("");
 
   if (row.bank > 0) {
-    const halfBlanketBottom = halfTop + (blanketHDraw * s.sideSlopeFactor);
-    const halfTopLayerBottom = halfTop + ((blanketHDraw + topLayerHDraw) * s.sideSlopeFactor);
+    const halfBlanketBottom = halfTop + (blanketHDraw * slopeHV);
+    const halfTopLayerBottom = halfTop + ((blanketHDraw + topLayerHDraw) * slopeHV);
     layerRects.push(`
       <polygon points="${centerX - halfTop},${topY} ${centerX + halfTop},${topY} ${centerX + halfBlanketBottom},${topY + blanketHDraw} ${centerX - halfBlanketBottom},${topY + blanketHDraw}"
       fill="#f5eecf" stroke="#90886c" />`);
@@ -3696,26 +4014,45 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   const bodyLabel = row.type === "CUTTING" ? "Cutting Profile" : "Embankment Fill";
   const bodySubLabel = row.type === "CUTTING" ? "" : "(SQ1/SQ2/SQ3 Category Soils)";
   const bodyYRef = row.type === "CUTTING" ? (topY + 120) : ((topY + toeY) / 2);
-  const topLayerCalloutY = row.bank > 0 ? (topY + blanketHDraw) : (topY + blanketH);
-  const calloutAnchorX = centerX + halfTop + 12;
-  const calloutEndX = Math.min(calloutAnchorX + 160, svgW - 220);
-  const calloutTextX = calloutEndX + 10;
-  const calloutDy = -34;
-  const ballastCalloutStartY = trackTopY + Math.max(ballastH * 0.48, 2);
-  const blanketCalloutStartY = topY + Math.max(blanketHDraw * 0.62, 2);
-  const topLayerCalloutStartY = topLayerCalloutY + Math.max(topLayerHDraw * 0.62, 2);
-  const drawLayerCallout = (label, startY, style) => {
-    const endY = startY + calloutDy;
-    return `
-      <line x1="${calloutAnchorX}" y1="${startY}" x2="${calloutEndX}" y2="${endY}" stroke="${style.stroke}" stroke-width="1.8" />
-      <text x="${calloutTextX}" y="${endY - 2}" fill="${style.text}" font-size="12">${label}</text>
-    `;
-  };
-  const layerCallouts = [
-    drawLayerCallout(`${r3(ballastThickness)} m Ballast Cushion`, ballastCalloutStartY, layerCalloutStyles.ballast),
-    drawLayerCallout(`Blanket (${sqName}) ${r3(blanketRuleThickness)} m`, blanketCalloutStartY, layerCalloutStyles.blanket),
-    drawLayerCallout(`Top Layer of Embankment Fill ${r3(topLayerEffectiveThickness)} m`, topLayerCalloutStartY, layerCalloutStyles.topLayer),
-  ].join("");
+  const layerLegendX = 46;
+  const layerLegendY = 74;
+  const layerLegendItems = [
+    { fill: "#cbd2d8", stroke: layerCalloutStyles.ballast.stroke, text: `${r3(ballastThickness)} m Ballast Cushion` },
+    { fill: "#f5eecf", stroke: layerCalloutStyles.blanket.stroke, text: `Blanket (${sqName}) ${r3(blanketRuleThickness)} m` },
+    { fill: "#edd6bf", stroke: layerCalloutStyles.topLayer.stroke, text: `Top Layer Fill ${r3(topLayerEffectiveThickness)} m` },
+  ];
+  const layerLegend = `
+    <g>
+      <rect x="${layerLegendX - 12}" y="${layerLegendY - 26}" width="270" height="${layerLegendItems.length * 28 + 18}" rx="14" fill="rgba(255,255,255,0.92)" stroke="#d7e0e8" />
+      <text x="${layerLegendX}" y="${layerLegendY - 6}" fill="#223240" font-size="13" font-weight="700">Layer Legend</text>
+      ${layerLegendItems.map((item, index) => {
+        const itemY = layerLegendY + (index * 28);
+        return `
+          <rect x="${layerLegendX}" y="${itemY}" width="18" height="12" rx="3" fill="${item.fill}" stroke="${item.stroke}" />
+          <text x="${layerLegendX + 28}" y="${itemY + 10}" fill="#33475a" font-size="12">${item.text}</text>
+        `;
+      }).join("")}
+    </g>
+  `;
+  const trackLegendX = 46;
+  const trackLegendY = layerLegendY + (layerLegendItems.length * 28) + 34;
+  const trackLegendItems = [
+    { fill: "#b3bcc6", stroke: "#42505d", text: "Rail" },
+    { fill: "#838d99", stroke: "#42505d", text: "Sleeper" },
+  ];
+  const trackLegend = `
+    <g>
+      <rect x="${trackLegendX - 12}" y="${trackLegendY - 26}" width="180" height="${trackLegendItems.length * 28 + 18}" rx="14" fill="rgba(255,255,255,0.92)" stroke="#d7e0e8" />
+      <text x="${trackLegendX}" y="${trackLegendY - 6}" fill="#223240" font-size="13" font-weight="700">Track Legend</text>
+      ${trackLegendItems.map((item, index) => {
+        const itemY = trackLegendY + (index * 28);
+        return `
+          <rect x="${trackLegendX}" y="${itemY}" width="18" height="12" rx="3" fill="${item.fill}" stroke="${item.stroke}" />
+          <text x="${trackLegendX + 28}" y="${itemY + 10}" fill="#33475a" font-size="12">${item.text}</text>
+        `;
+      }).join("")}
+    </g>
+  `;
   const slopeLabels = row.bank > 0
     ? `
       <text x="${leftToeX - 46}" y="${topY + Math.max(fillH * 0.55, 24)}" fill="#2f4d6a" font-size="12" font-weight="700">1:${r3(slopeHV)}</text>
@@ -3739,7 +4076,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   const hflLeftX = centerX - 410;
 
   targetEl.innerHTML = `
-    <rect x="0" y="0" width="${svgW}" height="${svgH}" fill="#f8fcff" />
+    <rect x="-120000" y="-120000" width="240000" height="240000" fill="#f8fcff" />
     <line x1="${glLeftX}" y1="${groundY}" x2="${demarcRightX}" y2="${groundY}" stroke="#5d6b77" stroke-dasharray="8 7" stroke-width="1.8" />
     <text x="${demarcRightX + 18}" y="${groundY - 7}" fill="#374b5d" font-size="13" font-weight="700">G.L.</text>
     <line x1="${hflLeftX}" y1="${hflY}" x2="${demarcRightX}" y2="${hflY}" stroke="#6d7680" stroke-dasharray="12 8" stroke-width="1.4" />
@@ -3753,9 +4090,11 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     <line x1="${centerX - halfTop}" y1="${topY}" x2="${centerX + halfTop}" y2="${topY}" stroke="#2e3b49" stroke-width="2.4" />
     <text x="${centerX + halfTop + 16}" y="${topY - 2}" fill="#253748" font-size="14" font-weight="700">Top of Formation</text>
     ${drawDim(centerX - halfTop, centerX + halfTop, trackTopY - 84, `${r3(topWidthM)} m`)}
+    ${trackCenterDims}
     ${segDims.join("")}
     ${segLabelRows}
-    ${layerCallouts}
+    ${layerLegend}
+    ${trackLegend}
     <line x1="${centerX}" y1="${topY}" x2="${centerX}" y2="${centerRef}" stroke="#2f4d6a" stroke-width="1.8" marker-start="url(#arrowSmall)" marker-end="url(#arrowSmall)" />
     <text x="${centerX + 10}" y="${(topY + centerRef) / 2}" fill="#2f4d6a" font-size="12" font-weight="700">${row.type === "CUTTING" ? `Cut = ${r3(row.cut)} m` : `e = ${r3(row.bank)} m`}</text>
     ${slopeLabels}
@@ -3764,10 +4103,6 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     ${levelText}
     <text x="42" y="40" fill="#1f2e3a" font-size="16" font-weight="700">Cross Section of Track</text>
     <defs>
-      <pattern id="hatchFill" patternUnits="userSpaceOnUse" width="8" height="8">
-        <rect width="8" height="8" fill="#dfe9de" />
-        <path d="M-2,2 l4,-4 M0,8 l8,-8 M6,10 l4,-4" stroke="#8ca290" stroke-width="1" />
-      </pattern>
       <pattern id="embFillHatch" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(20)">
         <rect width="10" height="10" fill="#dfe9de" />
         <path d="M0,0 L0,10" stroke="#9cb3a3" stroke-width="1" />
@@ -4337,6 +4672,18 @@ function bindEvents() {
       e.preventDefault();
       if (els.saveProjectBtn) els.saveProjectBtn.click();
     }
+    if (els.crossSectionModal?.open) {
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        openCrossSectionByIndex((state.currentCrossIndex ?? 0) - 1);
+        return;
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        openCrossSectionByIndex((state.currentCrossIndex ?? -1) + 1);
+        return;
+      }
+    }
     // Arrow Key Navigation for Chainages (Only active on Overview)
     const overviewPage = document.querySelector('.work-page[data-work-page="overview"]');
     if (overviewPage && overviewPage.classList.contains("active")) {
@@ -4624,6 +4971,10 @@ function bindEvents() {
 
   function openExpandedGraph(graphType) {
     if (!els.graphModal) return;
+    if (typeof Chart === "undefined") {
+      alert("Chart library failed to load. Please check your internet connection.");
+      return;
+    }
 
     // Destroy previous expanded instance if it exists
     if (expandedChartInstance) {
@@ -5262,17 +5613,7 @@ function bindEvents() {
 
   if (els.loopAddBtn) {
     els.loopAddBtn.addEventListener("click", () => {
-      state.loopPlatformRows.push({
-        station: `LP-${state.loopPlatformRows.length + 1}`,
-        csb: null,
-        tc: 0,
-        loopStartCh: null,
-        loopEndCh: null,
-        pfWidth: 0,
-        pfStartCh: null,
-        pfEndCh: null,
-        remarks: "",
-      });
+      state.loopPlatformRows.push(createEmptyLoopRow(state.loopPlatformRows.length));
       state.project.uploads.loops = true;
       state.project.verified = false;
       updateWizardUI();
@@ -5295,6 +5636,26 @@ function bindEvents() {
 
   if (els.loopTableBody) {
     els.loopTableBody.addEventListener("click", (e) => {
+      const insertBtn = e.target.closest("[data-loop-insert]");
+      if (insertBtn) {
+        const insertIndex = Number(insertBtn.dataset.loopInsert);
+        if (!Number.isFinite(insertIndex)) return;
+        syncLoopStateFromTable();
+        const aboveRow = state.loopPlatformRows[Math.max(0, insertIndex - 1)];
+        state.loopPlatformRows.splice(
+          insertIndex,
+          0,
+          createEmptyLoopRow(insertIndex, {
+            station: String(aboveRow?.station || `LP-${insertIndex + 1}`),
+          }),
+        );
+        state.project.uploads.loops = state.loopPlatformRows.length > 0;
+        state.project.verified = false;
+        updateWizardUI();
+        applyProjectGate();
+        renderLoopInputs();
+        return;
+      }
       const delBtn = e.target.closest("[data-loop-del]");
       if (!delBtn) return;
       const i = Number(delBtn.dataset.loopDel);
@@ -5306,6 +5667,12 @@ function bindEvents() {
       applyProjectGate();
       renderLoopInputs();
       recalculate();
+    });
+    els.loopTableBody.addEventListener("change", (e) => {
+      const lineTypeSelect = e.target.closest('[data-loop-field="lineType"]');
+      if (!lineTypeSelect) return;
+      syncLoopStateFromTable();
+      renderLoopInputs();
     });
   }
 
@@ -5411,10 +5778,24 @@ function bindEvents() {
     const trigger = e.target.closest("[data-cross-index]");
     if (!trigger) return;
     const i = Number(trigger.dataset.crossIndex);
-    if (Number.isFinite(i)) drawCrossSection(state.calcRows[i]);
+    if (Number.isFinite(i)) openCrossSectionByIndex(i);
   });
 
-  els.closeCrossBtn.addEventListener("click", () => els.crossSectionModal.close());
+  if (els.crossPrevBtn) {
+    els.crossPrevBtn.addEventListener("click", () => {
+      openCrossSectionByIndex((state.currentCrossIndex ?? 0) - 1);
+    });
+  }
+  if (els.crossNextBtn) {
+    els.crossNextBtn.addEventListener("click", () => {
+      openCrossSectionByIndex((state.currentCrossIndex ?? -1) + 1);
+    });
+  }
+  els.closeCrossBtn.addEventListener("click", () => {
+    els.crossSectionModal.close();
+    state.currentCrossIndex = null;
+    updateCrossSectionNav();
+  });
   els.zoomInBtn.addEventListener("click", () => {
     const rect = els.crossSvg.getBoundingClientRect();
     zoomCrossAt(rect.left + (rect.width / 2), rect.top + (rect.height / 2), 0.86);

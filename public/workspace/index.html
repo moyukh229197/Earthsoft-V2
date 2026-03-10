@@ -25,6 +25,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script>
     (function () {
+      const isLocalDev = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
+      if (isLocalDev) {
+        return;
+      }
       fetch("/api/session", { credentials: "same-origin" })
         .then((response) => {
           if (!response.ok) {
@@ -525,6 +529,8 @@
               <thead>
                 <tr>
                   <th>Station</th>
+                  <th>Line Type</th>
+                  <th>Side</th>
                   <th>CSB</th>
                   <th>Loop T/C</th>
                   <th>Loop Start Ch</th>
@@ -1183,6 +1189,10 @@
     <div class="modal-body">
       <div class="modal-head">
         <h3 id="crossTitle">Cross-Section</h3>
+        <div class="cross-nav-controls">
+          <button id="crossPrevBtn" class="btn btn-secondary" type="button">Previous</button>
+          <button id="crossNextBtn" class="btn btn-secondary" type="button">Next</button>
+        </div>
         <div class="zoom-controls">
           <button id="zoomOutBtn" class="icon-btn">−</button>
           <button id="zoomResetBtn" class="icon-btn">⟳</button>
