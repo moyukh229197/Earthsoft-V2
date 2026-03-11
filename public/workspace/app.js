@@ -8379,7 +8379,7 @@ let animationId;
 let flying = false;
 let flyZ = 0;
 const flyStep = 10;
-const flySpeed = 0.5;
+let flySpeed = 0.5; // Default speed multiplier
 
 function init3DViewer() {
    const container = document.getElementById("threeContainer");
@@ -8420,27 +8420,33 @@ function init3DViewer() {
    generate3DMesh();
 
    function animate() {
+     if (!viewer3dScene) return;
      animationId = requestAnimationFrame(animate);
      
      if (flying && state.calcRows.length > 0) {
-        flyZ -= flySpeed;
-        const totalLen = state.calcRows.length * flyStep;
-        if (Math.abs(flyZ) >= totalLen) flyZ = 0;
+        const speedMultiplier = parseFloat(document.getElementById("flySpeedSelect")?.value || "0.5");
+        flyZ -= (flyStep * 0.1) * speedMultiplier;
+        
+        const totalLen = (state.calcRows.length - 1) * flyStep;
+        if (Math.abs(flyZ) >= totalLen) {
+           flyZ = 0; // Loop flight
+        }
         
         const idx = Math.floor(Math.abs(flyZ) / flyStep);
         if (state.calcRows[idx]) {
            const row = state.calcRows[idx];
-           const targetY = (row.proposedLevel / 10) + 4; // Fly slightly above track
+           const targetY = (row.proposedLevel / 10) + 2.5; // Fly slightly above track (lowered for intimacy)
            
-           // Smooth camera movement
-           viewer3dCamera.position.z += (flyZ - viewer3dCamera.position.z) * 0.1;
-           viewer3dCamera.position.y += (targetY - viewer3dCamera.position.y) * 0.1;
-           viewer3dCamera.position.x += (0 - viewer3dCamera.position.x) * 0.1;
+           // Smooth camera movement (lerp)
+           viewer3dCamera.position.z += (flyZ - viewer3dCamera.position.z) * 0.05;
+           viewer3dCamera.position.y += (targetY - viewer3dCamera.position.y) * 0.05;
+           viewer3dCamera.position.x += (0 - viewer3dCamera.position.x) * 0.05;
            
-           // Look ahead
-           const lookAheadIdx = Math.min(idx + 10, state.calcRows.length - 1);
+           // Look ahead logic
+           const lookAheadIdx = Math.min(idx + 15, state.calcRows.length - 1);
            const aheadRow = state.calcRows[lookAheadIdx];
-           viewer3dCamera.lookAt(0, aheadRow.proposedLevel / 10, flyZ - 50);
+           const lookTarget = new THREE.Vector3(0, aheadRow.proposedLevel / 10, flyZ - 60);
+           viewer3dCamera.lookAt(lookTarget);
         }
         viewer3dControls.enabled = false;
      } else {
@@ -8498,24 +8504,82 @@ function generate3DMesh() {
      railR.position.set(0.835, yPos + 0.3, zPos);
      trackGroup.add(railR);
      
-     // Embankment / Cutting visualization
-     if (row.bank > 0.1) {
-        const h = row.bank / 2;
-        const fillGeo = new THREE.BoxGeometry(7.85 + (row.bank * 2), h, flyStep);
-        const fillMesh = new THREE.Mesh(fillGeo, matFill);
-        fillMesh.position.set(0, yPos - (h/2) - 0.25, zPos);
-        trackGroup.add(fillMesh);
-     } else if (row.cut > 0.1) {
-        const h = row.cut / 2;
-        const cutGeo = new THREE.BoxGeometry(12.05 + (row.cut * 2), h, flyStep);
-        const cutMesh = new THREE.Mesh(cutGeo, matCut);
-        cutMesh.position.set(0, yPos + (h/2) + 0.25, zPos);
-        trackGroup.add(cutMesh);
-     }
-     
-     zPos -= flyStep;
-   }
-   viewer3dScene.add(trackGroup);
+    // Embankment / Cutting visualization
+    if (row.bank > 0.1) {
+       const h = row.bank / 2;
+       const fillGeo = new THREE.BoxGeometry(7.85 + (row.bank * 2), h, flyStep);
+       const fillMesh = new THREE.Mesh(fillGeo, matFill);
+       fillMesh.position.set(0, yPos - (1.2), zPos); // Fixed position below formation
+       trackGroup.add(fillMesh);
+    } else if (row.cut > 0.1) {
+       const h = row.cut / 2;
+       const cutGeo = new THREE.BoxGeometry(10.05 + (row.cut * 2), h, flyStep);
+       const cutMesh = new THREE.Mesh(cutGeo, matCut);
+       cutMesh.position.set(0, yPos + (1.2), zPos);
+       trackGroup.add(cutMesh);
+    }
+
+    // --- Add Bridges ---
+    const currentCh = row.chainage;
+    const bridgeInRange = state.bridgeRows.find(b => {
+       const start = parseChainage(b.startChainage);
+       const end = parseChainage(b.endChainage);
+       return currentCh >= start && currentCh <= end;
+    });
+
+    if (bridgeInRange) {
+       const bridgeGeo = new THREE.BoxGeometry(10, 2, flyStep + 0.1);
+       const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.5 });
+       const bridgeMesh = new THREE.Mesh(bridgeGeo, bridgeMat);
+       bridgeMesh.position.set(0, yPos - 1.25, zPos);
+       trackGroup.add(bridgeMesh);
+       
+       // Siderails for bridge
+       const railBarGeo = new THREE.BoxGeometry(0.2, 1.2, flyStep);
+       const railBarMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8 });
+       const leftBar = new THREE.Mesh(railBarGeo, railBarMat);
+       leftBar.position.set(-5, yPos + 0.6, zPos);
+       trackGroup.add(leftBar);
+       const rightBar = new THREE.Mesh(railBarGeo, railBarMat);
+       rightBar.position.set(5, yPos + 0.6, zPos);
+       trackGroup.add(rightBar);
+    }
+
+    // --- Add Stations/Platforms ---
+    const stationInRange = state.loopPlatformRows.find(s => {
+       const start = parseChainage(s.pfStartCh);
+       const end = parseChainage(s.pfEndCh);
+       return (Number.isFinite(start) && Number.isFinite(end) && currentCh >= start && currentCh <= end);
+    });
+
+    if (stationInRange) {
+       const pfSide = String(stationInRange.side).toLowerCase() === 'left' ? -1 : 1;
+       const pfWidth = parseFloat(stationInRange.pfWidth) || 5;
+       const pfGeo = new THREE.BoxGeometry(pfWidth, 0.4, flyStep);
+       const pfMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8 });
+       const pfMesh = new THREE.Mesh(pfGeo, pfMat);
+       pfMesh.position.set(pfSide * (3.925 + pfWidth/2), yPos + 0.2, zPos);
+       trackGroup.add(pfMesh);
+       
+       // Station Sign/Pillar every 50m
+       if (Math.abs(row.chainage % 50) < 5) {
+          const pillarGeo = new THREE.BoxGeometry(0.5, 6, 0.5);
+          const pillarMat = new THREE.MeshPhongMaterial({ color: 0x1e293b });
+          const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+          pillar.position.set(pfSide * (3.925 + pfWidth - 0.5), yPos + 3, zPos);
+          trackGroup.add(pillar);
+          
+          const boardGeo = new THREE.BoxGeometry(4, 1.5, 0.2);
+          const boardMat = new THREE.MeshStandardMaterial({ color: 0xfacc15 });
+          const board = new THREE.Mesh(boardGeo, boardMat);
+          board.position.set(pfSide * (3.925 + pfWidth - 0.5), yPos + 5.5, zPos);
+          trackGroup.add(board);
+       }
+    }
+    
+    zPos -= flyStep;
+ }
+ viewer3dScene.add(trackGroup);
 }
 
 document.addEventListener("DOMContentLoaded", () => {

@@ -1123,28 +1123,30 @@ h1 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 !important; /* Reset padding for fixed square base */
+  padding: 0 !important;
   overflow: hidden;
   white-space: nowrap;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   width: 40px;
   min-width: 40px;
   height: 40px;
-  border-radius: 8px;
-  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   position: relative;
+  background: var(--bg-accent-1);
 }
 
 .topbar-btn i {
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   margin: 0 !important;
   flex-shrink: 0;
-  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 40px;
   height: 100%;
+  color: var(--text-muted);
+  transition: color 0.3s ease;
 }
 
 .topbar-btn span {
@@ -1152,34 +1154,47 @@ h1 {
   max-width: 0;
   display: inline-block;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.82rem;
+  font-weight: 500;
   pointer-events: none;
+  color: var(--text);
+  margin-left: -5px;
 }
 
 .topbar-btn:hover {
   width: auto;
-  min-width: none;
-  max-width: 240px;
-  padding: 0 16px 0 0 !important; /* No left padding needed because icon is 40px */
+  max-width: 260px;
+  padding: 0 16px 0 0 !important;
+  background: var(--bg-accent-2);
+  border-color: var(--blue);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.15);
 }
 
 .topbar-btn:hover i {
-  width: 40px; /* Keep icon same size */
+  color: var(--blue);
 }
 
 .topbar-btn:hover span {
   opacity: 1;
-  max-width: 180px;
-  margin-left: -4px; /* Move text a bit closer to icon */
+  max-width: 200px;
 }
 
-/* Ensure secondary buttons in topbar look consistent */
-.toolbar .btn-secondary {
-  background: var(--bg-accent-1);
+/* Primary buttons in topbar (Create, 3D View) */
+.toolbar .btn-primary.topbar-btn {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  border: none;
 }
-.toolbar .btn-primary {
-  background: var(--blue);
+
+.toolbar .btn-primary.topbar-btn i {
+  color: white !important;
+}
+
+.toolbar .btn-primary.topbar-btn:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.toolbar .btn-primary.topbar-btn span {
   color: white;
 }
 
