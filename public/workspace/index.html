@@ -17,12 +17,16 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <link rel="stylesheet" href="./styles.css?v=2" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script>
     (function () {
       const isLocalDev = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
@@ -184,29 +188,23 @@
           <span class="pro-badge">Pro</span>
         </div>
         <div class="toolbar">
-          <button id="createProjectBtn" class="btn btn-primary"><i class="ri-folder-add-line"
-              style="margin-right: 4px;"></i> Create Project</button>
-          <button id="importProjectBtn" class="btn btn-secondary"><i class="ri-folder-open-line"
-              style="margin-right: 4px;"></i> Open</button>
-          <button id="saveProjectBtn" class="btn btn-secondary"><i class="ri-save-3-line"
-              style="margin-right: 4px;"></i> Save</button>
-          <button id="snapshotsBtn" class="btn btn-secondary"><i class="ri-history-line" style="margin-right: 4px;"></i>
-            Snapshots</button>
-          <button id="resetProjectBtn" class="btn btn-secondary"><i class="ri-restart-line"
-              style="margin-right: 4px;"></i> Reset</button>
-          <button id="openSettingsBtn" class="btn btn-secondary"><i class="ri-settings-3-line"
-              style="margin-right: 4px;"></i> Project Settings</button>
+          <button id="createProjectBtn" class="btn btn-primary topbar-btn" title="Create Project"><i class="ri-folder-add-line"></i><span>Create Project</span></button>
+          <button id="importProjectBtn" class="btn btn-secondary topbar-btn" title="Open Project"><i class="ri-folder-open-line"></i><span>Open</span></button>
+          <button id="saveProjectBtn" class="btn btn-secondary topbar-btn" title="Save Project"><i class="ri-save-3-line"></i><span>Save</span></button>
+          <button id="snapshotsBtn" class="btn btn-secondary topbar-btn" title="View Snapshots"><i class="ri-history-line"></i><span>Snapshots</span></button>
+          <button id="resetProjectBtn" class="btn btn-secondary topbar-btn" title="Reset Project"><i class="ri-restart-line"></i><span>Reset</span></button>
+          <button id="openSettingsBtn" class="btn btn-secondary topbar-btn" title="Project Settings"><i class="ri-settings-3-line"></i><span>Project Settings</span></button>
+          <button id="splitViewBtn" class="btn btn-secondary topbar-btn" title="Split Roll Diagram on Right"><i class="ri-layout-right-2-line"></i><span>Split View</span></button>
           <div class="import-wrap">
             <input id="importInput" type="file" accept=".xlsx,.xls,.csv" hidden />
             <input id="bridgeImportInput" type="file" accept=".xlsx,.xls,.csv" hidden />
             <input id="curveImportInput" type="file" accept=".xlsx,.xls,.csv" hidden />
             <input id="loopImportInput" type="file" accept=".xlsx,.xls,.csv" hidden />
             <input id="projectImportInput" type="file" accept=".ew,.EW" hidden />
-            <button id="importBtn" class="btn btn-secondary"><i class="ri-download-cloud-2-line"
-                style="margin-right: 4px;"></i> Import Data</button>
+            <button id="importBtn" class="btn btn-secondary topbar-btn" title="Import Data"><i class="ri-download-cloud-2-line"></i><span>Import Data</span></button>
           </div>
-          <button id="verifyCalcBtn" class="btn-verify-inline" type="button" disabled><i class="ri-shield-check-line"
-              style="margin-right: 4px;"></i> Verify</button>
+          <button id="verifyCalcBtn" class="btn-verify-inline topbar-btn" type="button" title="Verify Project" disabled><i class="ri-shield-check-line"></i><span>Verify</span></button>
+          <button id="viewer3dBtn" class="btn btn-primary topbar-btn" type="button" title="Launch 3D Fly-Through Viewer"><i class="ri-box-3-line"></i><span>3D View</span></button>
         </div>
         <div class="topbar-right"
           style="display:flex; align-items:center; gap:16px; margin-left:12px; padding-left:16px; border-left:1px solid var(--stroke);">
@@ -236,8 +234,16 @@
           </label>
         </div>
       </header>
+      
+      <div id="mainSplitter" class="main-splitter hidden"></div>
 
       <section class="work-page active" data-work-page="overview">
+        <!-- Diagnostic Minimap / Automated Clash Detection -->
+        <div id="diagnosticMinimap" class="diagnostic-minimap" title="Quality Dashboard / Clash Detection">
+          <div class="diagnostic-title">Diagnostic Minimap</div>
+          <div class="diagnostic-barcode" id="diagnosticBarcode"></div>
+        </div>
+        
         <section class="overview-mission">
           <article class="glass mission-hero">
             <div>
@@ -475,6 +481,9 @@
                   <th>Size</th>
                   <th>Spans</th>
                   <th>Span Length (m)</th>
+                  <th>Clear Span (m)</th>
+                  <th>Deduct Rule</th>
+                  <th>Auto Deduct</th>
                   <th>Start Chainage (m)</th>
                   <th>End Chainage (m)</th>
                   <th>Length (m)</th>
@@ -520,6 +529,7 @@
           <div class="bridge-head">
             <h3>Station and Loops</h3>
             <div class="bridge-actions">
+              <button id="openStationLayoutInlineBtn" class="btn btn-secondary" type="button">Layout Editor</button>
               <button id="loopAddBtn" class="btn btn-secondary" type="button">Add Row</button>
               <button id="loopApplyBtn" class="btn btn-primary" type="button">Apply Changes</button>
             </div>
@@ -597,6 +607,13 @@
             <p class="text-secondary">Plan view (top) and Side View / Elevation Profile (bottom)</p>
           </div>
           <div class="roll-page-controls">
+            <label class="roll-filter-control">Roll Filter
+              <select id="rollFilterSelect">
+                <option value="all">All Lines</option>
+                <option value="main">Main Line Only</option>
+                <option value="stations">Stations Only</option>
+              </select>
+            </label>
             <button id="rollZoomFit" class="btn btn-secondary" type="button" title="Fit Both Diagrams"
               style="padding:6px 12px;font-size:12px;">Fit</button>
             <button id="rollZoomIn" class="btn btn-secondary" type="button" title="Zoom In"
@@ -626,8 +643,17 @@
               </svg>
               <p style="font-size:14px;margin:0;">Import levels data to see the alignment roll diagram.</p>
             </div>
-            <div id="rollDiagramWrap" class="roll-canvas-wrap plan-wrap">
+            <div id="rollDiagramWrap" class="roll-canvas-wrap plan-wrap" style="position: relative;">
               <canvas id="rollDiagramCanvas" class="roll-canvas"></canvas>
+              
+              <!-- Visual Chainage Scrubbing -->
+              <div id="rollScrubber" class="roll-scrubber">
+                <div class="roll-scrubber-handle"></div>
+              </div>
+              <div id="rollPopupThumb" class="roll-popup-thumb">
+                <div class="thumb-title" id="rollPopupThumbTitle">CH 0+000</div>
+                <canvas id="rollPopupThumbCanvas"></canvas>
+              </div>
             </div>
           </section>
 
@@ -662,7 +688,10 @@
         <section class="glass table-panel">
           <div class="table-title-row">
             <h3>Calculation Table</h3>
-            <p class="muted">All numeric values are rounded to 3 decimals.</p>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+              <p class="muted" style="margin:0;">All numeric values are rounded to 3 decimals.</p>
+              <button id="exportExcelBtn" class="btn btn-secondary" type="button">Export Excel</button>
+            </div>
           </div>
           <div class="table-wrap">
             <table>
@@ -691,6 +720,11 @@
               </thead>
               <tbody id="tableBody"></tbody>
             </table>
+            <!-- Context-Aware Floating Action Buttons (FAB) -->
+            <div id="tableFab" class="context-fab hidden">
+              <button class="btn btn-secondary" id="fabJumpProblem" type="button" title="Jump to next problem row"><i class="ri-alert-line" style="margin-right:4px;"></i> Jump to Problem</button>
+              <button class="btn btn-primary" id="fabRecalc" type="button" title="Trigger Recalculation"><i class="ri-refresh-line" style="margin-right:4px;"></i> Recalculate</button>
+            </div>
           </div>
         </section>
       </section>
@@ -1025,17 +1059,300 @@
   </dialog>
 
   <dialog id="settingsModal" class="modal glass">
-    <form id="settingsForm" class="modal-body" method="dialog">
+    <form id="settingsForm" class="modal-body settings-modal-body" method="dialog">
       <div class="modal-head">
         <h3>Project Settings</h3>
         <button id="closeSettingsBtn" type="button" class="icon-btn">✕</button>
       </div>
-      <div class="input-grid" id="settingsGrid"></div>
+
+      <div class="settings-layout">
+        <!-- Sidebar Navigation -->
+        <div class="settings-sidebar">
+          <button type="button" class="settings-tab active" data-settings-tab="profile">
+            <i class="ri-folder-info-line"></i> Project Profile
+          </button>
+          <button type="button" class="settings-tab" data-settings-tab="standards">
+            <i class="ri-ruler-line"></i> Design Standards
+          </button>
+          <button type="button" class="settings-tab" data-settings-tab="engineering">
+            <i class="ri-tools-line"></i> Engineering Settings
+          </button>
+          <button type="button" class="settings-tab" data-settings-tab="quality">
+            <i class="ri-check-double-line"></i> Quality Rules
+          </button>
+          <button type="button" class="settings-tab" data-settings-tab="material">
+            <i class="ri-stack-line"></i> Material Profile
+          </button>
+          <button type="button" class="settings-tab" data-settings-tab="controls">
+            <i class="ri-equalizer-line"></i> Calculation Controls
+          </button>
+          <button type="button" class="settings-tab" data-settings-tab="visual">
+            <i class="ri-eye-line"></i> Visualization
+          </button>
+          <button type="button" class="settings-tab" data-settings-tab="map">
+            <i class="ri-map-pin-line"></i> Alignment Map
+          </button>
+          <button type="button" class="settings-tab" data-settings-tab="checks">
+            <i class="ri-shield-check-line"></i> Quality Checks
+          </button>
+          <button type="button" class="settings-tab" data-settings-tab="export">
+            <i class="ri-file-download-line"></i> Quantity Export
+          </button>
+          <button type="button" class="settings-tab" data-settings-tab="tools">
+            <i class="ri-database-2-line"></i> Data Tools
+          </button>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="settings-content">
+          <div class="settings-section active" id="settings-tab-profile">
+            <div class="settings-section-header">
+              <h4>Project Profile</h4>
+              <p>Basic terminology and corridor details.</p>
+            </div>
+            <div class="input-grid" id="profileGrid"></div>
+          </div>
+
+          <div class="settings-section" id="settings-tab-standards">
+            <div class="settings-section-header">
+              <h4>Design Standards</h4>
+              <p>Core engineering parameters and gauge definitions.</p>
+            </div>
+            <div class="input-grid" id="standardsGrid"></div>
+          </div>
+
+          <div class="settings-section" id="settings-tab-engineering">
+            <div class="settings-section-header">
+              <h4>Engineering Settings</h4>
+              <p>Advanced numerical parameters used in quantity calculations.</p>
+            </div>
+            <div class="input-grid" id="settingsGrid"></div>
+          </div>
+
+          <div class="settings-section" id="settings-tab-quality">
+            <div class="settings-section-header">
+              <h4>Quality Rules</h4>
+              <p>Thresholds and limits for safety verifications.</p>
+            </div>
+            <div class="input-grid" id="qualityGrid"></div>
+          </div>
+
+          <div class="settings-section" id="settings-tab-material">
+            <div class="settings-section-header">
+              <h4>Material Profile</h4>
+              <p>Multi-layered earthen material properties.</p>
+            </div>
+            <div id="materialProfileGrid"></div>
+          </div>
+
+          <div class="settings-section" id="settings-tab-controls">
+            <div class="settings-section-header">
+              <h4>Calculation Controls</h4>
+              <p>Manage rule overrides, slope zones, and variable berm definitions.</p>
+            </div>
+            <div class="settings-actions">
+              <button id="openOverridesBtn" class="btn btn-secondary settings-action-btn" type="button">
+                <i class="ri-shuffle-line"></i> Segment Overrides
+              </button>
+              <button id="openSlopeZonesBtn" class="btn btn-secondary settings-action-btn" type="button">
+                <i class="ri-guide-line"></i> Slope Zones
+              </button>
+              <button id="openBermRulesBtn" class="btn btn-secondary settings-action-btn" type="button">
+                <i class="ri-bar-chart-horizontal-line"></i> Berm Rules
+              </button>
+            </div>
+          </div>
+
+          <div class="settings-section" id="settings-tab-visual">
+            <div class="settings-section-header">
+              <h4>Visualization</h4>
+              <p>UI scaling and rendering options for charts and cross-sections.</p>
+            </div>
+            <div class="input-grid" id="visualGrid"></div>
+          </div>
+
+          <div class="settings-section" id="settings-tab-map">
+            <div class="settings-section-header">
+              <h4>Alignment Map</h4>
+              <p>Geographic layer options and map rendering toggles.</p>
+            </div>
+            <div class="input-grid" id="mapGrid"></div>
+          </div>
+
+          <div class="settings-section" id="settings-tab-checks">
+            <div class="settings-section-header">
+              <h4>Quality Checks</h4>
+              <p>Run automated safety and design rule verifications against the current data.</p>
+            </div>
+            <div class="settings-actions">
+              <button id="openQualityBtn" class="btn btn-secondary settings-action-btn" type="button">
+                <i class="ri-shield-flash-line"></i> Run Quality Checks
+              </button>
+            </div>
+          </div>
+
+          <div class="settings-section" id="settings-tab-export">
+            <div class="settings-section-header">
+              <h4>Quantity Export</h4>
+              <p>Export calculated volumes and itemized data to spreadsheet formats.</p>
+            </div>
+            <div class="input-grid" id="boqGrid"></div>
+            <div class="settings-actions" style="margin-top: 14px;">
+              <button id="downloadBoqBtn" class="btn btn-secondary settings-action-btn" type="button">
+                <i class="ri-file-excel-2-line"></i> Download BOQ CSV
+              </button>
+            </div>
+          </div>
+
+          <div class="settings-section" id="settings-tab-tools">
+            <div class="settings-section-header">
+              <h4>Data Tools</h4>
+              <p>Manage import mappings and station templates.</p>
+            </div>
+            <div class="settings-actions">
+              <button id="openMappingWizardBtn" class="btn btn-secondary settings-action-btn" type="button">
+                <i class="ri-drag-drop-line"></i> Import Mapping Wizard
+              </button>
+              <button id="openStationLayoutBtn" class="btn btn-secondary settings-action-btn" type="button">
+                <i class="ri-layout-masonry-line"></i> Station Layout Editor
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="modal-foot">
         <button type="button" id="resetDefaultsBtn" class="btn btn-secondary">Reset Defaults</button>
         <button type="submit" class="btn btn-primary">Apply Settings</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="mappingWizardModal" class="modal glass">
+    <div class="modal-body">
+      <div class="modal-head">
+        <h3>Import Mapping Wizard</h3>
+        <button id="closeMappingWizardBtn" type="button" class="icon-btn">✕</button>
+      </div>
+      <div class="input-grid">
+        <label>Client / Template Name
+          <input id="mappingClientInput" type="text" placeholder="Client or template name" />
+        </label>
+        <label>Data Type
+          <select id="mappingTypeSelect">
+            <option value="levels">Levels</option>
+            <option value="bridges">Bridges</option>
+            <option value="curves">Curves</option>
+            <option value="loops">Loops & Platforms</option>
+          </select>
+        </label>
+        <label>Source File
+          <input id="mappingFileInput" type="file" accept=".xlsx,.xls,.csv" />
+        </label>
+      </div>
+      <div id="mappingGrid" class="mapping-grid"></div>
+      <div class="modal-foot">
+        <button id="saveMappingTemplateBtn" class="btn btn-secondary" type="button">Save Template</button>
+        <button id="applyMappingTemplateBtn" class="btn btn-primary" type="button">Apply Mapping</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="stationLayoutModal" class="modal glass">
+    <div class="modal-body">
+      <div class="modal-head">
+        <h3>Station Layout Editor</h3>
+        <button id="closeStationLayoutBtn" type="button" class="icon-btn">✕</button>
+      </div>
+      <!-- "X-Ray" Data Visualizations inside Modals -->
+      <div style="background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 12px; padding: 10px; display: flex; justify-content: center;">
+        <canvas id="xrayStationCanvas" width="400" height="80" style="max-width: 100%;"></canvas>
+      </div>
+      <div class="input-grid">
+        <label>Station
+          <select id="stationLayoutSelect"></select>
+        </label>
+      </div>
+      <div id="stationLayoutList" class="layout-list"></div>
+      <div class="modal-foot">
+        <button id="saveStationLayoutBtn" class="btn btn-primary" type="button">Save Layout</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="overridesModal" class="modal glass">
+    <div class="modal-body">
+      <div class="modal-head">
+        <h3>Segment Overrides</h3>
+        <button id="closeOverridesBtn" type="button" class="icon-btn">✕</button>
+      </div>
+      <div class="bridge-wrap">
+        <table class="bridge-table">
+          <thead>
+            <tr>
+              <th>Start CH</th>
+              <th>End CH</th>
+              <th>Type</th>
+              <th>Bank (m)</th>
+              <th>Cut (m)</th>
+              <th>Slope</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="overrideTableBody"></tbody>
+        </table>
+      </div>
+      <div class="modal-foot">
+        <button id="addOverrideBtn" class="btn btn-secondary" type="button">Add Override</button>
+        <button id="applyOverridesBtn" class="btn btn-primary" type="button">Apply</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="slopeZonesModal" class="modal glass">
+    <div class="modal-body">
+      <div class="modal-head">
+        <h3>Slope Zones</h3>
+        <button id="closeSlopeZonesBtn" type="button" class="icon-btn">✕</button>
+      </div>
+      <div class="bridge-wrap">
+        <table class="bridge-table">
+          <thead>
+            <tr>
+              <th>Start CH</th>
+              <th>End CH</th>
+              <th>Slope Factor (H:V)</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="slopeZoneTableBody"></tbody>
+        </table>
+      </div>
+      <div class="modal-foot">
+        <button id="addSlopeZoneBtn" class="btn btn-secondary" type="button">Add Zone</button>
+        <button id="applySlopeZonesBtn" class="btn btn-primary" type="button">Apply</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="snapshotCompareModal" class="modal glass">
+    <div class="modal-body">
+      <div class="modal-head">
+        <h3>Snapshot Comparison</h3>
+        <button id="closeSnapshotCompareBtn" type="button" class="icon-btn">✕</button>
+      </div>
+      <div id="snapshotCompareBody" class="compare-grid"></div>
+    </div>
+  </dialog>
+
+  <dialog id="qualityModal" class="modal glass">
+    <div class="modal-body">
+      <div class="modal-head">
+        <h3>Quality Checks</h3>
+        <button id="closeQualityBtn" type="button" class="icon-btn">✕</button>
+      </div>
+      <div id="qualityResults" class="compare-grid"></div>
+    </div>
   </dialog>
 
   <dialog id="importOptionsModal" class="modal glass">
@@ -1245,6 +1562,23 @@
     </div>
   </dialog>
 
+  <!-- 3D Fly-Through Viewer Modal -->
+  <dialog id="viewer3dModal" class="modal glass modal-xl">
+     <div class="modal-body" style="height: 92vh; display: flex; flex-direction: column; padding: 0; overflow: hidden;">
+        <div class="modal-head" style="padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+           <div>
+              <h3 style="margin: 0; font-size: 1.2rem;">3D Corridor Fly-Through <span class="pro-badge">Beta</span></h3>
+              <p class="muted" style="margin: 4px 0 0; font-size: 0.8rem;">Lightweight WebGL rendering of the cutting and embankment mesh.</p>
+           </div>
+           <div style="display: flex; gap: 8px;">
+              <button id="playFlyBtn" class="btn btn-primary"><i class="ri-play-fill" style="margin-right: 4px;"></i> Simulate Flight</button>
+              <button id="close3dBtn" class="btn btn-secondary icon-btn">✕</button>
+           </div>
+        </div>
+        <div id="threeContainer" style="flex: 1; background: #0b1020; position: relative;"></div>
+     </div>
+  </dialog>
+
   <!-- HTML Dialog for Expandable Graphs -->
   <dialog id="graphModal" class="modal glass cross-modal">
     <div class="modal-body" style="height: 90vh; max-width: 95vw; display: flex; flex-direction: column;">
@@ -1265,7 +1599,8 @@
   <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
   <!-- Global AI Loading Overlay -->
   <div id="aiLoadingOverlay" class="hidden"
     style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(8px);">
@@ -1385,96 +1720,143 @@
   </dialog>
 
   <!-- Export Report Modal -->
-  <dialog id="exportModal" class="modal">
-    <div class="modal-content glass-strong"
-      style="max-width: 550px; border: 1px solid rgba(255,255,255,0.1); padding: 0;">
-      <div class="modal-header"
-        style="padding: 24px 30px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between;">
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <div
-            style="width: 38px; height: 38px; background: rgba(59, 130, 246, 0.15); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.2);">
-            <i class="ri-file-pdf-2-line" style="font-size: 1.25rem;"></i>
-          </div>
-          <div style="text-align: left;">
-            <h2 style="margin: 0; font-size: 1.2rem; font-weight: 700; color: white;">Export Project Report</h2>
-            <p style="margin: 2px 0 0; font-size: 0.75rem; color: rgba(255,255,255,0.45);">Generate professional
-              engineering
-              documentation</p>
-          </div>
-        </div>
-        <button class="close-modal" onclick="this.closest('dialog').close()"
-          style="background: rgba(255,255,255,0.05); border: none; font-size: 1.2rem; cursor: pointer; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: 0.2s;">&times;</button>
-      </div>
-
-      <div class="modal-body" style="padding: 30px; text-align: left;">
-        <div class="export-cards-grid" style="margin-bottom: 20px;">
-
-          <label class="export-card">
-            <input type="checkbox" id="includeCalcSheet" checked style="display: none;">
-            <div class="export-card-content">
-              <div class="card-icon"><i class="ri-table-line"></i></div>
-              <div class="card-info">
-                <span class="card-title">Calculation Sheet</span>
-                <span class="card-desc">Comprehensive quantity tables and engineering data</span>
-              </div>
-              <div class="card-check"><i class="ri-checkbox-circle-fill"></i></div>
+  <dialog id="exportModal" class="modal glass">
+    <div class="modal-body" style="max-width: 600px; padding: 0; overflow: hidden; display: flex; flex-direction: column;">
+      
+      <!-- Premium Hero Header -->
+      <div style="padding: 32px 32px 24px; position: relative; overflow: hidden; border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <!-- Background accents -->
+        <div style="position: absolute; top: -50px; right: -50px; width: 150px; height: 150px; background: radial-gradient(circle, rgba(59,130,246,0.15), transparent 70%); border-radius: 50%; pointer-events: none;"></div>
+        <div style="position: absolute; bottom: -20px; left: 20px; width: 100px; height: 100px; background: radial-gradient(circle, rgba(16,185,129,0.1), transparent 70%); border-radius: 50%; pointer-events: none;"></div>
+        
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; position: relative; z-index: 1;">
+          <div style="display: flex; gap: 16px;">
+            <div style="width: 48px; height: 48px; border-radius: 14px; background: linear-gradient(135deg, rgba(59,130,246,0.2) 0%, rgba(37,99,235,0.05) 100%); border: 1px solid rgba(59,130,246,0.3); display: flex; align-items: center; justify-content: center; color: #60a5fa; box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 4px 12px rgba(0,0,0,0.2);">
+              <i class="ri-file-pdf-2-line" style="font-size: 1.5rem;"></i>
             </div>
-          </label>
-
-          <label class="export-card">
-            <input type="checkbox" id="includeCrossSections" checked style="display: none;">
-            <div class="export-card-content">
-              <div class="card-icon"><i class="ri-shape-line"></i></div>
-              <div class="card-info">
-                <span class="card-title">Project Cross-Sections</span>
-                <span class="card-desc">High-resolution SVG profile for every calculation point</span>
-              </div>
-              <div class="card-check"><i class="ri-checkbox-circle-fill"></i></div>
-            </div>
-          </label>
-
-          <label class="export-card">
-            <input type="checkbox" id="includeRollDiagram" checked style="display: none;">
-            <div class="export-card-content">
-              <div class="card-icon"><i class="ri-line-chart-line"></i></div>
-              <div class="card-info">
-                <span class="card-title">L-Section Diagrams</span>
-                <span class="card-desc">Longitudinal profile and toe-width roll diagrams</span>
-              </div>
-              <div class="card-check"><i class="ri-checkbox-circle-fill"></i></div>
-            </div>
-          </label>
-
-        </div>
-
-        <div
-          style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px;">
-          <label style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
             <div>
-              <div style="font-weight: 600; font-size: 0.95rem; color: white; margin-bottom: 4px;">Limit Export Data
-                Range</div>
-              <div style="font-size: 0.8rem; color: rgba(255,255,255,0.5);">Useful for large projects. How many
-                calculation rows/pages to include? (0 for all)</div>
+              <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.15em; color: #60a5fa; font-weight: 700; margin-bottom: 4px;">Document Generation</div>
+              <h2 style="margin: 0; font-size: 1.4rem; font-weight: 700; color: white; letter-spacing: -0.02em;">Export Project Report</h2>
+              <p style="margin: 4px 0 0; font-size: 0.9rem; color: rgba(255,255,255,0.5); line-height: 1.4;">Configure and generate professional engineering documentation for client submission.</p>
             </div>
-            <input type="number" id="exportRowLimit" value="0" min="0"
-              style="width: 80px; padding: 8px; border-radius: 8px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: white; outline: none; text-align: center;">
-          </label>
+          </div>
+          <button class="icon-btn" onclick="this.closest('dialog').close()" style="margin: -8px -8px 0 0; background: rgba(255,255,255,0.05);">✕</button>
         </div>
       </div>
 
-      <div class="modal-footer"
-        style="padding: 0 30px 30px; display: flex; justify-content: flex-end; gap: 12px; border: none; background: transparent;">
-        <button class="btn btn-secondary" id="cancelExportBtn"
-          style="min-width: 100px; padding: 10px 20px; font-weight: 600; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">Cancel</button>
-        <button class="btn btn-primary" id="confirmExportBtn"
-          style="min-width: 160px; padding: 10px 24px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.39);">
+      <div style="padding: 24px 32px; overflow-y: auto; max-height: calc(90vh - 180px); display: flex; flex-direction: column; gap: 24px;">
+        
+        <!-- Core Contents Section -->
+        <div>
+          <div style="font-size: 0.8rem; font-weight: 700; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">Included Sections</div>
+          <div class="export-cards-grid" style="display: grid; gap: 12px;">
+            
+            <label class="export-card" style="margin: 0; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.08);">
+              <input type="checkbox" id="includeCalcSheet" class="toggle-input" checked style="right: 20px;">
+              <div class="export-card-content" style="padding: 14px 20px;">
+                <div class="card-icon" style="width: 36px; height: 36px; font-size: 1.2rem;"><i class="ri-table-line"></i></div>
+                <div class="card-info">
+                  <span class="card-title" style="font-size: 0.95rem;">Calculation Sheet</span>
+                  <span class="card-desc" style="font-size: 0.75rem;">Comprehensive quantity tables</span>
+                </div>
+              </div>
+            </label>
+
+            <label class="export-card" style="margin: 0; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.08);">
+              <input type="checkbox" id="includeCrossSections" class="toggle-input" checked style="right: 20px;">
+              <div class="export-card-content" style="padding: 14px 20px;">
+                <div class="card-icon" style="width: 36px; height: 36px; font-size: 1.2rem;"><i class="ri-shape-line"></i></div>
+                <div class="card-info">
+                  <span class="card-title" style="font-size: 0.95rem;">Project Cross-Sections</span>
+                  <span class="card-desc" style="font-size: 0.75rem;">High-res SVG profiles for points</span>
+                </div>
+              </div>
+            </label>
+
+            <label class="export-card" style="margin: 0; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.08);">
+              <input type="checkbox" id="includeRollDiagram" class="toggle-input" checked style="right: 20px;">
+              <div class="export-card-content" style="padding: 14px 20px;">
+                <div class="card-icon" style="width: 36px; height: 36px; font-size: 1.2rem;"><i class="ri-line-chart-line"></i></div>
+                <div class="card-info">
+                  <span class="card-title" style="font-size: 0.95rem;">L-Section Diagrams</span>
+                  <span class="card-desc" style="font-size: 0.75rem;">Longitudinal profile & toe-width rolls</span>
+                </div>
+              </div>
+            </label>
+
+          </div>
+        </div>
+
+        <div style="height: 1px; background: rgba(255,255,255,0.05); width: 100%;"></div>
+
+        <!-- Report Builder Settings -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+          <!-- Left Column: toggles -->
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="font-size: 0.8rem; font-weight: 700; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.05em;">Appendices</div>
+            <div style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+              <label class="toggle-row" style="margin: 0;"><span>Project Profile</span><input type="checkbox" id="includeProfileSection" class="toggle-input sm" checked /></label>
+              <label class="toggle-row" style="margin: 0;"><span>Design Standards</span><input type="checkbox" id="includeStandardsSection" class="toggle-input sm" checked /></label>
+              <label class="toggle-row" style="margin: 0;"><span>Material Profile</span><input type="checkbox" id="includeMaterialSection" class="toggle-input sm" /></label>
+              <label class="toggle-row" style="margin: 0;"><span>Quality Checks</span><input type="checkbox" id="includeQualitySection" class="toggle-input sm" checked /></label>
+            </div>
+            
+            <label class="toggle-row" style="margin-top: auto; padding: 12px 14px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 10px; cursor: pointer;">
+              <span>
+                <div style="font-weight: 600; font-size: 0.9rem; color: #fbbf24; margin-bottom: 2px;">Fast Export Mode</div>
+                <div style="font-size: 0.75rem; color: rgba(251, 191, 36, 0.7); font-weight: 400;">Lower resolution, 10x faster.</div>
+              </span>
+              <input type="checkbox" id="exportFastMode" class="toggle-input sm" style="border-color: rgba(245,158,11,0.5);" />
+            </label>
+          </div>
+
+          <!-- Right Column: Signatories & Range -->
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div>
+              <div style="font-size: 0.8rem; font-weight: 700; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">Signatory Details</div>
+              <div class="input-grid" style="grid-template-columns: 1fr; gap: 10px;">
+                <label style="font-size: 0.8rem;">Client Logo <input type="file" id="reportLogoInput" accept="image/*" style="padding: 6px; font-size: 0.8rem;" /></label>
+                <label style="font-size: 0.8rem;">Signature Image <input type="file" id="reportSignatureInput" accept="image/*" style="padding: 6px; font-size: 0.8rem;" /></label>
+                <div style="display: flex; gap: 10px;">
+                  <label style="flex: 1; font-size: 0.8rem;">Name <input type="text" id="reportSignName" placeholder="Signatory Name" style="padding: 8px 10px;" /></label>
+                  <label style="flex: 1; font-size: 0.8rem;">Title <input type="text" id="reportSignTitle" placeholder="Role" style="padding: 8px 10px;" /></label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Data Range Filter -->
+        <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div>
+              <div style="font-weight: 600; font-size: 0.95rem; color: white;">Limit Export Data Range</div>
+              <div style="font-size: 0.8rem; color: rgba(255,255,255,0.5); margin-top: 2px;">Export a specific section of the project (0 for all rows).</div>
+            </div>
+            <div id="exportRangeDistance" style="padding: 4px 10px; border-radius: 6px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: #93c5fd; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em;">DISTANCE: —</div>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <input type="text" id="exportRangeStart" placeholder="Start CH (e.g. 1+140)" style="flex: 1; padding: 10px 12px; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; outline: none; transition: 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'" />
+            <span style="color: rgba(255,255,255,0.3);">to</span>
+            <input type="text" id="exportRangeEnd" placeholder="End CH (e.g. 1+340)" style="flex: 1; padding: 10px 12px; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; outline: none; transition: 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'" />
+            <div style="width: 1px; height: 30px; background: rgba(255,255,255,0.1); margin: 0 4px;"></div>
+            <input type="number" id="exportRowLimit" value="0" min="0" placeholder="Row Limit" style="width: 100px; padding: 10px 12px; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; outline: none;" title="Max Rows to Export" />
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Action Footer -->
+      <div style="padding: 20px 32px; background: rgba(0,0,0,0.2); border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: flex-end; gap: 12px; align-items: center;">
+        <button class="btn btn-secondary" id="cancelExportBtn" style="padding: 10px 20px; font-weight: 600; background: transparent; border-color: transparent; color: rgba(255,255,255,0.6);">Cancel</button>
+        <button class="btn btn-primary" id="confirmExportBtn" style="padding: 10px 24px; font-weight: 600; font-size: 0.95rem; letter-spacing: 0.02em; display: flex; align-items: center; gap: 8px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 4px 14px rgba(59, 130, 246, 0.4);">
           <i class="ri-download-cloud-2-line" style="font-size: 1.1rem;"></i> Generate PDF
         </button>
       </div>
     </div>
   </dialog>
 
-  <script src="./app.js"></script>
+  <script src="./app.js?v=2"></script>
   <script src="./alignment-map.js"></script>
   <script>
     if ("serviceWorker" in navigator) {

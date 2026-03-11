@@ -21,6 +21,7 @@ const CROSS_DEFAULT_VIEWBOX = {
 
 const BRIDGE_CATEGORIES = ["Minor", "Major", "Viaduct", "Important", "RoR", "Tunnel", "ROB", "MIBOR", "Aqueduct"];
 const BRIDGE_TYPES = ["Box", "PSC Slab", "Composite Girder", "OWG", "Other"];
+const BRIDGE_DEDUCT_RULES = ["Auto", "Always", "Never"];
 const LOOP_LINE_TYPES = ["Loop", "TM Siding", "Ballast Siding", "Connecting Line", "Main Line", "Platform"];
 const LOOP_SIDES = ["Left", "Right"];
 
@@ -64,7 +65,16 @@ const state = {
       loops: false,
       kml: false,
     },
+    profile: {
+      corridorName: "",
+      direction: "Up",
+      chainageZeroRef: "",
+    },
   },
+  calcOverrides: [],
+  slopeZones: [],
+  importMappings: { client: "", templates: {} },
+  mappingWizard: { aoa: null, headerRow: 0, headers: [], kind: "levels" },
   activeWorkPage: "overview",
   activeResultTab: "inputs",
   charts: { lSection: null, volume: null },
@@ -99,12 +109,14 @@ const els = {
   sideViewWrap: document.getElementById("sideViewWrap"),
   rollPageHeader: document.getElementById("rollPageHeader"),
   rollSplitShell: document.getElementById("rollSplitShell"),
+  rollFilterSelect: document.getElementById("rollFilterSelect"),
   rollZoomFit: document.getElementById("rollZoomFit"),
   rollFullscreenBtn: document.getElementById("rollFullscreenBtn"),
   rollFullscreenCloseBtn: document.getElementById("rollFullscreenCloseBtn"),
   rollFullscreenModal: document.getElementById("rollFullscreenModal"),
   rollFullscreenViewport: document.getElementById("rollFullscreenViewport"),
   tableBody: document.getElementById("tableBody"),
+  exportExcelBtn: document.getElementById("exportExcelBtn"),
   totalFilling: document.getElementById("totalFilling"),
   totalCutting: document.getElementById("totalCutting"),
   fillLength: document.getElementById("fillLength"),
@@ -172,6 +184,54 @@ const els = {
   settingsForm: document.getElementById("settingsForm"),
   closeSettingsBtn: document.getElementById("closeSettingsBtn"),
   settingsGrid: document.getElementById("settingsGrid"),
+  profileGrid: document.getElementById("profileGrid"),
+  standardsGrid: document.getElementById("standardsGrid"),
+  qualityGrid: document.getElementById("qualityGrid"),
+  materialProfileGrid: document.getElementById("materialProfileGrid"),
+  visualGrid: document.getElementById("visualGrid"),
+  mapGrid: document.getElementById("mapGrid"),
+  boqGrid: document.getElementById("boqGrid"),
+  downloadBoqBtn: document.getElementById("downloadBoqBtn"),
+  openQualityBtn: document.getElementById("openQualityBtn"),
+  qualityModal: document.getElementById("qualityModal"),
+  qualityResults: document.getElementById("qualityResults"),
+  closeQualityBtn: document.getElementById("closeQualityBtn"),
+  openOverridesBtn: document.getElementById("openOverridesBtn"),
+  openSlopeZonesBtn: document.getElementById("openSlopeZonesBtn"),
+  openBermRulesBtn: document.getElementById("openBermRulesBtn"),
+  openMappingWizardBtn: document.getElementById("openMappingWizardBtn"),
+  mappingWizardModal: document.getElementById("mappingWizardModal"),
+  closeMappingWizardBtn: document.getElementById("closeMappingWizardBtn"),
+  mappingClientInput: document.getElementById("mappingClientInput"),
+  mappingTypeSelect: document.getElementById("mappingTypeSelect"),
+  mappingFileInput: document.getElementById("mappingFileInput"),
+  mappingGrid: document.getElementById("mappingGrid"),
+  saveMappingTemplateBtn: document.getElementById("saveMappingTemplateBtn"),
+  applyMappingTemplateBtn: document.getElementById("applyMappingTemplateBtn"),
+  openStationLayoutBtn: document.getElementById("openStationLayoutBtn"),
+  openStationLayoutInlineBtn: document.getElementById("openStationLayoutInlineBtn"),
+  stationLayoutModal: document.getElementById("stationLayoutModal"),
+  closeStationLayoutBtn: document.getElementById("closeStationLayoutBtn"),
+  stationLayoutSelect: document.getElementById("stationLayoutSelect"),
+  stationLayoutList: document.getElementById("stationLayoutList"),
+  saveStationLayoutBtn: document.getElementById("saveStationLayoutBtn"),
+  overridesModal: document.getElementById("overridesModal"),
+  closeOverridesBtn: document.getElementById("closeOverridesBtn"),
+  overrideTableBody: document.getElementById("overrideTableBody"),
+  addOverrideBtn: document.getElementById("addOverrideBtn"),
+  applyOverridesBtn: document.getElementById("applyOverridesBtn"),
+  slopeZonesModal: document.getElementById("slopeZonesModal"),
+  closeSlopeZonesBtn: document.getElementById("closeSlopeZonesBtn"),
+  slopeZoneTableBody: document.getElementById("slopeZoneTableBody"),
+  addSlopeZoneBtn: document.getElementById("addSlopeZoneBtn"),
+  applySlopeZonesBtn: document.getElementById("applySlopeZonesBtn"),
+  snapshotCompareModal: document.getElementById("snapshotCompareModal"),
+  closeSnapshotCompareBtn: document.getElementById("closeSnapshotCompareBtn"),
+  snapshotCompareBody: document.getElementById("snapshotCompareBody"),
+  reportLogoInput: document.getElementById("reportLogoInput"),
+  reportSignatureInput: document.getElementById("reportSignatureInput"),
+  reportSignName: document.getElementById("reportSignName"),
+  reportSignTitle: document.getElementById("reportSignTitle"),
   resetDefaultsBtn: document.getElementById("resetDefaultsBtn"),
   lSectionChart: document.getElementById("lSectionChart"),
   volumeChart: document.getElementById("volumeChart"),
@@ -453,7 +513,7 @@ function buildStationSequenceLayout(chainage, stationName, standardTc = 5.3, opt
     const row = entry.row;
     const lineType = normalizeLoopLineType(row.lineType || row.lineName || "");
     const side = normalizeLoopSide(row.side || "");
-    const isPlatform = lineType === "Platform";
+    const isPlatform = lineType === "Platform" || safeNum(row.pfWidth, 0) > 0;
     const isMain = lineType === "Main Line";
     const loopStart = parseChainage(row.loopStartCh);
     const loopEnd = parseChainage(row.loopEndCh);
@@ -483,7 +543,7 @@ function buildStationSequenceLayout(chainage, stationName, standardTc = 5.3, opt
         isMain,
       });
     }
-    if (platformActive && isPlatform) {
+    if (platformActive) {
       activeItems.push({
         kind: "platform",
         row,
@@ -922,6 +982,10 @@ function updateDashboard() {
     }
     const badCsb = groupedStations.filter((station) => !Number.isFinite(station.csb)).length;
     if (badCsb > 0) alerts.push(["Stations missing CSB", `${badCsb} station${badCsb === 1 ? "" : "s"} do not have a usable CSB chainage.`, "Check loop import"]);
+    const qualityIssues = runQualityChecks();
+    if (qualityIssues.length) {
+      alerts.push(["Quality checks", `${qualityIssues.length} issue${qualityIssues.length === 1 ? "" : "s"} detected.`, "Review"]);
+    }
 
     alertsList.innerHTML = alerts.length
       ? alerts.map(([title, text, value]) => `
@@ -986,6 +1050,9 @@ function resolveBridgeColumns(headerCells) {
     size: findColByAliases(headerCells, ["bridgesize", "size", "dimensions", "proposedspan", "proposedspanarrangement"]),
     spans: findColByAliases(headerCells, ["noofspans", "numberofspans", "spanarrangement", "arrangement"]),
     spanLength: findColByAliases(headerCells, ["spanlength", "individualspan", "unitsize", "spanarrangement", "arrangement"]),
+    clearSpan: findColByAliases(headerCells, ["clearspan", "clear span", "clearwidth", "clear width"]),
+    deductRule: findColByAliases(headerCells, ["deductrule", "deductionrule", "deduct", "deduction"]),
+    autoDeduct: findColByAliases(headerCells, ["autodeduct", "auto deduct", "deductflag"]),
   };
 }
 
@@ -1035,6 +1102,9 @@ function normalizeBridgeEntry(raw, index = 0) {
   let end = parseChainage(raw.endChainage);
   let lengthRaw = parseLooseNumber(raw.length, NaN);
   const center = parseChainage(raw.chainage);
+  const clearSpanRaw = parseLooseNumber(raw.clearSpan, NaN);
+  const deductRule = normalizeDeductRule(raw.deductRule);
+  const autoDeduct = normalizeBoolean(raw.autoDeduct, true);
 
   // Derive parameters from size string if possible
   const sizeParsed = parseBridgeSpanSize(raw.bridgeSize);
@@ -1089,7 +1159,18 @@ function normalizeBridgeEntry(raw, index = 0) {
   if (!bType || bType === "undefined") bType = "Box";
 
   const DEDUCTIBLE_CATEGORIES = ["Major", "Important", "RoR", "Viaduct", "Tunnel"];
-  const shouldDeduct = DEDUCTIBLE_CATEGORIES.some(c => cat.toLowerCase() === c.toLowerCase());
+  let shouldDeduct = false;
+  if (deductRule === "Always") {
+    shouldDeduct = true;
+  } else if (deductRule === "Never") {
+    shouldDeduct = false;
+  } else {
+    shouldDeduct = autoDeduct && DEDUCTIBLE_CATEGORIES.some(c => cat.toLowerCase() === c.toLowerCase());
+  }
+
+  const clearSpan = Number.isFinite(clearSpanRaw)
+    ? clearSpanRaw
+    : (Number.isFinite(spanLen) ? spanLen : "");
 
   return {
     bridgeNo,
@@ -1098,6 +1179,9 @@ function normalizeBridgeEntry(raw, index = 0) {
     bridgeSize: String(raw.bridgeSize || "-"),
     bridgeSpans: spansVal || "1",
     bridgeSpanLength: Number.isFinite(spanLen) ? spanLen : "",
+    clearSpan,
+    deductRule,
+    autoDeduct,
     startChainage: start,
     endChainage: end,
     length,
@@ -1128,6 +1212,22 @@ function detectBridgeTypeFromText(text) {
   if (s.includes("composite") || s.includes("girder")) return "Composite Girder";
   if (s.includes("owg") || s.includes("open web")) return "OWG";
   return null;
+}
+
+function normalizeDeductRule(rule) {
+  const s = String(rule || "").toLowerCase();
+  if (!s) return "Auto";
+  if (s.includes("always") || s === "yes" || s === "y") return "Always";
+  if (s.includes("never") || s === "no" || s === "n") return "Never";
+  return "Auto";
+}
+
+function normalizeBoolean(val, fallback = true) {
+  if (val === null || val === undefined || val === "") return fallback;
+  const s = String(val).toLowerCase().trim();
+  if (["false", "no", "n", "0"].includes(s)) return false;
+  if (["true", "yes", "y", "1"].includes(s)) return true;
+  return fallback;
 }
 
 function parseBridgeRowsFromAoa(aoa, sheetName = '') {
@@ -1180,6 +1280,9 @@ function parseBridgeRowsFromAoa(aoa, sheetName = '') {
       bridgeSize: cols.size >= 0 ? (String(row[cols.size] || "").trim() || "-") : "-",
       bridgeSpans: cols.spans >= 0 ? (String(row[cols.spans] || "").trim() || "1") : "1",
       bridgeSpanLength: cols.spanLength >= 0 ? row[cols.spanLength] : "",
+      clearSpan: cols.clearSpan >= 0 ? row[cols.clearSpan] : "",
+      deductRule: cols.deductRule >= 0 ? row[cols.deductRule] : "",
+      autoDeduct: cols.autoDeduct >= 0 ? row[cols.autoDeduct] : "",
       startChainage: cols.startChainage >= 0 ? row[cols.startChainage] : "",
       endChainage: cols.endChainage >= 0 ? row[cols.endChainage] : "",
       length: cols.length >= 0 ? row[cols.length] : "",
@@ -1205,6 +1308,165 @@ function detectSimpleHeaderRow(aoa, requiredAliases = []) {
   }
   if (best.rowIndex < 0) return null;
   return best;
+}
+
+const IMPORT_MAPPING_FIELDS = {
+  levels: [
+    { key: "chainage", label: "Chainage" },
+    { key: "groundLevel", label: "Ground RL" },
+    { key: "proposedLevel", label: "Proposed RL" },
+    { key: "station", label: "Station" },
+    { key: "structureNo", label: "Structure No" },
+  ],
+  curves: [
+    { key: "chainage", label: "Chainage" },
+    { key: "curve", label: "Curve Name" },
+    { key: "radius", label: "Radius" },
+    { key: "length", label: "Length" },
+  ],
+  bridges: [
+    { key: "bridgeNo", label: "Bridge No" },
+    { key: "bridgeCategory", label: "Category" },
+    { key: "bridgeType", label: "Type" },
+    { key: "bridgeSize", label: "Size" },
+    { key: "bridgeSpans", label: "Spans" },
+    { key: "bridgeSpanLength", label: "Span Length" },
+    { key: "clearSpan", label: "Clear Span" },
+    { key: "deductRule", label: "Deduct Rule" },
+    { key: "autoDeduct", label: "Auto Deduct" },
+    { key: "startChainage", label: "Start Chainage" },
+    { key: "endChainage", label: "End Chainage" },
+    { key: "length", label: "Length" },
+    { key: "chainage", label: "Chainage (Center)" },
+  ],
+  loops: [
+    { key: "station", label: "Station" },
+    { key: "csb", label: "CSB" },
+    { key: "lineType", label: "Type" },
+    { key: "side", label: "Side" },
+    { key: "loopStartCh", label: "Loop Start Ch" },
+    { key: "loopEndCh", label: "Loop End Ch" },
+    { key: "tc", label: "T/C" },
+    { key: "pfStartCh", label: "PF Start Ch" },
+    { key: "pfEndCh", label: "PF End Ch" },
+    { key: "pfWidth", label: "Width" },
+    { key: "remarks", label: "Remarks" },
+  ],
+};
+
+const MAPPING_CANON_HEADERS = {
+  levels: ["Chainage", "Ground RL", "Proposed RL", "Station", "Structure No"],
+  curves: ["Chainage", "Curve", "Radius", "Length"],
+  bridges: ["Bridge No", "Category", "Type", "Size", "Spans", "Span Length", "Clear Span", "Deduct Rule", "Auto Deduct", "Start Chainage", "End Chainage", "Length", "Chainage"],
+  loops: ["Stations", "CSB", "Type", "Side", "Loop Start Ch", "Loop End Ch", "T/C", "PF Start Ch", "PF End Ch", "Width", "Remarks"],
+};
+
+function buildMappedAoa(aoa, mapping, headerRow, kind) {
+  if (!aoa || !aoa.length || !mapping) return aoa;
+  const fields = IMPORT_MAPPING_FIELDS[kind] || [];
+  const headers = MAPPING_CANON_HEADERS[kind] || [];
+  const dataStart = Math.max(0, (Number.isFinite(headerRow) ? headerRow + 1 : 1));
+  const newAoa = [headers];
+  for (let i = dataStart; i < aoa.length; i += 1) {
+    const row = Array.isArray(aoa[i]) ? aoa[i] : [];
+    const newRow = new Array(headers.length).fill("");
+    fields.forEach((f, idx) => {
+      const colIdx = mapping[f.key];
+      if (Number.isFinite(colIdx) && colIdx >= 0) {
+        newRow[idx] = row[colIdx];
+      }
+    });
+    newAoa.push(newRow);
+  }
+  return newAoa;
+}
+
+function getMappingTemplate(client, kind) {
+  if (!client || !kind) return null;
+  const templates = state.importMappings?.templates || {};
+  return templates[client]?.[kind] || null;
+}
+
+function applyMappingTemplateToAoa(aoa, kind) {
+  const client = String(state.importMappings?.client || "").trim();
+  if (!client) return aoa;
+  const preset = getMappingTemplate(client, kind);
+  if (!preset) return aoa;
+  const headerPick = detectSimpleHeaderRow(aoa, []);
+  const headerRow = headerPick ? headerPick.rowIndex : 0;
+  return buildMappedAoa(aoa, preset, headerRow, kind);
+}
+
+function renderMappingGrid(headers, kind, preset = null) {
+  if (!els.mappingGrid) return;
+  const fields = IMPORT_MAPPING_FIELDS[kind] || [];
+  if (!headers || !headers.length) {
+    els.mappingGrid.innerHTML = '<p class="muted">Upload a file to detect headers.</p>';
+    return;
+  }
+  const options = headers.map((h, idx) => `<option value="${idx}">${escapeHtml(String(h))}</option>`).join("");
+  els.mappingGrid.innerHTML = fields.map((f) => {
+    const selectedIdx = preset && Number.isFinite(preset[f.key]) ? preset[f.key] : "";
+    return `
+      <label>${f.label}
+        <select data-map-key="${f.key}">
+          <option value="">-- Not Mapped --</option>
+          ${options}
+        </select>
+      </label>
+    `;
+  }).join("");
+  if (preset) {
+    fields.forEach((f) => {
+      const sel = els.mappingGrid.querySelector(`[data-map-key="${f.key}"]`);
+      if (sel && Number.isFinite(preset[f.key])) {
+        sel.value = String(preset[f.key]);
+      }
+    });
+  }
+}
+
+function getStationChoices() {
+  return [...new Set((state.loopPlatformRows || []).map((r) => String(r.station || "").trim()).filter(Boolean))];
+}
+
+function buildStationLayoutList(stationName) {
+  if (!els.stationLayoutList) return;
+  const key = normalizeStationKey(stationName);
+  const rows = (state.loopPlatformRows || [])
+    .map((row, index) => ({ row, index }))
+    .filter((r) => normalizeStationKey(r.row.station) === key)
+    .sort((a, b) => (Number.isFinite(a.row.order) ? a.row.order : a.index) - (Number.isFinite(b.row.order) ? b.row.order : b.index));
+  els.stationLayoutList.innerHTML = rows.map((entry) => {
+    const r = entry.row;
+    const isPlatform = /platform/i.test(String(r.lineType || r.lineName || "")) || safeNum(r.pfWidth, 0) > 0;
+    return `
+      <div class="layout-item" draggable="true" data-row-index="${entry.index}">
+        <div class="layout-meta">
+          <strong>${escapeHtml(r.lineType || r.lineName || "Line")}</strong>
+          <span>${escapeHtml(r.side || "-")} • TC ${r3(r.tc || 0)} • PF ${r3(r.pfWidth || 0)}</span>
+          <span class="muted">${escapeHtml(r.remarks || "")}</span>
+          <div class="layout-fields">
+            <label>Side
+              <select data-layout-side>
+                ${["", ...LOOP_SIDES].map((side) => `<option value="${side}" ${String(r.side || "") === side ? "selected" : ""}>${side || "Auto"}</option>`).join("")}
+              </select>
+            </label>
+            <label>Track Centre (m)
+              <input data-layout-tc type="number" step="0.01" value="${r3(r.tc || 0)}" ${isPlatform ? "disabled" : ""} />
+            </label>
+            <label>Platform Width (m)
+              <input data-layout-pf type="number" step="0.1" value="${r3(r.pfWidth || 0)}" ${isPlatform ? "" : "disabled"} />
+            </label>
+          </div>
+        </div>
+        <div class="layout-actions">
+          <button type="button" class="btn btn-secondary" data-layout-up>↑</button>
+          <button type="button" class="btn btn-secondary" data-layout-down>↓</button>
+        </div>
+      </div>
+    `;
+  }).join("") || '<p class="muted">No rows for this station.</p>';
 }
 
 function parseCurveRowsFromAoa(aoa) {
@@ -1461,6 +1723,248 @@ function buildBridgeIntervals() {
     .sort((a, b) => a.startChainage - b.startChainage);
 }
 
+function runQualityChecks() {
+  const issues = [];
+  const minTc = safeNum(state.settings.minTc, 5.3);
+  const minPf = safeNum(state.settings.minPlatformWidth, 6.0);
+  const minClear = safeNum(state.settings.minClearance, 1.5);
+
+  const stationMap = new Map();
+  (state.loopPlatformRows || []).forEach((row) => {
+    const key = normalizeStationKey(row.station);
+    if (!key) return;
+    if (!stationMap.has(key)) stationMap.set(key, { station: row.station || key, rows: [] });
+    stationMap.get(key).rows.push(row);
+  });
+
+  stationMap.forEach((group) => {
+    const rows = group.rows;
+    const hasMain = rows.some((r) => /main/i.test(String(r.lineType || r.lineName || "")) || Math.abs(safeNum(r.tc, 0)) < 0.001);
+    if (!hasMain) {
+      issues.push({ level: "error", title: "Missing Main Line", detail: `${group.station} has no main line entry.` });
+    }
+
+    const missingSide = rows.filter((r) => (safeNum(r.tc, 0) > 0 || safeNum(r.pfWidth, 0) > 0) && !String(r.side || "").trim());
+    if (missingSide.length) {
+      issues.push({ level: "warning", title: "Side Not Assigned", detail: `${group.station} has ${missingSide.length} row(s) without side.` });
+    }
+
+    const loopRanges = rows
+      .filter((r) => Number.isFinite(r.loopStartCh) && Number.isFinite(r.loopEndCh))
+      .map((r) => ({ start: r.loopStartCh, end: r.loopEndCh, lineType: r.lineType || r.lineName || "Loop", side: r.side || "-" }))
+      .sort((a, b) => a.start - b.start);
+
+    for (let i = 1; i < loopRanges.length; i += 1) {
+      const prev = loopRanges[i - 1];
+      const cur = loopRanges[i];
+      if (cur.start < prev.end) {
+        issues.push({ level: "error", title: "Loop Range Overlap", detail: `${group.station} ${prev.lineType} overlaps ${cur.lineType}.` });
+      }
+      if (cur.start > prev.end && prev.lineType === cur.lineType) {
+        issues.push({ level: "warning", title: "Loop Gap", detail: `${group.station} ${prev.lineType} gap of ${r3(cur.start - prev.end)} m.` });
+      }
+    }
+
+    const pfRanges = rows
+      .filter((r) => Number.isFinite(r.pfStartCh) && Number.isFinite(r.pfEndCh))
+      .map((r) => ({ start: r.pfStartCh, end: r.pfEndCh, width: safeNum(r.pfWidth, 0), remarks: r.remarks || "" }))
+      .sort((a, b) => a.start - b.start);
+    for (let i = 1; i < pfRanges.length; i += 1) {
+      const prev = pfRanges[i - 1];
+      const cur = pfRanges[i];
+      if (cur.start < prev.end) {
+        issues.push({ level: "warning", title: "Platform Range Overlap", detail: `${group.station} platform ranges overlap.` });
+        break;
+      }
+    }
+    pfRanges.forEach((pf) => {
+      const within = loopRanges.some((lp) => pf.start >= lp.start && pf.end <= lp.end);
+      if (!within) {
+        issues.push({ level: "warning", title: "Platform Outside Loop", detail: `${group.station} platform range ${r3(pf.start)}–${r3(pf.end)} m outside loop span.` });
+      }
+      if (pf.width > 0 && pf.width < minPf) {
+        issues.push({ level: "warning", title: "Platform Width Below Minimum", detail: `${group.station} platform width ${r3(pf.width)} m < ${r3(minPf)} m.` });
+      }
+    });
+
+    // Clearance checks based on sequence layout
+    const stationCh = rows.find((r) => Number.isFinite(r.csb))?.csb;
+    const layout = buildStationSequenceLayout(stationCh, group.station, 5.3, { useRanges: false });
+    if (layout) {
+      layout.platformItems.forEach((pf) => {
+        const width = safeNum(pf.row.pfWidth, 0);
+        if (!width) return;
+        const ordered = layout.orderedItems || [];
+        const idx = ordered.indexOf(pf);
+        const before = idx >= 0 ? ordered.slice(0, idx).reverse().find((i) => i.kind === "track") : null;
+        const after = idx >= 0 ? ordered.slice(idx + 1).find((i) => i.kind === "track") : null;
+        if (before && after) {
+          const offA = layout.offsetByItem.get(before);
+          const offB = layout.offsetByItem.get(after);
+          if (Number.isFinite(offA) && Number.isFinite(offB)) {
+            const gap = Math.abs(offA - offB);
+            if (width + (2 * minClear) > gap) {
+              issues.push({ level: "error", title: "Island Clearance Breach", detail: `${group.station} island PF width ${r3(width)} m exceeds clearance between tracks (${r3(gap)} m).` });
+            }
+          }
+        } else {
+          const anchor = before || after || layout.refMain;
+          const anchorOffset = layout.offsetByItem.get(anchor);
+          if (Number.isFinite(anchorOffset)) {
+            const gap = Math.abs(anchorOffset);
+            if (width + minClear > gap) {
+              issues.push({ level: "warning", title: "Side Clearance Breach", detail: `${group.station} platform width ${r3(width)} m too close to track centre (${r3(gap)} m).` });
+            }
+          }
+        }
+      });
+    }
+  });
+
+  (state.loopPlatformRows || []).forEach((r) => {
+    const tc = safeNum(r.tc, 0);
+    if (tc > 0 && tc < minTc) {
+      issues.push({ level: "warning", title: "Track Centre Below Minimum", detail: `${r.station || "Station"} TC ${r3(tc)} m < ${r3(minTc)} m.` });
+    }
+  });
+
+  return issues;
+}
+
+function renderQualityChecks() {
+  if (!els.qualityResults) return;
+  const issues = runQualityChecks();
+  if (!issues.length) {
+    els.qualityResults.innerHTML = `<div class="glass" style="padding:12px;">No critical issues detected.</div>`;
+    return;
+  }
+  els.qualityResults.innerHTML = issues.map((issue) => `
+    <div class="glass" style="padding:12px; border:1px solid rgba(255,255,255,0.12);">
+      <div style="font-weight:700; color:${issue.level === "error" ? "#f87171" : "#fbbf24"};">${escapeHtml(issue.title)}</div>
+      <div class="muted" style="margin-top:4px;">${escapeHtml(issue.detail)}</div>
+    </div>
+  `).join("");
+}
+
+function exportBoqCsv() {
+  const qtyRows = Array.from(document.querySelectorAll("#resultQtyBody tr"));
+  if (!qtyRows.length) {
+    alert("No quantity summary rows available. Recalculate the project first.");
+    return;
+  }
+  const mapping = state.settings.boqMapping || {};
+  const headers = [
+    mapping.range || "Range",
+    mapping.prepared || "Prepared",
+    mapping.blanket || "Blanket",
+    mapping.fill || "Fill",
+    mapping.cut || "Cut",
+  ];
+  const csvRows = [headers];
+  qtyRows.forEach((tr) => {
+    const cells = Array.from(tr.querySelectorAll("td")).map((td) => String(td.textContent || "").trim());
+    if (!cells.length) return;
+    const row = [
+      cells[0] || "",
+      cells[1] || "",
+      cells[2] || "",
+      cells[3] || "",
+      cells[4] || "",
+    ];
+    csvRows.push(row);
+  });
+  const csv = csvRows.map((row) => row.map((cell) => `"${String(cell).replace(/\"/g, '\"\"')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${state.project.name || "earthwork"}-boq.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportCalculationExcel() {
+  if (!state.calcRows || !state.calcRows.length) {
+    alert("No calculation rows available. Recalculate the project first.");
+    return;
+  }
+  const headers = [
+    "Bridge No / Name",
+    "Station",
+    "Chainage (m)",
+    "Diff (m)",
+    "Ground RL",
+    "Proposed RL",
+    "Total Loop TC",
+    "No. of Loops",
+    "PF Width",
+    "Deducted Len",
+    "EW Diff",
+    "RL Diff",
+    "Bank (m)",
+    "Cut (m)",
+    "Top Width",
+    "Fill Area",
+    "Cut Area",
+    "Fill Vol",
+    "Cut Vol",
+  ];
+  const rows = state.calcRows.map((r) => {
+    const bridgeRefs = (r.bridgeRefs && r.bridgeRefs.length) ? r.bridgeRefs.join(" | ") : "-";
+    const station = (r.stationName || r.station) ? String(r.stationName || r.station).replace(/\n/g, " ") : "-";
+    const chainageLabel = (r.chainage < 0 ? "-" : "") + Math.floor(Math.abs(r.chainage) / 1000) + "+" + (Math.abs(r.chainage) % 1000).toFixed(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1").padStart(3, "0");
+    return [
+      bridgeRefs,
+      station,
+      chainageLabel,
+      r.diff ? r3(r.diff) : "—",
+      r3(r.groundLevel),
+      r3(r.proposedLevel),
+      r.loopTc ? r3(r.loopTc) : "—",
+      r.loopCount ? r.loopCount : "—",
+      r.platformWidth ? r3(r.platformWidth) : "—",
+      r.bridgeDeductLen ? r3(r.bridgeDeductLen) : "—",
+      r.ewDiff ? r3(r.ewDiff) : "—",
+      r.rlDiff ? r3(r.rlDiff) : "—",
+      r.bank > 0.0001 ? r3(r.bank) : "—",
+      r.cut > 0.0001 ? r3(r.cut) : "—",
+      r.topWidth ? r3(r.topWidth) : "—",
+      r.fillArea > 0.0001 ? r3(r.fillArea) : "—",
+      r.cutArea > 0.0001 ? r3(r.cutArea) : "—",
+      r.fillVol > 0.0001 ? r3(r.fillVol) : "—",
+      r.cutVol > 0.0001 ? r3(r.cutVol) : "—",
+    ];
+  });
+  if (typeof XLSX !== "undefined") {
+    const data = [headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Calculation");
+    XLSX.writeFile(wb, `${state.project.name || "earthwork"}-calculation.xlsx`);
+    return;
+  }
+  const tableHtml = `
+    <table>
+      <thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr></thead>
+      <tbody>
+        ${rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}
+      </tbody>
+    </table>
+  `;
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${tableHtml}</body></html>`;
+  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${state.project.name || "earthwork"}-calculation.xls`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function getSegmentBridgeInfo(start, end, bridges) {
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || !bridges.length) {
     return { deductedLen: 0, refs: [] };
@@ -1494,6 +1998,17 @@ function getSegmentBridgeInfo(start, end, bridges) {
   return { deductedLen: total, refs: Array.from(refs) };
 }
 
+function getSlopeFactorForChainage(chainage) {
+  if (!Number.isFinite(chainage) || !Array.isArray(state.slopeZones)) return safeNum(state.settings.sideSlopeFactor);
+  const zone = state.slopeZones.find((z) => Number.isFinite(z.startCh) && Number.isFinite(z.endCh) && chainage >= z.startCh && chainage <= z.endCh);
+  return zone ? safeNum(zone.slope, state.settings.sideSlopeFactor) : safeNum(state.settings.sideSlopeFactor);
+}
+
+function getOverrideForChainage(chainage) {
+  if (!Number.isFinite(chainage) || !Array.isArray(state.calcOverrides)) return null;
+  return state.calcOverrides.find((o) => Number.isFinite(o.startCh) && Number.isFinite(o.endCh) && chainage >= o.startCh && chainage <= o.endCh) || null;
+}
+
 function getBridgeRefsAtChainage(chainage, bridges) {
   if (!Number.isFinite(chainage) || !bridges.length) return [];
   return bridges
@@ -1515,7 +2030,7 @@ function renderBridgeInputs() {
   if (!state.bridgeRows.length) {
     els.bridgeTableBody.innerHTML = `
       <tr>
-        <td colspan="10" class="muted">No bridge rows loaded. Use Import Data > Import Bridge List or Add Bridge Row.</td>
+        <td colspan="13" class="muted">No bridge rows loaded. Use Import Data > Import Bridge List or Add Bridge Row.</td>
       </tr>
     `;
     if (els.bridgeMeta) els.bridgeMeta.textContent = "No bridge deduction applied.";
@@ -1539,6 +2054,15 @@ function renderBridgeInputs() {
       <td><input data-bridge-field="bridgeSize" value="${String(b.bridgeSize || "")}" style="width: 80px;" placeholder="e.g. 6.1m" /></td>
       <td><input data-bridge-field="bridgeSpans" type="number" min="1" value="${String(b.bridgeSpans || "1")}" style="width: 50px;" /></td>
       <td><input data-bridge-field="bridgeSpanLength" value="${Number.isFinite(b.bridgeSpanLength) ? r3(b.bridgeSpanLength) : String(b.bridgeSpanLength ?? "")}" style="width: 70px;" /></td>
+      <td><input data-bridge-field="clearSpan" value="${Number.isFinite(parseLooseNumber(b.clearSpan, NaN)) ? r3(parseLooseNumber(b.clearSpan, NaN)) : String(b.clearSpan ?? "")}" style="width: 70px;" /></td>
+      <td>
+        <select data-bridge-field="deductRule">
+          ${BRIDGE_DEDUCT_RULES.map(rule => `<option value="${rule}" ${String(b.deductRule || "Auto") === rule ? "selected" : ""}>${rule}</option>`).join("")}
+        </select>
+      </td>
+      <td style="text-align:center;">
+        <input data-bridge-field="autoDeduct" type="checkbox" class="toggle-input sm" ${b.autoDeduct !== false ? "checked" : ""} />
+      </td>
       <td><input data-bridge-field="startChainage" value="${Number.isFinite(parseChainage(b.startChainage)) ? r3(parseChainage(b.startChainage)) : String(b.startChainage ?? "")}" /></td>
       <td><input data-bridge-field="endChainage" value="${Number.isFinite(parseChainage(b.endChainage)) ? r3(parseChainage(b.endChainage)) : String(b.endChainage ?? "")}" /></td>
       <td><input data-bridge-field="length" value="${Number.isFinite(parseLooseNumber(b.length, NaN)) ? r3(parseLooseNumber(b.length, NaN)) : String(b.length ?? "")}" /></td>
@@ -1598,7 +2122,7 @@ function renderLoopInputs() {
     const bgStyle = sColor !== 'transparent' ? sColor.replace('hsl', 'hsla').replace(')', ', 0.08)') : 'transparent';
     const isMainLine = r.lineType === "Main Line";
     return `
-    <tr data-loop-row="${i}" style="border-left: 4px solid ${sColor}; background: ${bgStyle};">
+    <tr data-loop-row="${i}" data-drag-row="${i}" draggable="true" style="border-left: 4px solid ${sColor}; background: ${bgStyle}; cursor: grab;">
       <td><input data-loop-field="station" value="${String(r.station || "")}" ${isMainLine ? "disabled" : ""} /></td>
       <td>
         <select data-loop-field="lineType">
@@ -1620,7 +2144,13 @@ function renderLoopInputs() {
       <td><input data-loop-field="pfStartCh" value="${Number.isFinite(r.pfStartCh) ? r3(r.pfStartCh) : ""}" ${isMainLine ? "disabled" : ""} /></td>
       <td><input data-loop-field="pfEndCh" value="${Number.isFinite(r.pfEndCh) ? r3(r.pfEndCh) : ""}" ${isMainLine ? "disabled" : ""} /></td>
       <td><input data-loop-field="remarks" value="${String(r.remarks || "")}" ${isMainLine ? "disabled" : ""} /></td>
-      <td><button type="button" class="bridge-del" data-loop-del="${i}">Delete</button></td>
+      <td>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button type="button" class="btn btn-secondary btn-sm icon-btn-sm" data-loop-up="${i}" title="Move Up" style="padding: 4px; border-radius: 6px; width: 26px; height: 26px;"><i class="ri-arrow-up-line"></i></button>
+          <button type="button" class="btn btn-secondary btn-sm icon-btn-sm" data-loop-down="${i}" title="Move Down" style="padding: 4px; border-radius: 6px; width: 26px; height: 26px;"><i class="ri-arrow-down-line"></i></button>
+          <button type="button" class="bridge-del" data-loop-del="${i}" style="margin-left:auto;">Delete</button>
+        </div>
+      </td>
     </tr>
     <tr class="loop-insert-row" data-loop-insert-row="${i}">
       <td colspan="12">
@@ -1714,6 +2244,9 @@ function syncBridgeStateFromTable() {
       bridgeSize: tr.querySelector('[data-bridge-field="bridgeSize"]')?.value ?? "-",
       bridgeSpans: tr.querySelector('[data-bridge-field="bridgeSpans"]')?.value ?? "1",
       bridgeSpanLength: tr.querySelector('[data-bridge-field="bridgeSpanLength"]')?.value ?? "",
+      clearSpan: tr.querySelector('[data-bridge-field="clearSpan"]')?.value ?? "",
+      deductRule: tr.querySelector('[data-bridge-field="deductRule"]')?.value ?? "Auto",
+      autoDeduct: tr.querySelector('[data-bridge-field="autoDeduct"]')?.checked ?? true,
       startChainage: tr.querySelector('[data-bridge-field="startChainage"]')?.value ?? "",
       endChainage: tr.querySelector('[data-bridge-field="endChainage"]')?.value ?? "",
       length: tr.querySelector('[data-bridge-field="length"]')?.value ?? "",
@@ -1723,6 +2256,93 @@ function syncBridgeStateFromTable() {
     parsed.push(raw);
   });
   state.bridgeRows = parsed;
+}
+
+function syncMaterialProfileFromGrid() {
+  if (!els.materialProfileGrid) return;
+  const rows = Array.from(els.materialProfileGrid.querySelectorAll("tbody tr"));
+  const next = [];
+  rows.forEach((tr) => {
+    const depth = parseLooseNumber(tr.querySelector('[data-mp-field="depth"]')?.value ?? "", NaN);
+    const density = parseLooseNumber(tr.querySelector('[data-mp-field="density"]')?.value ?? "", NaN);
+    const shrink = parseLooseNumber(tr.querySelector('[data-mp-field="shrink"]')?.value ?? "", NaN);
+    const swell = parseLooseNumber(tr.querySelector('[data-mp-field="swell"]')?.value ?? "", NaN);
+    if (!Number.isFinite(depth) && !Number.isFinite(density)) return;
+    next.push({
+      depth: Number.isFinite(depth) ? depth : 0,
+      density: Number.isFinite(density) ? density : 0,
+      shrink: Number.isFinite(shrink) ? shrink : 0,
+      swell: Number.isFinite(swell) ? swell : 0,
+    });
+  });
+  state.settings.materialProfile = next;
+}
+
+function renderOverrideTable() {
+  if (!els.overrideTableBody) return;
+  const rows = Array.isArray(state.calcOverrides) ? state.calcOverrides : [];
+  els.overrideTableBody.innerHTML = rows.map((r, i) => `
+    <tr>
+      <td><input data-ov-field="startCh" value="${Number.isFinite(r.startCh) ? r3(r.startCh) : ""}" /></td>
+      <td><input data-ov-field="endCh" value="${Number.isFinite(r.endCh) ? r3(r.endCh) : ""}" /></td>
+      <td>
+        <select data-ov-field="type">
+          <option value="" ${!r.type ? "selected" : ""}>Auto</option>
+          <option value="FILL" ${r.type === "FILL" ? "selected" : ""}>Fill</option>
+          <option value="CUT" ${r.type === "CUT" ? "selected" : ""}>Cut</option>
+          <option value="NEUTRAL" ${r.type === "NEUTRAL" ? "selected" : ""}>Neutral</option>
+        </select>
+      </td>
+      <td><input data-ov-field="bank" value="${Number.isFinite(r.bank) ? r3(r.bank) : ""}" /></td>
+      <td><input data-ov-field="cut" value="${Number.isFinite(r.cut) ? r3(r.cut) : ""}" /></td>
+      <td><input data-ov-field="slope" value="${Number.isFinite(r.slope) ? r3(r.slope) : ""}" /></td>
+      <td><button type="button" class="bridge-del" data-ov-del="${i}">Delete</button></td>
+    </tr>
+  `).join("");
+}
+
+function syncOverridesFromTable() {
+  if (!els.overrideTableBody) return;
+  const rows = Array.from(els.overrideTableBody.querySelectorAll("tr"));
+  const next = [];
+  rows.forEach((tr) => {
+    const startCh = parseChainage(tr.querySelector('[data-ov-field="startCh"]')?.value ?? "");
+    const endCh = parseChainage(tr.querySelector('[data-ov-field="endCh"]')?.value ?? "");
+    const type = String(tr.querySelector('[data-ov-field="type"]')?.value || "").trim();
+    const bank = parseLooseNumber(tr.querySelector('[data-ov-field="bank"]')?.value ?? "", NaN);
+    const cut = parseLooseNumber(tr.querySelector('[data-ov-field="cut"]')?.value ?? "", NaN);
+    const slope = parseLooseNumber(tr.querySelector('[data-ov-field="slope"]')?.value ?? "", NaN);
+    if (!Number.isFinite(startCh) || !Number.isFinite(endCh)) return;
+    next.push({ startCh, endCh, type, bank, cut, slope });
+  });
+  state.calcOverrides = next;
+}
+
+function renderSlopeZoneTable() {
+  if (!els.slopeZoneTableBody) return;
+  const rows = Array.isArray(state.slopeZones) ? state.slopeZones : [];
+  els.slopeZoneTableBody.innerHTML = rows.map((r, i) => `
+    <tr>
+      <td><input data-sz-field="startCh" value="${Number.isFinite(r.startCh) ? r3(r.startCh) : ""}" /></td>
+      <td><input data-sz-field="endCh" value="${Number.isFinite(r.endCh) ? r3(r.endCh) : ""}" /></td>
+      <td><input data-sz-field="slope" value="${Number.isFinite(r.slope) ? r3(r.slope) : ""}" /></td>
+      <td><button type="button" class="bridge-del" data-sz-del="${i}">Delete</button></td>
+    </tr>
+  `).join("");
+}
+
+function syncSlopeZonesFromTable() {
+  if (!els.slopeZoneTableBody) return;
+  const rows = Array.from(els.slopeZoneTableBody.querySelectorAll("tr"));
+  const next = [];
+  rows.forEach((tr) => {
+    const startCh = parseChainage(tr.querySelector('[data-sz-field="startCh"]')?.value ?? "");
+    const endCh = parseChainage(tr.querySelector('[data-sz-field="endCh"]')?.value ?? "");
+    const slope = parseLooseNumber(tr.querySelector('[data-sz-field="slope"]')?.value ?? "", NaN);
+    if (!Number.isFinite(startCh) || !Number.isFinite(endCh) || !Number.isFinite(slope)) return;
+    next.push({ startCh, endCh, slope });
+  });
+  state.slopeZones = next;
 }
 
 function inferImportInterval() {
@@ -2164,32 +2784,51 @@ function recalculate() {
     const bank = diff <= 0 ? 0 : Math.max(rlDiff, 0);
     const minCover = settings.blanketThickness + settings.preparedSubgradeThickness;
     const cut = diff <= 0 ? 0 : (rlDiff < 0 ? (-rlDiff + minCover) : Math.max(minCover - bank, 0));
+    const slopeFactor = getSlopeFactorForChainage(row.chainage);
 
-    const turfing = bank > 0 ? settings.sideSlopeFactor * bank : 0;
+    let turfing = bank > 0 ? slopeFactor * bank : 0;
     const fillTop = effectiveFormationWidth;
-    const fillBottom = fillTop + (2 * settings.sideSlopeFactor * bank);
+    const fillBottom = fillTop + (2 * slopeFactor * bank);
     const cutTop = settings.cuttingWidth;
-    const cutBottom = cutTop + (2 * settings.sideSlopeFactor * cut);
+    const cutBottom = cutTop + (2 * slopeFactor * cut);
     const topWidth = bank > 0 ? fillTop : (cut > 0 ? cutTop : effectiveFormationWidth);
 
-    const fillArea = bank > 0 ? ((fillTop + fillBottom) * 0.5 * bank) : 0;
-    const cutArea = cut > 0 ? ((cutTop + cutBottom) * 0.5 * cut) : 0;
+    let finalBank = bank;
+    let finalCut = cut;
+    let finalSlope = slopeFactor;
+    const override = getOverrideForChainage(row.chainage);
+    if (override) {
+      if (override.type === "FILL") { finalBank = Number.isFinite(override.bank) ? override.bank : finalBank; finalCut = 0; }
+      if (override.type === "CUT") { finalCut = Number.isFinite(override.cut) ? override.cut : finalCut; finalBank = 0; }
+      if (override.type === "NEUTRAL") { finalBank = 0; finalCut = 0; }
+      if (Number.isFinite(override.bank)) finalBank = override.bank;
+      if (Number.isFinite(override.cut)) finalCut = override.cut;
+      if (Number.isFinite(override.slope)) finalSlope = override.slope;
+    }
+
+    const finalFillBottom = fillTop + (2 * finalSlope * finalBank);
+    const finalCutBottom = cutTop + (2 * finalSlope * finalCut);
+    const finalTopWidth = finalBank > 0 ? fillTop : (finalCut > 0 ? cutTop : effectiveFormationWidth);
+    turfing = finalBank > 0 ? finalSlope * finalBank : 0;
+
+    const fillArea = finalBank > 0 ? ((fillTop + finalFillBottom) * 0.5 * finalBank) : 0;
+    const cutArea = finalCut > 0 ? ((cutTop + finalCutBottom) * 0.5 * finalCut) : 0;
 
     const fillVol = prev ? ((prev.fillArea + fillArea) * 0.5 * ewDiff) : 0;
     const cutVol = prev ? ((prev.cutArea + cutArea) * 0.5 * ewDiff) : 0;
 
     let type = "NEUTRAL";
     if (ewDiff <= 0.001 && bridgeDeductLen > 0) type = "BRIDGE";
-    else if (bank > 0.001) type = "FILLING";
-    else if (cut > 0.001) type = "CUTTING";
+    else if (finalBank > 0.001) type = "FILLING";
+    else if (finalCut > 0.001) type = "CUTTING";
 
     const calc = {
       ...row,
       diff,
       ewDiff,
       rlDiff,
-      bank,
-      cut,
+      bank: finalBank,
+      cut: finalCut,
       turfing,
       fillArea,
       cutArea,
@@ -2202,9 +2841,10 @@ function recalculate() {
       bridgeRefs,
       bridgeDeductLen,
       type,
-      topWidth,
-      fillBottom,
-      cutBottom,
+      topWidth: finalTopWidth,
+      fillBottom: finalFillBottom,
+      cutBottom: finalCutBottom,
+      slopeFactor: finalSlope,
       stationName,
     };
     rows.push(calc);
@@ -2393,12 +3033,16 @@ function collectProjectPayload() {
     project: {
       ...state.project,
       uploads: { ...state.project.uploads },
+      profile: { ...state.project.profile },
     },
     settings: { ...state.settings },
     rawRows: state.rawRows,
     bridgeRows: state.bridgeRows,
     curveRows: state.curveRows,
     loopPlatformRows: state.loopPlatformRows,
+    calcOverrides: state.calcOverrides,
+    slopeZones: state.slopeZones,
+    importMappings: state.importMappings,
     kmlData: state.kmlData,
     stationPlans: state.stationPlans,
   };
@@ -2421,8 +3065,23 @@ function loadProjectFromPayload(data, options = {}) {
       loops: Boolean(data?.project?.uploads?.loops),
       kml: Boolean(data?.project?.uploads?.kml) || Boolean(data?.kmlData),
     },
+    profile: {
+      corridorName: String(data?.project?.profile?.corridorName || ""),
+      direction: String(data?.project?.profile?.direction || "Up"),
+      chainageZeroRef: String(data?.project?.profile?.chainageZeroRef || ""),
+    },
   };
   state.settings = { ...state.seedDefaultSettings, ...(data?.settings || {}) };
+  if (!state.settings.reportBrand || typeof state.settings.reportBrand !== "object") {
+    state.settings.reportBrand = { ...state.seedDefaultSettings.reportBrand };
+  } else {
+    state.settings.reportBrand = { ...state.seedDefaultSettings.reportBrand, ...state.settings.reportBrand };
+  }
+  if (!state.settings.boqMapping || typeof state.settings.boqMapping !== "object") {
+    state.settings.boqMapping = { ...state.seedDefaultSettings.boqMapping };
+  } else {
+    state.settings.boqMapping = { ...state.seedDefaultSettings.boqMapping, ...state.settings.boqMapping };
+  }
   state.rawRows = Array.isArray(data?.rawRows) && data.rawRows.length ? data.rawRows : [...state.seedRows];
   state.bridgeRows = Array.isArray(data?.bridgeRows) ? data.bridgeRows : [];
   state.curveRows = Array.isArray(data?.curveRows) ? data.curveRows : [];
@@ -2448,6 +3107,11 @@ function loadProjectFromPayload(data, options = {}) {
   }));
   state.kmlData = data?.kmlData && Array.isArray(data.kmlData?.points) ? data.kmlData : null;
   state.stationPlans = data?.stationPlans && typeof data.stationPlans === "object" ? data.stationPlans : {};
+  state.calcOverrides = Array.isArray(data?.calcOverrides) ? data.calcOverrides : [];
+  state.slopeZones = Array.isArray(data?.slopeZones) ? data.slopeZones : [];
+  state.importMappings = data?.importMappings && typeof data.importMappings === "object"
+    ? data.importMappings
+    : { client: "", templates: {} };
   state.projectFileHandle = fileHandle;
   renderBridgeInputs();
   renderCurveInputs();
@@ -2563,6 +3227,10 @@ function renderFormulaSummary() {
   if (!els.resultInputBody || !els.resultFillBody || !els.resultCutBody || !els.resultQtyBody) return;
   const rows = state.calcRows;
   const s = state.settings;
+  const showRails = s.showRails !== false;
+  const showPlatforms = s.showPlatforms !== false;
+  const showDrains = s.showDrains !== false;
+  const showLabels = s.showLabels !== false;
   if (!rows.length) {
     els.resultInputBody.innerHTML = "";
     els.resultFillBody.innerHTML = "";
@@ -2737,7 +3405,7 @@ function renderTable() {
     }
     const rowClass = (r.bridgeRefs && r.bridgeRefs.length) ? "bridge-row" : "";
     return `
-      <tr class="${rowClass}">
+      <tr class="${rowClass}" data-ch-index="${idx}">
         <td>${bridgeRefs}</td>
         <td>${station}</td>
         <td><button class="chainage-link theme-ch" data-cross-index="${idx}" title="Open cross-section">${(r.chainage < 0 ? "-" : "") + Math.floor(Math.abs(r.chainage) / 1000) + "+" + (Math.abs(r.chainage) % 1000).toFixed(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1").padStart(3, "0")}</button></td>
@@ -2762,6 +3430,10 @@ function renderTable() {
   }).join("");
 
   els.tableBody.innerHTML = html;
+  
+  if (typeof updateDiagnosticMinimap === 'function') {
+    updateDiagnosticMinimap();
+  }
 }
 
 function renderCharts() {
@@ -3008,6 +3680,8 @@ function renderRollDiagram() {
   const minCh = rows[0].chainage;
   const maxCh = rows[rows.length - 1].chainage;
   const totalL = Math.max(maxCh - minCh, 1);
+  const rollFilter = state.settings.rollFilter || "all";
+  const lightMode = window._printModeLight === true;
 
   const PAD_L = 60, PAD_R = 40, PAD_T = 70, PAD_B = 45; // Reduced paddings
   const MAX_SAFE_W = 32000;
@@ -3030,9 +3704,14 @@ function renderRollDiagram() {
   const canvasW = Math.ceil(PAD_L + totalL * PX_PER_M_X + PAD_R);
   const centerY = PAD_T + bodyHalf + loopPxH * 0.5;
 
-  canvas.width = canvasW;
-  canvas.height = canvasH;
+  const exportScale = lightMode ? 2 : 1;
+  canvas.width = Math.ceil(canvasW * exportScale);
+  canvas.height = Math.ceil(canvasH * exportScale);
+  canvas.style.width = `${canvasW}px`;
+  canvas.style.height = `${canvasH}px`;
   const ctx = canvas.getContext("2d");
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (exportScale !== 1) ctx.scale(exportScale, exportScale);
   ctx.clearRect(0, 0, canvasW, canvasH);
 
   function getX(ch) {
@@ -3041,8 +3720,13 @@ function renderRollDiagram() {
 
   // ── Background ─────────────────────────────────────────────────────────
   const bgGrad = ctx.createLinearGradient(0, 0, 0, canvasH);
-  bgGrad.addColorStop(0, "#0d1117");
-  bgGrad.addColorStop(1, "#141d2e");
+  if (lightMode) {
+    bgGrad.addColorStop(0, "#f8fafc");
+    bgGrad.addColorStop(1, "#ffffff");
+  } else {
+    bgGrad.addColorStop(0, "#0d1117");
+    bgGrad.addColorStop(1, "#141d2e");
+  }
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, canvasW, canvasH);
 
@@ -3064,7 +3748,9 @@ function renderRollDiagram() {
     const gx = getX(ch);
     if (gx == null) continue;
     const isMajor = (ch % xMajor === 0);
-    ctx.strokeStyle = isMajor ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.035)";
+    ctx.strokeStyle = lightMode
+      ? (isMajor ? "rgba(15,23,42,0.12)" : "rgba(15,23,42,0.05)")
+      : (isMajor ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.035)");
     ctx.beginPath(); ctx.moveTo(gx, PAD_T); ctx.lineTo(gx, canvasH - PAD_B); ctx.stroke();
   }
 
@@ -3076,14 +3762,16 @@ function renderRollDiagram() {
   else { yMajor = 100; yMinor = 20; }
 
   const axisExtentM = Math.max(yMinor, Math.ceil(maxHalfW / yMinor) * yMinor);
-  ctx.fillStyle = "rgba(255,255,255,0.4)";
+  ctx.fillStyle = lightMode ? "rgba(15,23,42,0.55)" : "rgba(255,255,255,0.4)";
   ctx.font = `9px Outfit,sans-serif`;
   ctx.textAlign = "left";
 
   for (let ym = 0; ym <= axisExtentM; ym += yMinor) {
     if (ym === 0) continue; // Skip centerline
     const isMajor = (ym % yMajor === 0);
-    ctx.strokeStyle = isMajor ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.035)";
+    ctx.strokeStyle = lightMode
+      ? (isMajor ? "rgba(15,23,42,0.12)" : "rgba(15,23,42,0.05)")
+      : (isMajor ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.035)");
     const dy = ym * PX_PER_M_Y;
 
     // Top side (negative Y from center)
@@ -3100,10 +3788,58 @@ function renderRollDiagram() {
 
   // ── Centreline ─────────────────────────────────────────────────────────
   ctx.setLineDash([6, 6]);
-  ctx.strokeStyle = "rgba(255,255,255,0.25)";
+  ctx.strokeStyle = lightMode ? "rgba(71,85,105,0.45)" : "rgba(255,255,255,0.25)";
   ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(getX(minCh), centerY); ctx.lineTo(getX(maxCh), centerY); ctx.stroke();
   ctx.setLineDash([]);
+
+  const stationRanges = (() => {
+    if (rollFilter !== "stations") return [];
+    const ranges = [];
+    const stationMap = new Map();
+    (state.loopPlatformRows || []).forEach((lp) => {
+      const key = normalizeStationKey(lp.station);
+      if (!key) return;
+      if (!stationMap.has(key)) stationMap.set(key, { min: Number.POSITIVE_INFINITY, max: Number.NEGATIVE_INFINITY });
+      const entry = stationMap.get(key);
+      const loopStart = parseChainage(lp.loopStartCh);
+      const loopEnd = parseChainage(lp.loopEndCh);
+      const pfStart = parseChainage(lp.pfStartCh);
+      const pfEnd = parseChainage(lp.pfEndCh);
+      if (Number.isFinite(loopStart)) entry.min = Math.min(entry.min, loopStart);
+      if (Number.isFinite(pfStart)) entry.min = Math.min(entry.min, pfStart);
+      if (Number.isFinite(loopEnd)) entry.max = Math.max(entry.max, loopEnd);
+      if (Number.isFinite(pfEnd)) entry.max = Math.max(entry.max, pfEnd);
+    });
+    stationMap.forEach((entry) => {
+      if (Number.isFinite(entry.min) && Number.isFinite(entry.max) && entry.max > entry.min) {
+        ranges.push({ start: entry.min, end: entry.max });
+      }
+    });
+    ranges.sort((a, b) => a.start - b.start);
+    const merged = [];
+    ranges.forEach((r) => {
+      const last = merged[merged.length - 1];
+      if (!last || r.start > last.end) merged.push({ ...r });
+      else last.end = Math.max(last.end, r.end);
+    });
+    return merged;
+  })();
+
+  const mainlineSegments = rollFilter === "main"
+    ? [{ start: minCh, end: maxCh }]
+    : (rollFilter === "stations" ? stationRanges : []);
+
+  if (mainlineSegments.length) {
+    ctx.strokeStyle = "rgba(239,68,68,0.95)";
+    ctx.lineWidth = 2.5 * baseScale;
+    mainlineSegments.forEach((seg) => {
+      const x1 = getX(seg.start);
+      const x2 = getX(seg.end);
+      if (x1 == null || x2 == null) return;
+      ctx.beginPath(); ctx.moveTo(x1, centerY); ctx.lineTo(x2, centerY); ctx.stroke();
+    });
+  }
 
   // ── Bridges ─────────────────────────────────────────────────────────────
   const bridges = buildBridgeIntervals();
@@ -3123,8 +3859,16 @@ function renderRollDiagram() {
     const w1 = r1.bank > 0 ? r1.fillBottom : (r1.cut > 0 ? r1.cutBottom : (r1.effectiveFormationWidth || 0));
     const h0 = (w0 / 2) * PX_PER_M_Y, h1 = (w1 / 2) * PX_PER_M_Y;
     const isFill = r1.bank > 0.001, isCut = r1.cut > 0.001;
-    const fillCol = isFill ? "rgba(34,139,69,0.28)" : isCut ? "rgba(180,44,50,0.28)" : "rgba(100,110,130,0.18)";
-    const strokeCol = isFill ? "rgba(34,200,80,0.75)" : isCut ? "rgba(240,70,70,0.75)" : "rgba(140,150,170,0.45)";
+  const fillCol = isFill
+    ? (lightMode ? "rgba(34,197,94,0.2)" : "rgba(34,139,69,0.28)")
+    : isCut
+      ? (lightMode ? "rgba(239,68,68,0.2)" : "rgba(180,44,50,0.28)")
+      : (lightMode ? "rgba(148,163,184,0.18)" : "rgba(100,110,130,0.18)");
+  const strokeCol = isFill
+    ? (lightMode ? "rgba(22,163,74,0.9)" : "rgba(34,200,80,0.75)")
+    : isCut
+      ? (lightMode ? "rgba(220,38,38,0.9)" : "rgba(240,70,70,0.75)")
+      : (lightMode ? "rgba(100,116,139,0.6)" : "rgba(140,150,170,0.45)");
     // Top edge
     ctx.strokeStyle = strokeCol; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(x0, centerY - h0); ctx.lineTo(x1g, centerY - h1); ctx.stroke();
@@ -3139,7 +3883,7 @@ function renderRollDiagram() {
   // ── Formation width dash ────────────────────────────────────────────────
   const fwH = (state.settings.formationWidthFill || 0) / 2 * PX_PER_M_Y;
   if (fwH > 0) {
-    ctx.strokeStyle = "rgba(120,200,255,0.35)"; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = lightMode ? "rgba(37,99,235,0.35)" : "rgba(120,200,255,0.35)"; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
     ctx.beginPath(); ctx.moveTo(getX(minCh), centerY - fwH); ctx.lineTo(getX(maxCh), centerY - fwH); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(getX(minCh), centerY + fwH); ctx.lineTo(getX(maxCh), centerY + fwH); ctx.stroke();
     ctx.setLineDash([]);
@@ -3151,14 +3895,16 @@ function renderRollDiagram() {
     if (bx1 == null || bx2 == null) continue;
     const bHalf = 20 * PX_PER_M_Y;
     const bW = Math.max(bx2 - bx1, 3 * baseScale);
-    ctx.fillStyle = "rgba(37,99,235,0.50)"; ctx.strokeStyle = "rgba(99,163,255,0.9)"; ctx.lineWidth = 1.5;
+    ctx.fillStyle = lightMode ? "rgba(59,130,246,0.25)" : "rgba(37,99,235,0.50)";
+    ctx.strokeStyle = lightMode ? "rgba(37,99,235,0.9)" : "rgba(99,163,255,0.9)";
+    ctx.lineWidth = 1.5;
     ctx.fillRect(bx1, centerY - bHalf, bW, bHalf * 2);
     ctx.strokeRect(bx1, centerY - bHalf, bW, bHalf * 2);
-    ctx.strokeStyle = "rgba(99,163,255,0.3)"; ctx.lineWidth = 0.7;
+    ctx.strokeStyle = lightMode ? "rgba(37,99,235,0.25)" : "rgba(99,163,255,0.3)"; ctx.lineWidth = 0.7;
     for (let hx = bx1; hx < bx2; hx += 8 * baseScale) {
       ctx.beginPath(); ctx.moveTo(hx, centerY - bHalf); ctx.lineTo(hx + 8 * baseScale, centerY + bHalf); ctx.stroke();
     }
-    ctx.fillStyle = "#93c5fd"; ctx.font = `bold ${Math.max(9, 11 * baseScale)}px Outfit,sans-serif`;
+    ctx.fillStyle = lightMode ? "#1d4ed8" : "#93c5fd"; ctx.font = `bold ${Math.max(9, 11 * baseScale)}px Outfit,sans-serif`;
     ctx.textAlign = "left";
     ctx.fillText(b.bridgeNo, bx1 + 2, centerY - bHalf - 5);
   }
@@ -3176,12 +3922,12 @@ function renderRollDiagram() {
       const rad = safeNum(c.radius);
       const dir = (ci % 2 === 0) ? -1 : 1;
       const bulge = 25 * baseScale;
-      ctx.strokeStyle = "rgba(252,211,77,0.85)"; ctx.fillStyle = "transparent";
+      ctx.strokeStyle = lightMode ? "rgba(217,119,6,0.85)" : "rgba(252,211,77,0.85)"; ctx.fillStyle = "transparent";
       ctx.beginPath();
       ctx.moveTo(cx1, centerY);
       ctx.quadraticCurveTo((cx1 + cx2) / 2, centerY + dir * bulge * 2, cx2, centerY);
       ctx.stroke();
-      ctx.fillStyle = "#fde68a"; ctx.font = `${Math.max(9, 10 * baseScale)}px Outfit,sans-serif`;
+      ctx.fillStyle = lightMode ? "#b45309" : "#fde68a"; ctx.font = `${Math.max(9, 10 * baseScale)}px Outfit,sans-serif`;
       ctx.textAlign = "center";
       const label = (c.curve || "Curve") + (rad > 0 ? ` R=${r3(rad)}m` : "");
       ctx.fillText(label, (cx1 + cx2) / 2, centerY + dir * (bulge * 2 + 14));
@@ -3189,7 +3935,7 @@ function renderRollDiagram() {
   }
 
   // ── Loops & Platforms (Station Layout) ──────────────────────────────────
-  if (state.loopPlatformRows && state.loopPlatformRows.length) {
+  if (state.loopPlatformRows && state.loopPlatformRows.length && rollFilter !== "main") {
     const stationMap = new Map();
     state.loopPlatformRows.forEach((lp) => {
       const key = normalizeStationKey(lp.station);
@@ -3231,7 +3977,7 @@ function renderRollDiagram() {
         const x2 = getX(segEnd);
         if (x1 == null || x2 == null) return;
         const y = centerY - (offset * PX_PER_M_Y);
-        ctx.strokeStyle = item.isMain ? "rgba(239,68,68,0.95)" : "rgba(34,211,238,0.85)";
+        ctx.strokeStyle = item.isMain ? "rgba(239,68,68,0.95)" : (lightMode ? "rgba(14,116,144,0.85)" : "rgba(34,211,238,0.85)");
         ctx.lineWidth = item.isMain ? 2.5 * baseScale : 2 * baseScale;
         ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
       });
@@ -3270,8 +4016,8 @@ function renderRollDiagram() {
         }
         const y = centerY - (offset * PX_PER_M_Y);
         const pfTop = y - (pfH / 2);
-        ctx.fillStyle = "rgba(239,68,68,0.45)";
-        ctx.strokeStyle = "rgba(252,165,165,0.8)";
+        ctx.fillStyle = lightMode ? "rgba(239,68,68,0.2)" : "rgba(239,68,68,0.45)";
+        ctx.strokeStyle = lightMode ? "rgba(220,38,38,0.7)" : "rgba(252,165,165,0.8)";
         ctx.lineWidth = 1.5;
         ctx.fillRect(px1, pfTop, Math.max(px2 - px1, 4), pfH);
         ctx.strokeRect(px1, pfTop, Math.max(px2 - px1, 4), pfH);
@@ -3279,7 +4025,7 @@ function renderRollDiagram() {
 
       const labelX = getX(entry.minCh);
       if (labelX != null) {
-        ctx.fillStyle = "#67e8f9";
+      ctx.fillStyle = lightMode ? "#0f172a" : "#67e8f9";
         ctx.font = `bold ${Math.max(9, 10 * baseScale)}px Outfit,sans-serif`;
         ctx.textAlign = "left";
         ctx.fillText("\u25CE " + (entry.station || "Station"), labelX, centerY - (fwH || 20) - 18);
@@ -3291,16 +4037,16 @@ function renderRollDiagram() {
   const rulerY = canvasH - PAD_B + 16;
   const tkInt = totalL >= 50000 ? 5000 : totalL >= 20000 ? 2000 : totalL >= 5000 ? 1000 : 500;
   const startTk = Math.ceil(minCh / tkInt) * tkInt;
-  ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 1;
+  ctx.strokeStyle = lightMode ? "rgba(71,85,105,0.45)" : "rgba(255,255,255,0.35)"; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(getX(minCh), rulerY); ctx.lineTo(getX(maxCh), rulerY); ctx.stroke();
-  ctx.fillStyle = "rgba(255,255,255,0.6)"; ctx.font = `9px Outfit,sans-serif`; ctx.textAlign = "center";
+  ctx.fillStyle = lightMode ? "rgba(15,23,42,0.7)" : "rgba(255,255,255,0.6)"; ctx.font = `9px Outfit,sans-serif`; ctx.textAlign = "center";
   for (let ch = startTk; ch <= maxCh; ch += tkInt) {
     const tx = getX(ch);
     if (tx == null) continue;
     ctx.beginPath(); ctx.moveTo(tx, rulerY - 4); ctx.lineTo(tx, rulerY + 4); ctx.stroke();
     ctx.fillText(ch >= 1000 ? `${r3(ch / 1000)} km` : `${ch} m`, tx, rulerY + 16);
   }
-  ctx.textAlign = "left"; ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.font = "10px Outfit,sans-serif";
+  ctx.textAlign = "left"; ctx.fillStyle = lightMode ? "rgba(15,23,42,0.5)" : "rgba(255,255,255,0.4)"; ctx.font = "10px Outfit,sans-serif";
   ctx.fillText(`CH ${minCh}m`, PAD_L, rulerY + 30);
   ctx.textAlign = "right"; ctx.fillText(`CH ${maxCh}m`, canvasW - PAD_R, rulerY + 30);
 
@@ -3318,7 +4064,7 @@ function renderRollDiagram() {
   let lx = PAD_L;
   for (const item of legend) {
     ctx.fillStyle = item.col; ctx.fillRect(lx, 10, 12, 12);
-    ctx.fillStyle = "rgba(255,255,255,0.75)"; ctx.textAlign = "left";
+    ctx.fillStyle = lightMode ? "rgba(15,23,42,0.7)" : "rgba(255,255,255,0.75)"; ctx.textAlign = "left";
     ctx.fillText(item.lbl, lx + 15, 21);
     lx += 15 + ctx.measureText(item.lbl).width + 14;
     if (lx > canvasW - 100) break;
@@ -3480,6 +4226,7 @@ function renderSideView() {
   const minCh = rows[0].chainage;
   const maxCh = rows[rows.length - 1].chainage;
   const totalL = Math.max(maxCh - minCh, 1);
+  const lightMode = window._printModeLight === true;
 
   const PAD_L = 72;   // room for Y-axis labels
   const PAD_R = 30;
@@ -3506,10 +4253,15 @@ function renderSideView() {
   const bodyH = 400; // Elevation scale fixed height
   const canvasH = PAD_T + bodyH + PAD_B;
 
-  canvas.width = canvasW;
-  canvas.height = canvasH;
+  const exportScale = lightMode ? 2 : 1;
+  canvas.width = Math.ceil(canvasW * exportScale);
+  canvas.height = Math.ceil(canvasH * exportScale);
+  canvas.style.width = `${canvasW}px`;
+  canvas.style.height = `${canvasH}px`;
 
   const ctx = canvas.getContext("2d");
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (exportScale !== 1) ctx.scale(exportScale, exportScale);
   ctx.clearRect(0, 0, canvasW, canvasH);
 
   // map chainage → canvas X
@@ -3523,27 +4275,32 @@ function renderSideView() {
 
   // ── Background ────────────────────────────────────────────────────────────
   const bg = ctx.createLinearGradient(0, 0, 0, canvasH);
-  bg.addColorStop(0, "#0d1117");
-  bg.addColorStop(1, "#141d2e");
+  if (lightMode) {
+    bg.addColorStop(0, "#f8fafc");
+    bg.addColorStop(1, "#ffffff");
+  } else {
+    bg.addColorStop(0, "#0d1117");
+    bg.addColorStop(1, "#141d2e");
+  }
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, canvasW, canvasH);
 
   // ── Horizontal elevation grid ─────────────────────────────────────────────
-  ctx.strokeStyle = "rgba(255,255,255,0.06)";
+  ctx.strokeStyle = lightMode ? "rgba(15,23,42,0.08)" : "rgba(255,255,255,0.06)";
   ctx.lineWidth = 1;
   const elevStep = elevRange > 200 ? 50 : elevRange > 50 ? 10 : elevRange > 20 ? 5 : 2;
   const startElev = Math.ceil(minElev / elevStep) * elevStep;
   for (let el = startElev; el <= maxElev; el += elevStep) {
     const gy = getY(el);
     ctx.beginPath(); ctx.moveTo(PAD_L, gy); ctx.lineTo(canvasW - PAD_R, gy); ctx.stroke();
-    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.fillStyle = lightMode ? "rgba(15,23,42,0.6)" : "rgba(255,255,255,0.35)";
     ctx.font = `9px Outfit,sans-serif`;
     ctx.textAlign = "right";
     ctx.fillText(r3(el) + " m", PAD_L - 5, gy + 4);
   }
 
   // ── Vertical km grid ─────────────────────────────────────────────────────
-  ctx.strokeStyle = "rgba(255,255,255,0.05)";
+  ctx.strokeStyle = lightMode ? "rgba(15,23,42,0.05)" : "rgba(255,255,255,0.05)";
   const gridKm = totalL >= 50000 ? 10000 : totalL >= 10000 ? 2000 : 1000;
   const startGrid = Math.ceil(minCh / gridKm) * gridKm;
   for (let ch = startGrid; ch <= maxCh; ch += gridKm) {
@@ -3575,7 +4332,7 @@ function renderSideView() {
     ctx.lineTo(x1, getY(r1.groundLevel));
     ctx.lineTo(x0, getY(r0.groundLevel));
     ctx.closePath();
-    ctx.fillStyle = "rgba(34,139,69,0.28)";
+    ctx.fillStyle = lightMode ? "rgba(34,197,94,0.2)" : "rgba(34,139,69,0.28)";
     ctx.fill();
   }
   // Draw cut (red) from ground down to cut-bottom
@@ -3590,13 +4347,13 @@ function renderSideView() {
     ctx.lineTo(x1, getY(r1.groundLevel - r1.cut));
     ctx.lineTo(x0, getY(r0.groundLevel - r0.cut));
     ctx.closePath();
-    ctx.fillStyle = "rgba(180,44,50,0.22)";
+    ctx.fillStyle = lightMode ? "rgba(239,68,68,0.18)" : "rgba(180,44,50,0.22)";
     ctx.fill();
   }
 
   // ── Ground level line ────────────────────────────────────────────────────
   ctx.beginPath();
-  ctx.strokeStyle = "rgba(180,120,60,0.85)";
+  ctx.strokeStyle = lightMode ? "rgba(120,72,35,0.9)" : "rgba(180,120,60,0.85)";
   ctx.lineWidth = 2;
   let moved = false;
   for (const r of rows) {
@@ -3617,7 +4374,7 @@ function renderSideView() {
     if (x == null) { moved = false; continue; }
     const onBr = isOnBridge(r.chainage);
     if (onBr) { moved = false; prevWasBridge = true; continue; }  // skip — drawn as viaduct
-    ctx.strokeStyle = "hsl(233,100%,65%)";
+    ctx.strokeStyle = lightMode ? "rgba(37,99,235,0.9)" : "hsl(233,100%,65%)";
     if (!moved) { ctx.beginPath(); ctx.moveTo(x, y); moved = true; }
     else ctx.lineTo(x, y);
     if (prevWasBridge) { ctx.stroke(); ctx.beginPath(); ctx.moveTo(x, y); }
@@ -3662,8 +4419,8 @@ function renderSideView() {
     const tunnel = isTunnel(b);
 
     // All structures (bridges, tunnels, viaducts) drawn with the same style
-    ctx.fillStyle = "rgba(37,99,235,0.18)";
-    ctx.strokeStyle = "rgba(99,163,255,0.8)";
+    ctx.fillStyle = lightMode ? "rgba(59,130,246,0.2)" : "rgba(37,99,235,0.18)";
+    ctx.strokeStyle = lightMode ? "rgba(37,99,235,0.9)" : "rgba(99,163,255,0.8)";
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.moveTo(bx1, by1 - 6);
@@ -3673,13 +4430,13 @@ function renderSideView() {
     ctx.closePath();
     ctx.fill(); ctx.stroke();
 
-    ctx.strokeStyle = "hsl(215,100%,65%)";
+    ctx.strokeStyle = lightMode ? "rgba(37,99,235,0.85)" : "hsl(215,100%,65%)";
     ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(bx1, by1); ctx.lineTo(bx2, by2); ctx.stroke();
 
     const pierSpacing = 60;
     const numPiers = Math.max(0, Math.floor(bW / pierSpacing) - 1);
-    ctx.strokeStyle = "rgba(99,163,255,0.6)"; ctx.lineWidth = 3;
+    ctx.strokeStyle = lightMode ? "rgba(37,99,235,0.6)" : "rgba(99,163,255,0.6)"; ctx.lineWidth = 3;
     for (let p = 1; p <= numPiers; p++) {
       const t = p / (numPiers + 1);
       const px = bx1 + t * bW;
@@ -3688,12 +4445,12 @@ function renderSideView() {
       const pierGl = glAt(pierCh);
       const pyBot = getY(pierGl);
       ctx.beginPath(); ctx.moveTo(px, pyTop + 6); ctx.lineTo(px, pyBot); ctx.stroke();
-      ctx.strokeStyle = "rgba(99,163,255,0.4)"; ctx.lineWidth = 8;
+      ctx.strokeStyle = lightMode ? "rgba(37,99,235,0.4)" : "rgba(99,163,255,0.4)"; ctx.lineWidth = 8;
       ctx.beginPath(); ctx.moveTo(px, pyBot - 3); ctx.lineTo(px, pyBot); ctx.stroke();
-      ctx.strokeStyle = "rgba(99,163,255,0.6)"; ctx.lineWidth = 3;
+      ctx.strokeStyle = lightMode ? "rgba(37,99,235,0.6)" : "rgba(99,163,255,0.6)"; ctx.lineWidth = 3;
     }
 
-    ctx.strokeStyle = "rgba(99,163,255,0.55)"; ctx.lineWidth = 4;
+    ctx.strokeStyle = lightMode ? "rgba(37,99,235,0.55)" : "rgba(99,163,255,0.55)"; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.moveTo(bx1, by1 - 10); ctx.lineTo(bx1, gy1); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(bx2, by2 - 10); ctx.lineTo(bx2, gy2); ctx.stroke();
 
@@ -3702,7 +4459,7 @@ function renderSideView() {
       x: (bx1 + bx2) / 2,
       baseY: Math.min(by1, by2) - 14,
       text: b.bridgeNo + (b.bridgeCategory ? ` (${b.bridgeCategory})` : ""),
-      color: "#93c5fd",
+      color: lightMode ? "#1d4ed8" : "#93c5fd",
       font: "bold 10px Outfit,sans-serif",
       type: tunnel ? "tunnel" : "bridge"
     });
@@ -3718,7 +4475,7 @@ function renderSideView() {
       const sx = getX(midCh);
       if (sx == null) continue;
       ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = "rgba(34,211,238,0.5)"; ctx.lineWidth = 1.5;
+      ctx.strokeStyle = lightMode ? "rgba(14,116,144,0.45)" : "rgba(34,211,238,0.5)"; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(sx, PAD_T); ctx.lineTo(sx, PAD_T + bodyH); ctx.stroke();
       ctx.setLineDash([]);
 
@@ -3727,7 +4484,7 @@ function renderSideView() {
         x: sx,
         baseY: PAD_T + 12,
         text: "◉ " + (lp.station || "Stn"),
-        color: "#67e8f9",
+        color: lightMode ? "#0e7490" : "#67e8f9",
         font: "bold 9px Outfit,sans-serif",
         type: "station"
       });
@@ -3740,7 +4497,7 @@ function renderSideView() {
       if (!Number.isFinite(c.chainage)) return;
       const cx = getX(c.chainage);
       if (cx == null) return;
-      ctx.strokeStyle = "rgba(252,211,77,0.5)"; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
+      ctx.strokeStyle = lightMode ? "rgba(217,119,6,0.45)" : "rgba(252,211,77,0.5)"; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
       ctx.beginPath(); ctx.moveTo(cx, PAD_T + 20); ctx.lineTo(cx, PAD_T + bodyH); ctx.stroke();
       ctx.setLineDash([]);
 
@@ -3749,7 +4506,7 @@ function renderSideView() {
         x: cx,
         baseY: PAD_T + 8,
         text: (c.curve || "C") + (rad > 0 ? ` R=${r3(rad)}` : ""),
-        color: "#fde68a",
+        color: lightMode ? "#b45309" : "#fde68a",
         font: "9px Outfit,sans-serif",
         type: "curve"
       });
@@ -3819,13 +4576,13 @@ function renderSideView() {
   }
 
   // ── Y-axis border ────────────────────────────────────────────────────────
-  ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = 1;
+  ctx.strokeStyle = lightMode ? "rgba(15,23,42,0.25)" : "rgba(255,255,255,0.25)"; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(PAD_L, PAD_T); ctx.lineTo(PAD_L, PAD_T + bodyH); ctx.stroke();
   // Y-axis label (rotated)
   ctx.save();
   ctx.translate(14, PAD_T + bodyH / 2);
   ctx.rotate(-Math.PI / 2);
-  ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.font = "11px Outfit,sans-serif"; ctx.textAlign = "center";
+  ctx.fillStyle = lightMode ? "rgba(15,23,42,0.55)" : "rgba(255,255,255,0.4)"; ctx.font = "11px Outfit,sans-serif"; ctx.textAlign = "center";
   ctx.fillText("Elevation (m RL)", 0, 0);
   ctx.restore();
 
@@ -3833,9 +4590,9 @@ function renderSideView() {
   const rulerY = PAD_T + bodyH + 12;
   const tkInt = totalL >= 50000 ? 5000 : totalL >= 20000 ? 2000 : totalL >= 5000 ? 1000 : 500;
   const startTk = Math.ceil(minCh / tkInt) * tkInt;
-  ctx.strokeStyle = "rgba(255,255,255,0.3)"; ctx.lineWidth = 1;
+  ctx.strokeStyle = lightMode ? "rgba(15,23,42,0.3)" : "rgba(255,255,255,0.3)"; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(PAD_L, rulerY); ctx.lineTo(canvasW - PAD_R, rulerY); ctx.stroke();
-  ctx.fillStyle = "rgba(255,255,255,0.55)"; ctx.font = `10px Outfit,sans-serif`;
+  ctx.fillStyle = lightMode ? "rgba(15,23,42,0.7)" : "rgba(255,255,255,0.55)"; ctx.font = `10px Outfit,sans-serif`;
   ctx.textAlign = "center";
   for (let ch = startTk; ch <= maxCh; ch += tkInt) {
     const tx = getX(ch);
@@ -3846,17 +4603,17 @@ function renderSideView() {
 
   // ── Legend ────────────────────────────────────────────────────────────────
   const legend = [
-    { col: "rgba(180,120,60,0.85)", lbl: "Ground RL" },
-    { col: "hsl(233,100%,65%)", lbl: "Formation RL" },
-    { col: "rgba(34,139,69,0.5)", lbl: "Embankment (Fill)" },
-    { col: "rgba(180,44,50,0.5)", lbl: "Cut Section" },
-    { col: "rgba(99,163,255,0.8)", lbl: "Bridge / Viaduct / Tunnel" },
-    { col: "rgba(34,211,238,0.7)", lbl: "Station" },
+    { col: lightMode ? "rgba(120,72,35,0.9)" : "rgba(180,120,60,0.85)", lbl: "Ground RL" },
+    { col: lightMode ? "rgba(37,99,235,0.9)" : "hsl(233,100%,65%)", lbl: "Formation RL" },
+    { col: lightMode ? "rgba(34,197,94,0.45)" : "rgba(34,139,69,0.5)", lbl: "Embankment (Fill)" },
+    { col: lightMode ? "rgba(239,68,68,0.45)" : "rgba(180,44,50,0.5)", lbl: "Cut Section" },
+    { col: lightMode ? "rgba(37,99,235,0.9)" : "rgba(99,163,255,0.8)", lbl: "Bridge / Viaduct / Tunnel" },
+    { col: lightMode ? "rgba(14,116,144,0.7)" : "rgba(34,211,238,0.7)", lbl: "Station" },
   ];
   ctx.font = "10px Outfit,sans-serif"; let lx = PAD_L;
   for (const item of legend) {
     ctx.fillStyle = item.col; ctx.fillRect(lx, 8, 12, 12);
-    ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.textAlign = "left";
+    ctx.fillStyle = lightMode ? "rgba(15,23,42,0.7)" : "rgba(255,255,255,0.7)"; ctx.textAlign = "left";
     ctx.fillText(item.lbl, lx + 15, 19);
     lx += 15 + ctx.measureText(item.lbl).width + 14;
     if (lx > canvasW - 80) break;
@@ -3896,36 +4653,436 @@ function renderSideView() {
   };
 }
 
+function syncRollFilterSelect() {
+  if (!els.rollFilterSelect) return;
+  els.rollFilterSelect.value = state.settings.rollFilter || "all";
+}
+
 function buildSettingsInputs() {
-  els.settingsGrid.innerHTML = settingSchema.map(([key, label]) => {
-    if (key === "activeSqCategory") {
-      const current = Math.min(3, Math.max(1, Math.round(safeNum(state.settings[key], 3))));
-      return `
-        <label>
-          ${label}
-          <select name="${key}" required>
-            <option value="1" ${current === 1 ? "selected" : ""}>SQ1</option>
-            <option value="2" ${current === 2 ? "selected" : ""}>SQ2</option>
-            <option value="3" ${current === 3 ? "selected" : ""}>SQ3</option>
-          </select>
-        </label>
-      `;
-    }
-    return `
+  if (els.profileGrid) {
+    const profile = state.project?.profile || {};
+    els.profileGrid.innerHTML = `
       <label>
-        ${label}
-        <input type="number" step="0.001" name="${key}" value="${r3(state.settings[key])}" required />
+        <span class="lbl-text">Corridor Name</span>
+        <input type="text" name="corridorName" value="${escapeAttr(profile.corridorName || "")}" />
+      </label>
+      <label>
+        <span class="lbl-text">Direction</span>
+        <select name="direction">
+          <option value="Up" ${profile.direction === "Up" ? "selected" : ""}>Up</option>
+          <option value="Down" ${profile.direction === "Down" ? "selected" : ""}>Down</option>
+        </select>
+      </label>
+      <label>
+        <span class="lbl-text">Chainage Zero Reference</span>
+        <input type="text" name="chainageZeroRef" value="${escapeAttr(profile.chainageZeroRef || "")}" placeholder="e.g. Nashik Yard 0+000" />
       </label>
     `;
-  }).join("");
+  }
+
+  if (els.standardsGrid) {
+    const gauge = state.settings.gauge || "BG";
+    const formationPreset = state.settings.formationPreset || "single";
+    const slopePreset = state.settings.slopePreset || "default";
+    els.standardsGrid.innerHTML = `
+      <label>
+        <span class="lbl-text">Gauge</span>
+        <select name="gauge">
+          <option value="BG" ${gauge === "BG" ? "selected" : ""}>Broad Gauge (1676 mm)</option>
+          <option value="SG" ${gauge === "SG" ? "selected" : ""}>Standard Gauge (1435 mm)</option>
+          <option value="MG" ${gauge === "MG" ? "selected" : ""}>Metre Gauge (1000 mm)</option>
+        </select>
+      </label>
+      <label>
+        <span class="lbl-text">Formation Preset</span>
+        <select name="formationPreset">
+          <option value="single" ${formationPreset === "single" ? "selected" : ""}>Single Line</option>
+          <option value="double" ${formationPreset === "double" ? "selected" : ""}>Double Line</option>
+          <option value="custom" ${formationPreset === "custom" ? "selected" : ""}>Custom</option>
+        </select>
+      </label>
+      <label>
+        <span class="lbl-text">Slope Preset (H:V)</span>
+        <select name="slopePreset">
+          <option value="default" ${slopePreset === "default" ? "selected" : ""}>Default (1:2.0)</option>
+          <option value="1.5" ${slopePreset === "1.5" ? "selected" : ""}>1:1.5</option>
+          <option value="2" ${slopePreset === "2" ? "selected" : ""}>1:2.0</option>
+          <option value="2.5" ${slopePreset === "2.5" ? "selected" : ""}>1:2.5</option>
+          <option value="3" ${slopePreset === "3" ? "selected" : ""}>1:3.0</option>
+        </select>
+      </label>
+      <label>
+        <span class="lbl-text">Berm 1 at Height (m)</span>
+        <input type="number" step="0.1" name="bermRulePrimary" value="${r3(state.settings.bermRulePrimary)}" />
+      </label>
+      <label>
+        <span class="lbl-text">Berm 2 at Height (m)</span>
+        <input type="number" step="0.1" name="bermRuleSecondary" value="${r3(state.settings.bermRuleSecondary)}" />
+      </label>
+    `;
+  }
+
+  if (els.qualityGrid) {
+    els.qualityGrid.innerHTML = `
+      <label>
+        <span class="lbl-text">Minimum Track Centre (m)</span>
+        <input type="number" step="0.1" name="minTc" value="${r3(state.settings.minTc)}" />
+      </label>
+      <label>
+        <span class="lbl-text">Minimum Platform Width (m)</span>
+        <input type="number" step="0.1" name="minPlatformWidth" value="${r3(state.settings.minPlatformWidth)}" />
+      </label>
+      <label>
+        <span class="lbl-text">Minimum Clearance (m)</span>
+        <input type="number" step="0.1" name="minClearance" value="${r3(state.settings.minClearance)}" />
+      </label>
+    `;
+  }
+
+  if (els.settingsGrid) {
+    els.settingsGrid.innerHTML = settingSchema.map(([key, label]) => {
+      if (key === "activeSqCategory") {
+        const current = Math.min(3, Math.max(1, Math.round(safeNum(state.settings[key], 3))));
+        return `
+          <label>
+            <span class="lbl-text">${label}</span>
+            <select name="${key}" required>
+              <option value="1" ${current === 1 ? "selected" : ""}>SQ1</option>
+              <option value="2" ${current === 2 ? "selected" : ""}>SQ2</option>
+              <option value="3" ${current === 3 ? "selected" : ""}>SQ3</option>
+            </select>
+          </label>
+        `;
+      }
+      return `
+        <label>
+          <span class="lbl-text">${label}</span>
+          <input type="number" step="0.001" name="${key}" value="${r3(state.settings[key])}" required />
+        </label>
+      `;
+    }).join("");
+  }
+
+  if (els.materialProfileGrid) {
+    const rows = Array.isArray(state.settings.materialProfile) ? state.settings.materialProfile : [];
+    els.materialProfileGrid.innerHTML = `
+      <table class="bridge-table">
+        <thead>
+          <tr>
+            <th>Layer Depth (m)</th>
+            <th>Density (t/m³)</th>
+            <th>Shrink (%)</th>
+            <th>Swell (%)</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((r, i) => `
+            <tr>
+              <td><input data-mp-field="depth" data-mp-index="${i}" value="${r3(r.depth)}" /></td>
+              <td><input data-mp-field="density" data-mp-index="${i}" value="${r3(r.density)}" /></td>
+              <td><input data-mp-field="shrink" data-mp-index="${i}" value="${r3(r.shrink)}" /></td>
+              <td><input data-mp-field="swell" data-mp-index="${i}" value="${r3(r.swell)}" /></td>
+              <td><button type="button" class="bridge-del" data-mp-del="${i}">Delete</button></td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+      <button type="button" class="btn btn-secondary" id="addMaterialRowBtn" style="margin-top:10px;">Add Layer</button>
+    `;
+  }
+
+  const openStationLayout = () => {
+    if (!els.stationLayoutModal) return;
+    const stations = getStationChoices();
+    if (els.stationLayoutSelect) {
+      els.stationLayoutSelect.innerHTML = stations.map((s) => `<option value="${escapeAttr(s)}">${escapeHtml(s)}</option>`).join("");
+    }
+    if (stations.length) {
+      buildStationLayoutList(stations[0]);
+    } else {
+      if (els.stationLayoutList) els.stationLayoutList.innerHTML = '<p class="muted">No stations found. Import loops first.</p>';
+    }
+    els.stationLayoutModal.showModal();
+  };
+  if (els.openStationLayoutBtn) {
+    els.openStationLayoutBtn.addEventListener("click", openStationLayout);
+  }
+  if (els.openStationLayoutInlineBtn) {
+    els.openStationLayoutInlineBtn.addEventListener("click", openStationLayout);
+  }
+  if (els.openOverridesBtn && els.overridesModal) {
+    els.openOverridesBtn.addEventListener("click", () => {
+      renderOverrideTable();
+      els.overridesModal.showModal();
+    });
+  }
+  if (els.closeOverridesBtn) {
+    els.closeOverridesBtn.addEventListener("click", () => els.overridesModal?.close());
+  }
+  if (els.addOverrideBtn) {
+    els.addOverrideBtn.addEventListener("click", () => {
+      state.calcOverrides = [...(state.calcOverrides || []), { startCh: 0, endCh: 0, type: "", bank: NaN, cut: NaN, slope: NaN }];
+      renderOverrideTable();
+    });
+  }
+  if (els.overrideTableBody) {
+    els.overrideTableBody.addEventListener("click", (e) => {
+      const del = e.target.closest("[data-ov-del]");
+      if (del) {
+        const idx = Number(del.dataset.ovDel);
+        if (Number.isFinite(idx)) {
+          state.calcOverrides = (state.calcOverrides || []).filter((_, i) => i !== idx);
+          renderOverrideTable();
+        }
+      }
+    });
+  }
+  if (els.applyOverridesBtn) {
+    els.applyOverridesBtn.addEventListener("click", () => {
+      syncOverridesFromTable();
+      recalculate();
+      els.overridesModal?.close();
+    });
+  }
+  if (els.openSlopeZonesBtn && els.slopeZonesModal) {
+    els.openSlopeZonesBtn.addEventListener("click", () => {
+      renderSlopeZoneTable();
+      els.slopeZonesModal.showModal();
+    });
+  }
+  if (els.openBermRulesBtn) {
+    els.openBermRulesBtn.addEventListener("click", () => {
+      els.standardsGrid?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+  if (els.openQualityBtn && els.qualityModal) {
+    els.openQualityBtn.addEventListener("click", () => {
+      renderQualityChecks();
+      els.qualityModal.showModal();
+    });
+  }
+  if (els.closeQualityBtn) {
+    els.closeQualityBtn.addEventListener("click", () => els.qualityModal?.close());
+  }
+  if (els.downloadBoqBtn) {
+    els.downloadBoqBtn.addEventListener("click", () => {
+      exportBoqCsv();
+    });
+  }
+  if (els.exportExcelBtn) {
+    els.exportExcelBtn.addEventListener("click", () => {
+      exportCalculationExcel();
+    });
+  }
+  if (els.rollFilterSelect) {
+    els.rollFilterSelect.addEventListener("change", () => {
+      state.settings.rollFilter = String(els.rollFilterSelect.value || "all");
+      renderRollDiagram();
+      renderSideView();
+    });
+  }
+  if (els.closeSlopeZonesBtn) {
+    els.closeSlopeZonesBtn.addEventListener("click", () => els.slopeZonesModal?.close());
+  }
+  if (els.addSlopeZoneBtn) {
+    els.addSlopeZoneBtn.addEventListener("click", () => {
+      state.slopeZones = [...(state.slopeZones || []), { startCh: 0, endCh: 0, slope: state.settings.sideSlopeFactor }];
+      renderSlopeZoneTable();
+    });
+  }
+  if (els.slopeZoneTableBody) {
+    els.slopeZoneTableBody.addEventListener("click", (e) => {
+      const del = e.target.closest("[data-sz-del]");
+      if (del) {
+        const idx = Number(del.dataset.szDel);
+        if (Number.isFinite(idx)) {
+          state.slopeZones = (state.slopeZones || []).filter((_, i) => i !== idx);
+          renderSlopeZoneTable();
+        }
+      }
+    });
+  }
+  if (els.applySlopeZonesBtn) {
+    els.applySlopeZonesBtn.addEventListener("click", () => {
+      syncSlopeZonesFromTable();
+      recalculate();
+      els.slopeZonesModal?.close();
+    });
+  }
+  if (els.closeStationLayoutBtn) {
+    els.closeStationLayoutBtn.addEventListener("click", () => els.stationLayoutModal?.close());
+  }
+  if (els.stationLayoutSelect) {
+    els.stationLayoutSelect.addEventListener("change", () => {
+      buildStationLayoutList(els.stationLayoutSelect.value);
+    });
+  }
+  if (els.stationLayoutList) {
+    els.stationLayoutList.addEventListener("click", (e) => {
+      const item = e.target.closest(".layout-item");
+      if (!item) return;
+      if (e.target?.hasAttribute("data-layout-up")) {
+        const prev = item.previousElementSibling;
+        if (prev) item.parentElement.insertBefore(item, prev);
+      }
+      if (e.target?.hasAttribute("data-layout-down")) {
+        const next = item.nextElementSibling;
+        if (next) item.parentElement.insertBefore(next, item);
+      }
+    });
+    els.stationLayoutList.addEventListener("dragstart", (e) => {
+      const item = e.target.closest(".layout-item");
+      if (!item) return;
+      item.classList.add("dragging");
+      e.dataTransfer.setData("text/plain", item.dataset.rowIndex || "");
+    });
+    els.stationLayoutList.addEventListener("dragend", (e) => {
+      const item = e.target.closest(".layout-item");
+      if (item) item.classList.remove("dragging");
+    });
+    els.stationLayoutList.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      const dragging = els.stationLayoutList.querySelector(".layout-item.dragging");
+      const target = e.target.closest(".layout-item");
+      if (!dragging || !target || dragging === target) return;
+      const rect = target.getBoundingClientRect();
+      const after = (e.clientY - rect.top) > rect.height / 2;
+      els.stationLayoutList.insertBefore(dragging, after ? target.nextSibling : target);
+    });
+  }
+  if (els.saveStationLayoutBtn) {
+    els.saveStationLayoutBtn.addEventListener("click", () => {
+      if (!els.stationLayoutList || !els.stationLayoutSelect) return;
+      const items = Array.from(els.stationLayoutList.querySelectorAll(".layout-item"));
+      items.forEach((el, idx) => {
+        const rowIndex = Number(el.dataset.rowIndex);
+        if (Number.isFinite(rowIndex) && state.loopPlatformRows[rowIndex]) {
+          state.loopPlatformRows[rowIndex].order = idx;
+          const sideSel = el.querySelector("[data-layout-side]");
+          const tcInput = el.querySelector("[data-layout-tc]");
+          const pfInput = el.querySelector("[data-layout-pf]");
+          if (sideSel) state.loopPlatformRows[rowIndex].side = String(sideSel.value || "").trim();
+          if (tcInput && !tcInput.disabled) {
+            state.loopPlatformRows[rowIndex].tc = safeNum(tcInput.value, state.loopPlatformRows[rowIndex].tc);
+          }
+          if (pfInput && !pfInput.disabled) {
+            state.loopPlatformRows[rowIndex].pfWidth = safeNum(pfInput.value, state.loopPlatformRows[rowIndex].pfWidth);
+          }
+        }
+      });
+      renderLoopInputs();
+      recalculate();
+      els.stationLayoutModal?.close();
+    });
+  }
+
+  if (els.visualGrid) {
+    els.visualGrid.innerHTML = `
+      <label class="toggle-row"><span>Show Rails</span><input type="checkbox" class="toggle-input" name="showRails" ${state.settings.showRails ? "checked" : ""} /></label>
+      <label class="toggle-row"><span>Show Platforms</span><input type="checkbox" class="toggle-input" name="showPlatforms" ${state.settings.showPlatforms ? "checked" : ""} /></label>
+      <label class="toggle-row"><span>Show Drains</span><input type="checkbox" class="toggle-input" name="showDrains" ${state.settings.showDrains ? "checked" : ""} /></label>
+      <label class="toggle-row"><span>Show Labels</span><input type="checkbox" class="toggle-input" name="showLabels" ${state.settings.showLabels ? "checked" : ""} /></label>
+      <label>Roll Diagram Filter
+        <select name="rollFilter">
+          <option value="all" ${state.settings.rollFilter === "all" ? "selected" : ""}>All Lines</option>
+          <option value="main" ${state.settings.rollFilter === "main" ? "selected" : ""}>Main Line Only</option>
+          <option value="stations" ${state.settings.rollFilter === "stations" ? "selected" : ""}>Stations Only</option>
+        </select>
+      </label>
+    `;
+  }
+
+  if (els.mapGrid) {
+    els.mapGrid.innerHTML = `
+      <label class="toggle-row"><span>Station Pins</span><input type="checkbox" class="toggle-input" name="showMapStations" ${state.settings.showMapStations ? "checked" : ""} /></label>
+      <label class="toggle-row"><span>Bridge Pins</span><input type="checkbox" class="toggle-input" name="showMapBridges" ${state.settings.showMapBridges ? "checked" : ""} /></label>
+      <label class="toggle-row"><span>Curve Pins</span><input type="checkbox" class="toggle-input" name="showMapCurves" ${state.settings.showMapCurves ? "checked" : ""} /></label>
+    `;
+  }
+
+  if (els.boqGrid) {
+    const mapping = state.settings.boqMapping || {};
+    els.boqGrid.innerHTML = `
+      <label>Range Column
+        <input type="text" name="boqRange" value="${escapeAttr(mapping.range || "")}" />
+      </label>
+      <label>Prepared Column
+        <input type="text" name="boqPrepared" value="${escapeAttr(mapping.prepared || "")}" />
+      </label>
+      <label>Blanket Column
+        <input type="text" name="boqBlanket" value="${escapeAttr(mapping.blanket || "")}" />
+      </label>
+      <label>Fill Column
+        <input type="text" name="boqFill" value="${escapeAttr(mapping.fill || "")}" />
+      </label>
+      <label>Cut Column
+        <input type="text" name="boqCut" value="${escapeAttr(mapping.cut || "")}" />
+      </label>
+    `;
+  }
+  syncRollFilterSelect();
 }
 
 function applySettingsFromForm() {
   const fd = new FormData(els.settingsForm);
+  state.project.profile = {
+    corridorName: String(fd.get("corridorName") || "").trim(),
+    direction: String(fd.get("direction") || "Up"),
+    chainageZeroRef: String(fd.get("chainageZeroRef") || "").trim(),
+  };
+  const gauge = String(fd.get("gauge") || "BG");
+  const formationPreset = String(fd.get("formationPreset") || "single");
+  const slopePreset = String(fd.get("slopePreset") || "default");
+  state.settings.gauge = gauge;
+  state.settings.formationPreset = formationPreset;
+  state.settings.slopePreset = slopePreset;
+  state.settings.bermRulePrimary = safeNum(fd.get("bermRulePrimary"), state.settings.bermRulePrimary);
+  state.settings.bermRuleSecondary = safeNum(fd.get("bermRuleSecondary"), state.settings.bermRuleSecondary);
+  state.settings.minTc = safeNum(fd.get("minTc"), state.settings.minTc);
+  state.settings.minPlatformWidth = safeNum(fd.get("minPlatformWidth"), state.settings.minPlatformWidth);
+  state.settings.minClearance = safeNum(fd.get("minClearance"), state.settings.minClearance);
   for (const [k] of settingSchema) {
     state.settings[k] = safeNum(fd.get(k), state.settings[k]);
   }
+  state.settings.showRails = fd.get("showRails") === "on";
+  state.settings.showPlatforms = fd.get("showPlatforms") === "on";
+  state.settings.showDrains = fd.get("showDrains") === "on";
+  state.settings.showLabels = fd.get("showLabels") === "on";
+  state.settings.rollFilter = String(fd.get("rollFilter") || "all");
+  state.settings.showMapStations = fd.get("showMapStations") === "on";
+  state.settings.showMapBridges = fd.get("showMapBridges") === "on";
+  state.settings.showMapCurves = fd.get("showMapCurves") === "on";
+  state.settings.boqMapping = {
+    range: String(fd.get("boqRange") || state.settings.boqMapping?.range || "").trim(),
+    prepared: String(fd.get("boqPrepared") || state.settings.boqMapping?.prepared || "").trim(),
+    blanket: String(fd.get("boqBlanket") || state.settings.boqMapping?.blanket || "").trim(),
+    fill: String(fd.get("boqFill") || state.settings.boqMapping?.fill || "").trim(),
+    cut: String(fd.get("boqCut") || state.settings.boqMapping?.cut || "").trim(),
+  };
+  syncRollFilterSelect();
+
+  if (formationPreset !== "custom") {
+    if (formationPreset === "single") {
+      state.settings.formationWidthFill = 7.85;
+      state.settings.cuttingWidth = 12.05;
+    } else if (formationPreset === "double") {
+      state.settings.formationWidthFill = 12.05;
+      state.settings.cuttingWidth = 16.5;
+    }
+  }
+  if (slopePreset !== "default") {
+    const slopeVal = parseLooseNumber(slopePreset, NaN);
+    if (Number.isFinite(slopeVal)) state.settings.sideSlopeFactor = slopeVal;
+  }
+
+  syncMaterialProfileFromGrid();
   recalculate();
+  if (typeof drawAlignmentMap === "function" && state.kmlData) {
+    drawAlignmentMap();
+  }
+  renderRollDiagram();
+  renderSideView();
 }
 
 function updateCrossSectionNav() {
@@ -3937,18 +5094,34 @@ function updateCrossSectionNav() {
   }
 }
 
+function ensureCrossSectionModalOpen() {
+  if (!els.crossSectionModal) return;
+  if (els.crossSectionModal.open) return;
+  try {
+    els.crossSectionModal.showModal();
+  } catch (error) {
+    els.crossSectionModal.setAttribute("open", "");
+  }
+}
+
 function openCrossSectionByIndex(index) {
   if (!Number.isFinite(index)) return;
   const boundedIndex = Math.max(0, Math.min(Math.trunc(index), state.calcRows.length - 1));
   const row = state.calcRows[boundedIndex];
   if (!row) return;
-  if (row.type === "BRIDGE" || row.ewDiff <= 0.001) {
-    state.currentCrossIndex = boundedIndex;
-    drawCrossSection(row);
-    return;
-  }
   state.currentCrossIndex = boundedIndex;
-  drawCrossSection(row);
+  try {
+    drawCrossSection(row);
+  } catch (error) {
+    console.error("Cross-section render failed:", error);
+    if (els.crossSvg) {
+      els.crossSvg.innerHTML = `
+        <rect x="-120000" y="-120000" width="240000" height="240000" fill="#f8fcff" />
+        <text x="${CROSS_SVG_W / 2}" y="${CROSS_SVG_H / 2}" text-anchor="middle" fill="#1f2e3a" font-size="16" font-weight="700">Cross-section render failed</text>
+      `;
+    }
+    ensureCrossSectionModalOpen();
+  }
 }
 
 function drawCrossSection(row, targetEl = els.crossSvg) {
@@ -3985,6 +5158,10 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     return;
   }
   const s = state.settings;
+  const showRails = s.showRails !== false;
+  const showPlatforms = s.showPlatforms !== false;
+  const showDrains = s.showDrains !== false;
+  const showLabels = s.showLabels !== false;
   const fl = row.proposedLevel;
   const gl = row.groundLevel;
   const topWidthM = Math.max(safeNum(row.topWidth), 0) || safeNum(s.formationWidthFill);
@@ -4110,7 +5287,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
         <tr><th>Ballast Bottom Width (Each Track)</th><td>6.10 m</td></tr>
         <tr><th>Ballast Height</th><td>0.35 m</td></tr>
         <tr><th>Berm Width (Each Berm)</th><td>${fmtDim(s.bermWidth)}</td></tr>
-        <tr><th>Berms per Side (Drawing)</th><td>${row.bank >= 8 ? 2 : (row.bank >= 4 ? 1 : 0)}</td></tr>
+        <tr><th>Berms per Side (Drawing)</th><td>${row.bank >= safeNum(s.bermRuleSecondary, 8) ? 2 : (row.bank >= safeNum(s.bermRulePrimary, 4) ? 1 : 0)}</td></tr>
         <tr><th>Bottom Width (Fill)</th><td>${r3(row.fillBottom)} m</td></tr>
         <tr><th>Bottom Width (Cut)</th><td>${r3(row.cutBottom)} m</td></tr>
         <tr><th>Embankment Height</th><td>${r3(row.bank)} m</td></tr>
@@ -4132,10 +5309,12 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   const centerX = svgW / 2;
   const layerTotalM = ballastThickness + blanketRuleThickness + topLayerThickness;
   const halfTopM = drawTopWidthM / 2;
-  const slopeHV = 2; // 2:1 slopes per requirement
+  const slopeHV = safeNum(row.slopeFactor, s.sideSlopeFactor || 2);
   const fillRunM = row.bank * slopeHV;
   const cutRunM = row.cut * slopeHV;
-  const fillBermCount = row.bank >= 8 ? 2 : (row.bank >= 4 ? 1 : 0);
+  const bermPrimary = safeNum(s.bermRulePrimary, 4);
+  const bermSecondary = safeNum(s.bermRuleSecondary, 8);
+  const fillBermCount = row.bank >= bermSecondary ? 2 : (row.bank >= bermPrimary ? 1 : 0);
   const fillBermExtraM = row.bank > 0 ? (fillBermCount * safeNum(s.bermWidth, 0)) : 0;
   const halfBottomM = Math.max(halfTopM + fillRunM + fillBermExtraM, (row.fillBottom / 2) + fillBermExtraM, halfTopM);
   const halfCutM = Math.max(halfTopM + cutRunM, row.cutBottom / 2, s.cuttingWidth / 2);
@@ -4289,9 +5468,9 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
       ${buildRail(trackCenterX + (railGaugePx / 2))}
     `;
   };
-  const trackAssembly = trackCentersX
-    .map((track) => buildTrackAssembly(track.x, track.isMain))
-    .join("");
+  const trackAssembly = showRails
+    ? trackCentersX.map((track) => buildTrackAssembly(track.x, track.isMain)).join("")
+    : "";
   const getPlatformTopOffsetM = (remarks) => {
     const text = String(remarks || "").toLowerCase();
     if (/goods|goods\s*platform/.test(text)) return 1.065;
@@ -4301,9 +5480,9 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   };
   const buildPlatformRect = (x0, widthPx, label, platformTopY, platformHeightPx) => `
     <rect x="${x0}" y="${platformTopY}" width="${Math.max(widthPx, 8)}" height="${platformHeightPx}" rx="4" fill="url(#platformHatch)" stroke="#b45309" stroke-width="1.4" />
-    <text x="${x0 + 4}" y="${platformTopY - 6}" fill="#b45309" font-size="11" font-weight="700">${label}</text>
+    ${showLabels ? `<text x="${x0 + 4}" y="${platformTopY - 6}" fill="#b45309" font-size="11" font-weight="700">${label}</text>` : ""}
   `;
-  const platformShapes = sequenceLayout ? (() => {
+  const platformShapes = showPlatforms ? (sequenceLayout ? (() => {
     const ordered = sequenceLayout.orderedItems || [];
     const shapes = [];
     const findNeighborTrack = (startIndex, step) => {
@@ -4428,9 +5607,9 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
       }
       return shapes.join("");
     }).join("");
-  })();
+  })()) : "";
   const trackCentersSorted = [...trackCentersX].sort((a, b) => a.x - b.x);
-  const trackCenterDims = trackCentersSorted
+  const trackCenterDims = showLabels ? trackCentersSorted
     .slice(1)
     .map((track, index) => {
       const prev = trackCentersSorted[index];
@@ -4441,7 +5620,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
         ${drawDim(prev.x, track.x, dimY, `TC ${r3(Math.abs(track.offset - prev.offset))} m`)}
       `;
     })
-    .join("");
+    .join("") : "";
 
   if (row.bank > 0) {
     const halfBlanketBottom = halfTop + (blanketHDraw * slopeHV);
@@ -4510,13 +5689,14 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
       ${buildUDrain(formLeft, formLeft - drainW)}
       ${buildUDrain(formRight, formRight + drainW)}
     `;
+    if (!showDrains) drainOverlays = "";
 
     // Catch Water Drains on Berms (approx 0.5m x 0.5m based on image)
     const cwDrainW = 0.5 * pxPerM;
     const cwDrainH = 0.5 * pxPerM;
 
     // Calculate berms going UP the cut
-    const bermCount = row.cut >= 8 ? 2 : (row.cut >= 4 ? 1 : 0);
+    const bermCount = row.cut >= bermSecondary ? 2 : (row.cut >= bermPrimary ? 1 : 0);
     const bermFractions = bermCount === 2 ? [0.35, 0.72] : (bermCount === 1 ? [0.58] : []);
 
     let currentHeight = 0;
@@ -4569,10 +5749,10 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     // Close polygon
     const polyPts = [...leftPts.reverse(), ...rightPts].map((p) => `${p.x},${p.y}`).join(" ");
     cutPoly = `<polygon points="${polyPts}" fill="#f0e2e2" stroke="#8a6f72" />`;
-    berms = bermDimSnippets.join("");
+    berms = showLabels ? bermDimSnippets.join("") : "";
 
   } else if (row.bank > 0) {
-    const bermCount = row.bank >= 8 ? 2 : (row.bank >= 4 ? 1 : 0);
+    const bermCount = row.bank >= bermSecondary ? 2 : (row.bank >= bermPrimary ? 1 : 0);
     const bermFractions = bermCount === 2 ? [0.35, 0.72] : (bermCount === 1 ? [0.58] : []);
     const leftPts = [{ x: centerX - halfTop, y: topY }];
     const rightPts = [{ x: centerX + halfTop, y: topY }];
@@ -4616,7 +5796,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     toeBaseY = toeY;
     const polyPts = [...leftPts, ...rightPts.reverse()].map((p) => `${p.x},${p.y}`).join(" ");
     fillPoly = `<polygon points="${polyPts}" fill="url(#embFillHatch)" stroke="#69786a" />`;
-    berms = bermDimSnippets.join("");
+    berms = showLabels ? bermDimSnippets.join("") : "";
   }
 
   const segLeftOuter = 1.2;
@@ -4652,7 +5832,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     { fill: "#f5eecf", stroke: layerCalloutStyles.blanket.stroke, text: `Blanket (${sqName}) ${r3(blanketRuleThickness)} m` },
     { fill: "#edd6bf", stroke: layerCalloutStyles.topLayer.stroke, text: `Top Layer Fill ${r3(topLayerEffectiveThickness)} m` },
   ];
-  const layerLegend = `
+  const layerLegend = showLabels ? `
     <g>
       <rect x="${layerLegendX - 12}" y="${layerLegendY - 26}" width="270" height="${layerLegendItems.length * 28 + 18}" rx="14" fill="rgba(255,255,255,0.92)" stroke="#d7e0e8" />
       <text x="${layerLegendX}" y="${layerLegendY - 6}" fill="#223240" font-size="13" font-weight="700">Layer Legend</text>
@@ -4664,7 +5844,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
         `;
       }).join("")}
     </g>
-  `;
+  ` : "";
   const trackLegendX = 46;
   const trackLegendY = layerLegendY + (layerLegendItems.length * 28) + 34;
   const trackLegendItems = [
@@ -4672,7 +5852,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     { fill: "#838d99", stroke: "#42505d", text: "Sleeper" },
     { fill: "#c0392b", stroke: "#42505d", text: "Main Line Sleeper" },
   ];
-  const trackLegend = `
+  const trackLegend = showLabels && showRails ? `
     <g>
       <rect x="${trackLegendX - 12}" y="${trackLegendY - 26}" width="180" height="${trackLegendItems.length * 28 + 18}" rx="14" fill="rgba(255,255,255,0.92)" stroke="#d7e0e8" />
       <text x="${trackLegendX}" y="${trackLegendY - 6}" fill="#223240" font-size="13" font-weight="700">Track Legend</text>
@@ -4684,8 +5864,8 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
         `;
       }).join("")}
     </g>
-  `;
-  const slopeLabels = row.bank > 0
+  ` : "";
+  const slopeLabels = showLabels && row.bank > 0
     ? `
       <text x="${leftToeX - 46}" y="${topY + Math.max(fillH * 0.55, 24)}" fill="#2f4d6a" font-size="12" font-weight="700">1:${r3(slopeHV)}</text>
       <text x="${rightToeX + 16}" y="${topY + Math.max(fillH * 0.55, 24)}" fill="#2f4d6a" font-size="12" font-weight="700">1:${r3(slopeHV)}</text>
@@ -4703,7 +5883,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     const x = svgW - 260;
     return `<text x="${x}" y="${y}" fill="#2b3f52" font-size="12" font-weight="700">${txt}</text>`;
   }).join("");
-  const levelCard = (() => {
+  const levelCard = showLabels ? (() => {
     const cardX = svgW - 330;
     const cardY = 48;
     const padding = 12;
@@ -4726,14 +5906,27 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
         ${lineTexts}
       </g>
     `;
-  })();
+  })() : "";
   const demarcRightX = svgW - 210;
   const glLeftX = centerX - 520;
   const hflLeftX = centerX - 410;
   const toeDimY = Math.max(groundY + 70, toeBaseY + 60);
   const toeSpanM = Math.abs(toeRightX - toeLeftX) / pxPerM;
   const toeDimLabel = `${r3(toeSpanM)} m`;
-  const sequenceDebugOverlay = sequenceLayout ? (() => {
+  const formationDim = showLabels ? drawDim(centerX - halfTop, centerX + halfTop, trackTopY - 52, `${r3(drawTopWidthM)} m`) : "";
+  const toeDimLines = showLabels ? `
+    <line x1="${toeLeftX}" y1="${toeBaseY}" x2="${toeLeftX}" y2="${toeDimY - 6}" stroke="#53718b" stroke-dasharray="4 4" />
+    <line x1="${toeRightX}" y1="${toeBaseY}" x2="${toeRightX}" y2="${toeDimY - 6}" stroke="#53718b" stroke-dasharray="4 4" />
+    ${drawDim(toeLeftX, toeRightX, toeDimY, toeDimLabel)}
+  ` : "";
+  const topFormationLabel = showLabels ? `<text x="${centerX + halfTop + 16}" y="${topY - 2}" fill="#253748" font-size="14" font-weight="700">Top of Formation</text>` : "";
+  const naturalLabel = showLabels ? `<text x="${centerX - 95}" y="${groundY + 86}" fill="#3f4a55" font-size="13">Natural Ground / Subsoil</text>` : "";
+  const crossTitleLabel = showLabels ? `<text x="42" y="40" fill="#1f2e3a" font-size="16" font-weight="700">Cross Section of Track</text>` : "";
+  const bodyLabelBlock = showLabels ? `
+    <text x="${centerX - 130}" y="${bodyYRef + 26}" fill="#344553" font-size="13" font-weight="700">${bodyLabel}</text>
+    <text x="${centerX - 132}" y="${bodyYRef + 42}" fill="#344553" font-size="12">${bodySubLabel}</text>
+  ` : "";
+  const sequenceDebugOverlay = showLabels && sequenceLayout ? (() => {
     const stationLabel = row.stationName || row.station || "";
     const header = `Sequence Debug${stationLabel ? `: ${stationLabel}` : ""}`;
     const lines = (sequenceLayout.orderedItems || []).map((item) => {
@@ -4776,10 +5969,10 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   targetEl.innerHTML = `
     <rect x="-120000" y="-120000" width="240000" height="240000" fill="#f8fcff" />
     <line x1="${glLeftX}" y1="${groundY}" x2="${demarcRightX}" y2="${groundY}" stroke="#5d6b77" stroke-dasharray="8 7" stroke-width="1.8" />
-    <text x="${demarcRightX + 18}" y="${groundY - 7}" fill="#374b5d" font-size="13" font-weight="700">G.L.</text>
+    ${showLabels ? `<text x="${demarcRightX + 18}" y="${groundY - 7}" fill="#374b5d" font-size="13" font-weight="700">G.L.</text>` : ""}
     <line x1="${hflLeftX}" y1="${hflY}" x2="${demarcRightX}" y2="${hflY}" stroke="#6d7680" stroke-dasharray="12 8" stroke-width="1.4" />
-    <text x="${demarcRightX + 18}" y="${hflY - 7}" fill="#4f5f6d" font-size="12">H.F.L.</text>
-    <text x="${centerX - 95}" y="${groundY + 86}" fill="#3f4a55" font-size="13">Natural Ground / Subsoil</text>
+    ${showLabels ? `<text x="${demarcRightX + 18}" y="${hflY - 7}" fill="#4f5f6d" font-size="12">H.F.L.</text>` : ""}
+    ${naturalLabel}
     ${fillPoly}
     ${cutPoly}
     ${drainOverlays}
@@ -4788,23 +5981,20 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     ${platformShapes}
     ${trackAssembly}
     <line x1="${centerX - halfTop}" y1="${topY}" x2="${centerX + halfTop}" y2="${topY}" stroke="#2e3b49" stroke-width="2.4" />
-    <text x="${centerX + halfTop + 16}" y="${topY - 2}" fill="#253748" font-size="14" font-weight="700">Top of Formation</text>
-    ${drawDim(centerX - halfTop, centerX + halfTop, trackTopY - 52, `${r3(drawTopWidthM)} m`)}
+    ${topFormationLabel}
+    ${formationDim}
     ${trackCenterDims}
-    <line x1="${toeLeftX}" y1="${toeBaseY}" x2="${toeLeftX}" y2="${toeDimY - 6}" stroke="#53718b" stroke-dasharray="4 4" />
-    <line x1="${toeRightX}" y1="${toeBaseY}" x2="${toeRightX}" y2="${toeDimY - 6}" stroke="#53718b" stroke-dasharray="4 4" />
-    ${drawDim(toeLeftX, toeRightX, toeDimY, toeDimLabel)}
+    ${toeDimLines}
     
     ${layerLegend}
     ${trackLegend}
-    <line x1="${centerX}" y1="${topY}" x2="${centerX}" y2="${centerRef}" stroke="#2f4d6a" stroke-width="1.8" marker-start="url(#arrowSmall)" marker-end="url(#arrowSmall)" />
-    <text x="${centerX + 10}" y="${(topY + centerRef) / 2}" fill="#2f4d6a" font-size="12" font-weight="700">${row.type === "CUTTING" ? `Cut = ${r3(row.cut)} m` : `e = ${r3(row.bank)} m`}</text>
+    ${showLabels ? `<line x1="${centerX}" y1="${topY}" x2="${centerX}" y2="${centerRef}" stroke="#2f4d6a" stroke-width="1.8" marker-start="url(#arrowSmall)" marker-end="url(#arrowSmall)" />` : ""}
+    ${showLabels ? `<text x="${centerX + 10}" y="${(topY + centerRef) / 2}" fill="#2f4d6a" font-size="12" font-weight="700">${row.type === "CUTTING" ? `Cut = ${r3(row.cut)} m` : `e = ${r3(row.bank)} m`}</text>` : ""}
     ${slopeLabels}
-    <text x="${centerX - 130}" y="${bodyYRef + 26}" fill="#344553" font-size="13" font-weight="700">${bodyLabel}</text>
-    <text x="${centerX - 132}" y="${bodyYRef + 42}" fill="#344553" font-size="12">${bodySubLabel}</text>
+    ${bodyLabelBlock}
     ${levelCard}
     ${sequenceDebugOverlay}
-    <text x="42" y="40" fill="#1f2e3a" font-size="16" font-weight="700">Cross Section of Track</text>
+    ${crossTitleLabel}
     <defs>
       <pattern id="embFillHatch" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(20)">
         <rect width="10" height="10" fill="#dfe9de" />
@@ -4821,13 +6011,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
   `;
   if (targetEl === els.crossSvg) {
     resetCrossView();
-    try {
-      if (!els.crossSectionModal.open) {
-        els.crossSectionModal.showModal();
-      }
-    } catch (error) {
-      console.error("Cross-section modal open failed:", error);
-    }
+    ensureCrossSectionModalOpen();
   }
 }
 
@@ -4869,6 +6053,28 @@ function bindEvents() {
     els.themeToggleCheckbox.checked = document.documentElement.classList.contains("light");
   }
 
+  // --- Project Settings Tab Switching ---
+  const settingsTabs = document.querySelectorAll(".settings-tab");
+  const settingsSections = document.querySelectorAll(".settings-section");
+  settingsTabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      // Remove active from all tabs
+      settingsTabs.forEach(t => t.classList.remove("active"));
+      // Hide all sections
+      settingsSections.forEach(s => s.classList.remove("active"));
+      
+      // Activate clicked tab
+      tab.classList.add("active");
+      
+      // Show corresponding section
+      const targetId = `settings-tab-${tab.dataset.settingsTab}`;
+      const targetSection = document.getElementById(targetId);
+      if (targetSection) {
+        targetSection.classList.add("active");
+      }
+    });
+  });
+
   if (els.sidebarToggle && els.appLayout) {
     els.sidebarToggle.addEventListener("click", () => {
       els.appLayout.classList.add("sidebar-collapsed");
@@ -4890,6 +6096,8 @@ function bindEvents() {
         alert("No calculation data available to export.");
         return;
       }
+      if (els.reportSignName) els.reportSignName.value = state.settings.reportBrand?.signName || "";
+      if (els.reportSignTitle) els.reportSignTitle.value = state.settings.reportBrand?.signTitle || "";
       els.exportModal.showModal();
     });
   }
@@ -4898,20 +6106,79 @@ function bindEvents() {
     els.confirmExportBtn.addEventListener("click", () => {
       const rowLimitInput = document.getElementById("exportRowLimit");
       const rowLimit = rowLimitInput ? parseInt(rowLimitInput.value) || 0 : 0;
+      const rangeStartRaw = String(document.getElementById("exportRangeStart")?.value || "").trim();
+      const rangeEndRaw = String(document.getElementById("exportRangeEnd")?.value || "").trim();
+      const rangeStart = rangeStartRaw ? parseChainage(rangeStartRaw) : NaN;
+      const rangeEnd = rangeEndRaw ? parseChainage(rangeEndRaw) : NaN;
+      const exportRange = (Number.isFinite(rangeStart) || Number.isFinite(rangeEnd))
+        ? { start: Number.isFinite(rangeStart) ? rangeStart : NaN, end: Number.isFinite(rangeEnd) ? rangeEnd : NaN }
+        : null;
 
       const options = {
         calcSheet: document.getElementById("includeCalcSheet").checked,
         crossSections: document.getElementById("includeCrossSections").checked,
         rollDiagram: document.getElementById("includeRollDiagram").checked,
-        rowLimit: rowLimit
+        includeProfileSection: document.getElementById("includeProfileSection")?.checked ?? true,
+        includeStandardsSection: document.getElementById("includeStandardsSection")?.checked ?? true,
+        includeMaterialSection: document.getElementById("includeMaterialSection")?.checked ?? false,
+        includeQualitySection: document.getElementById("includeQualitySection")?.checked ?? true,
+        rowLimit: rowLimit,
+        fastMode: document.getElementById("exportFastMode")?.checked ?? false,
+        exportRange,
       };
       els.exportModal.close();
       generateProjectReport(options);
     });
   }
 
+  const exportRangeStart = document.getElementById("exportRangeStart");
+  const exportRangeEnd = document.getElementById("exportRangeEnd");
+  const exportRangeDistance = document.getElementById("exportRangeDistance");
+  const updateExportRangeDistance = () => {
+    if (!exportRangeDistance) return;
+    const startVal = parseChainage(String(exportRangeStart?.value || ""));
+    const endVal = parseChainage(String(exportRangeEnd?.value || ""));
+    if (Number.isFinite(startVal) && Number.isFinite(endVal)) {
+      const dist = Math.abs(endVal - startVal);
+      const km = dist >= 1000 ? ` (${r3(dist / 1000)} km)` : "";
+      exportRangeDistance.textContent = `Distance: ${r3(dist)} m${km}`;
+    } else {
+      exportRangeDistance.textContent = "Distance: —";
+    }
+  };
+  if (exportRangeStart) exportRangeStart.addEventListener("input", updateExportRangeDistance);
+  if (exportRangeEnd) exportRangeEnd.addEventListener("input", updateExportRangeDistance);
+
   if (els.cancelExportBtn) {
     els.cancelExportBtn.addEventListener("click", () => els.exportModal.close());
+  }
+
+  const readReportAsset = (inputEl, key) => {
+    if (!inputEl) return;
+    inputEl.addEventListener("change", () => {
+      const file = inputEl.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (!state.settings.reportBrand) state.settings.reportBrand = { ...state.defaultSettings.reportBrand };
+        state.settings.reportBrand[key] = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+  readReportAsset(els.reportLogoInput, "logo");
+  readReportAsset(els.reportSignatureInput, "signature");
+  if (els.reportSignName) {
+    els.reportSignName.addEventListener("input", () => {
+      if (!state.settings.reportBrand) state.settings.reportBrand = { ...state.defaultSettings.reportBrand };
+      state.settings.reportBrand.signName = String(els.reportSignName.value || "");
+    });
+  }
+  if (els.reportSignTitle) {
+    els.reportSignTitle.addEventListener("input", () => {
+      if (!state.settings.reportBrand) state.settings.reportBrand = { ...state.defaultSettings.reportBrand };
+      state.settings.reportBrand.signTitle = String(els.reportSignTitle.value || "");
+    });
   }
 
   // Populate date display
@@ -5634,6 +6901,9 @@ function bindEvents() {
     if (els.closeSnapshotsBtn) {
       els.closeSnapshotsBtn.addEventListener("click", () => els.snapshotsModal.close());
     }
+    if (els.closeSnapshotCompareBtn) {
+      els.closeSnapshotCompareBtn.addEventListener("click", () => els.snapshotCompareModal?.close());
+    }
 
     if (els.takeSnapshotBtn) {
       els.takeSnapshotBtn.addEventListener("click", () => {
@@ -5752,13 +7022,16 @@ function bindEvents() {
     }
 
     els.snapshotList.innerHTML = state.snapshots.map(snap => `
-    < div class="glass" style = "padding: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;" >
+    <div class="glass" style="padding: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
         <div>
           <strong style="color: var(--text);">${snap.name}</strong><br/>
           <small class="muted">${snap.timestamp}</small>
         </div>
-        <button class="btn btn-secondary" onclick="restoreSnapshot('${snap.id}')">Restore</button>
-      </div >
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-secondary" onclick="compareSnapshot('${snap.id}')">Compare</button>
+          <button class="btn btn-secondary" onclick="restoreSnapshot('${snap.id}')">Restore</button>
+        </div>
+      </div>
     `).reverse().join("");
   }
 
@@ -5778,6 +7051,48 @@ function bindEvents() {
     els.snapshotsModal?.close();
   };
 
+  const getSnapshotStats = (snap) => ({
+    levels: snap?.rawRows?.length || 0,
+    bridges: snap?.bridges?.length || 0,
+    curves: snap?.curves?.length || 0,
+    loops: snap?.loops?.length || 0,
+    settings: snap?.settings || {},
+  });
+
+  const renderSnapshotCompare = (snap) => {
+    if (!els.snapshotCompareBody) return;
+    const current = {
+      levels: state.rawRows.length,
+      bridges: state.bridgeRows.length,
+      curves: state.curveRows.length,
+      loops: state.loopPlatformRows.length,
+      settings: state.settings || {},
+    };
+    const prev = getSnapshotStats(snap);
+    const cards = [
+      ["Levels Rows", prev.levels, current.levels],
+      ["Bridge Rows", prev.bridges, current.bridges],
+      ["Curve Rows", prev.curves, current.curves],
+      ["Loop Rows", prev.loops, current.loops],
+      ["Formation Width", r3(prev.settings.formationWidthFill || 0), r3(current.settings.formationWidthFill || 0)],
+      ["Slope Factor", r3(prev.settings.sideSlopeFactor || 0), r3(current.settings.sideSlopeFactor || 0)],
+    ];
+    els.snapshotCompareBody.innerHTML = cards.map(([label, oldVal, newVal]) => `
+      <div class="glass" style="padding:12px;">
+        <div style="font-weight:700; color:#e2e8f0;">${label}</div>
+        <div class="muted" style="margin-top:4px;">Snapshot: ${oldVal}</div>
+        <div class="muted">Current: ${newVal}</div>
+      </div>
+    `).join("");
+  };
+
+  window.compareSnapshot = (id) => {
+    const snap = state.snapshots.find(s => s.id === id);
+    if (!snap || !els.snapshotCompareModal) return;
+    renderSnapshotCompare(snap);
+    els.snapshotCompareModal.showModal();
+  };
+
   const importLevelsFile = async (file) => {
     const ext = file.name.toLowerCase();
     if (!(ext.endsWith(".csv") || ext.endsWith(".xlsx") || ext.endsWith(".xls"))) {
@@ -5787,8 +7102,9 @@ function bindEvents() {
     const wb = XLSX.read(data, { type: "array", cellDates: false });
 
     const wsLevels = wb.Sheets[wb.SheetNames[0]];
-    const aoaLevels = XLSX.utils.sheet_to_json(wsLevels, { header: 1, defval: "", raw: false, blankrows: false });
+    let aoaLevels = XLSX.utils.sheet_to_json(wsLevels, { header: 1, defval: "", raw: false, blankrows: false });
     if (!aoaLevels.length) throw new Error("File has no data rows.");
+    aoaLevels = applyMappingTemplateToAoa(aoaLevels, "levels");
 
     // --- LOCAL PARSING FIRST (no AI required) ---
     const interval = inferImportInterval();
@@ -5866,7 +7182,8 @@ function bindEvents() {
         if (!aoa.length) continue;
 
         if (sheetName.includes("bridge")) {
-          const localBridges = parseBridgeRowsFromAoa(aoa, "Minor");
+          const mappedAoa = applyMappingTemplateToAoa(aoa, "bridges");
+          const localBridges = parseBridgeRowsFromAoa(mappedAoa, "Minor");
           if (localBridges.rows && localBridges.rows.length) {
             state.bridgeRows = localBridges.rows;
             state.project.uploads.bridges = true;
@@ -5879,7 +7196,8 @@ function bindEvents() {
           }
         }
         else if (sheetName.includes("curve")) {
-          const localCurves = parseCurveRowsFromAoa(aoa);
+          const mappedAoa = applyMappingTemplateToAoa(aoa, "curves");
+          const localCurves = parseCurveRowsFromAoa(mappedAoa);
           if (localCurves.rows && localCurves.rows.length) {
             state.curveRows = localCurves.rows;
             state.project.uploads.curves = true;
@@ -5892,7 +7210,8 @@ function bindEvents() {
           }
         }
         else if (sheetName.includes("loop") || sheetName.includes("station") || sheetName.includes("platform")) {
-          const localLoops = parseLoopPlatformRowsFromAoa(aoa);
+          const mappedAoa = applyMappingTemplateToAoa(aoa, "loops");
+          const localLoops = parseLoopPlatformRowsFromAoa(mappedAoa);
           if (localLoops.rows && localLoops.rows.length) {
             state.loopPlatformRows = localLoops.rows;
             state.project.uploads.loops = true;
@@ -5996,7 +7315,8 @@ function bindEvents() {
         combinedCsv += sheet.aoa.map(row => row.map(c => `"${String(c || "").replace(/"/g, '""').replace(/\n/g, " ")}"`).join(", ")).join("\n") + "\n\n";
 
         // Try local parsing first using the existing bridge parser
-        const localResult = parseBridgeRowsFromAoa(sheet.aoa, sheet.name);
+        const mappedAoa = applyMappingTemplateToAoa(sheet.aoa, "bridges");
+        const localResult = parseBridgeRowsFromAoa(mappedAoa, sheet.name);
         if (localResult.rows && localResult.rows.length > 0) {
           importedRows = importedRows.concat(localResult.rows);
         }
@@ -6047,7 +7367,8 @@ function bindEvents() {
   const importCurveFile = async (file) => {
     try {
       // Try local parsing first
-      const aoa = await readSheetAoaFromFile(file);
+      let aoa = await readSheetAoaFromFile(file);
+      aoa = applyMappingTemplateToAoa(aoa, "curves");
       const localResult = parseCurveRowsFromAoa(aoa);
       let importedRows = localResult.rows || [];
 
@@ -6083,7 +7404,8 @@ function bindEvents() {
   const importLoopFile = async (file) => {
     try {
       // Try local parsing first
-      const aoa = await readSheetAoaFromFile(file);
+      let aoa = await readSheetAoaFromFile(file);
+      aoa = applyMappingTemplateToAoa(aoa, "loops");
       const localResult = parseLoopPlatformRowsFromAoa(aoa);
       let importedRows = localResult.rows || [];
 
@@ -6233,6 +7555,9 @@ function bindEvents() {
         bridgeType: "Box",
         bridgeSize: "6.1m",
         bridgeSpans: "1",
+        clearSpan: "",
+        deductRule: "Auto",
+        autoDeduct: true,
         startChainage: r3(base),
         endChainage: r3(base + 20),
         length: r3(20),
@@ -6364,17 +7689,118 @@ function bindEvents() {
         return;
       }
       const delBtn = e.target.closest("[data-loop-del]");
-      if (!delBtn) return;
-      const i = Number(delBtn.dataset.loopDel);
-      if (!Number.isFinite(i)) return;
-      state.loopPlatformRows = state.loopPlatformRows.filter((_, idx) => idx !== i);
-      state.project.uploads.loops = state.loopPlatformRows.length > 0;
+      if (delBtn) {
+        const i = Number(delBtn.dataset.loopDel);
+        if (!Number.isFinite(i)) return;
+        state.loopPlatformRows = state.loopPlatformRows.filter((_, idx) => idx !== i);
+        state.project.uploads.loops = state.loopPlatformRows.length > 0;
+        state.project.verified = false;
+        updateWizardUI();
+        applyProjectGate();
+        renderLoopInputs();
+        recalculate();
+        return;
+      }
+
+      const upBtn = e.target.closest("[data-loop-up]");
+      if (upBtn) {
+        const i = Number(upBtn.dataset.loopUp);
+        if (Number.isFinite(i) && i > 0) {
+          syncLoopStateFromTable();
+          const targetRow = state.loopPlatformRows[i];
+          const prevRow = state.loopPlatformRows[i - 1];
+          state.loopPlatformRows.splice(i - 1, 2, targetRow, prevRow);
+          state.project.verified = false;
+          updateWizardUI();
+          applyProjectGate();
+          renderLoopInputs();
+          recalculate();
+        }
+        return;
+      }
+
+      const downBtn = e.target.closest("[data-loop-down]");
+      if (downBtn) {
+        const i = Number(downBtn.dataset.loopDown);
+        if (Number.isFinite(i) && i < state.loopPlatformRows.length - 1) {
+          syncLoopStateFromTable();
+          const targetRow = state.loopPlatformRows[i];
+          const nextRow = state.loopPlatformRows[i + 1];
+          state.loopPlatformRows.splice(i, 2, nextRow, targetRow);
+          state.project.verified = false;
+          updateWizardUI();
+          applyProjectGate();
+          renderLoopInputs();
+          recalculate();
+        }
+        return;
+      }
+    });
+
+    let draggedLoopIndex = null;
+    els.loopTableBody.addEventListener("dragstart", (e) => {
+      const row = e.target.closest("tr[data-drag-row]");
+      if (!row) return;
+      draggedLoopIndex = Number(row.dataset.dragRow);
+      row.style.opacity = "0.4";
+      e.dataTransfer.effectAllowed = "move";
+    });
+
+    els.loopTableBody.addEventListener("dragend", (e) => {
+      const row = e.target.closest("tr[data-drag-row]");
+      if (row) row.style.opacity = "1";
+      draggedLoopIndex = null;
+    });
+
+    els.loopTableBody.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      const row = e.target.closest("tr[data-drag-row]");
+      if (row && Number(row.dataset.dragRow) !== draggedLoopIndex) {
+        row.style.borderTop = "2px dashed var(--primary)";
+      }
+    });
+
+    els.loopTableBody.addEventListener("dragleave", (e) => {
+      const row = e.target.closest("tr[data-drag-row]");
+      if (row) row.style.borderTop = "";
+    });
+
+    els.loopTableBody.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const row = e.target.closest("tr[data-drag-row]");
+      if (row) row.style.borderTop = "";
+      
+      if (draggedLoopIndex === null || !row) return;
+      
+      const targetIndex = Number(row.dataset.dragRow);
+      if (draggedLoopIndex === targetIndex || !Number.isFinite(targetIndex)) return;
+
+      syncLoopStateFromTable();
+      const itemToMove = state.loopPlatformRows.splice(draggedLoopIndex, 1)[0];
+      state.loopPlatformRows.splice(targetIndex, 0, itemToMove);
+
       state.project.verified = false;
       updateWizardUI();
       applyProjectGate();
       renderLoopInputs();
       recalculate();
+
+      // subtle flash animation on the dropped row
+      setTimeout(() => {
+        const droppedRow = els.loopTableBody.querySelector(`tr[data-drag-row="${targetIndex}"]`);
+        if (droppedRow) {
+          droppedRow.style.transition = "background-color 0.8s ease";
+          droppedRow.style.backgroundColor = "rgba(59, 130, 246, 0.3)";
+          setTimeout(() => {
+             // Let css restore the original via inline style cleanup if needed,
+             // or just fade back
+             droppedRow.style.backgroundColor = "";
+          }, 800);
+        }
+      }, 50);
     });
+
     els.loopTableBody.addEventListener("change", (e) => {
       const lineTypeSelect = e.target.closest('[data-loop-field="lineType"]');
       if (!lineTypeSelect) return;
@@ -6481,9 +7907,110 @@ function bindEvents() {
     buildSettingsInputs();
   });
 
+  if (els.openMappingWizardBtn && els.mappingWizardModal) {
+    els.openMappingWizardBtn.addEventListener("click", () => {
+      if (els.mappingClientInput) els.mappingClientInput.value = state.importMappings?.client || "";
+      if (els.mappingTypeSelect) els.mappingTypeSelect.value = "levels";
+      if (els.mappingFileInput) els.mappingFileInput.value = "";
+      state.mappingWizard = { aoa: null, headerRow: 0, headers: [], kind: "levels" };
+      renderMappingGrid([], "levels");
+      els.mappingWizardModal.showModal();
+    });
+  }
+  if (els.closeMappingWizardBtn && els.mappingWizardModal) {
+    els.closeMappingWizardBtn.addEventListener("click", () => els.mappingWizardModal.close());
+  }
+  if (els.mappingTypeSelect) {
+    els.mappingTypeSelect.addEventListener("change", () => {
+      const kind = String(els.mappingTypeSelect.value || "levels");
+      state.mappingWizard.kind = kind;
+      const client = String(els.mappingClientInput?.value || "").trim();
+      const preset = getMappingTemplate(client, kind);
+      renderMappingGrid(state.mappingWizard.headers, kind, preset);
+    });
+  }
+  if (els.mappingFileInput) {
+    els.mappingFileInput.addEventListener("change", async () => {
+      const file = els.mappingFileInput.files?.[0];
+      if (!file) return;
+      try {
+        const aoa = await readSheetAoaFromFile(file);
+        const headerPick = detectSimpleHeaderRow(aoa, []);
+        const headerRow = headerPick ? headerPick.rowIndex : 0;
+        const headers = Array.isArray(aoa[headerRow]) ? aoa[headerRow] : [];
+        state.mappingWizard = { aoa, headerRow, headers, kind: state.mappingWizard.kind || "levels" };
+        const client = String(els.mappingClientInput?.value || "").trim();
+        const preset = getMappingTemplate(client, state.mappingWizard.kind);
+        renderMappingGrid(headers, state.mappingWizard.kind, preset);
+      } catch (err) {
+        console.error("Mapping wizard file error:", err);
+        alert(`Mapping wizard failed: ${err.message}`);
+      }
+    });
+  }
+  if (els.saveMappingTemplateBtn) {
+    els.saveMappingTemplateBtn.addEventListener("click", () => {
+      const client = String(els.mappingClientInput?.value || "").trim();
+      if (!client) {
+        alert("Enter a client/template name.");
+        return;
+      }
+      const kind = state.mappingWizard.kind || "levels";
+      const mapping = {};
+      const fields = IMPORT_MAPPING_FIELDS[kind] || [];
+      fields.forEach((f) => {
+        const sel = els.mappingGrid?.querySelector(`[data-map-key="${f.key}"]`);
+        const val = sel ? Number(sel.value) : NaN;
+        if (Number.isFinite(val)) mapping[f.key] = val;
+      });
+      if (!state.importMappings.templates[client]) state.importMappings.templates[client] = {};
+      state.importMappings.templates[client][kind] = mapping;
+      state.importMappings.client = client;
+      alert("Mapping template saved.");
+    });
+  }
+  if (els.applyMappingTemplateBtn) {
+    els.applyMappingTemplateBtn.addEventListener("click", () => {
+      const client = String(els.mappingClientInput?.value || "").trim();
+      if (client) state.importMappings.client = client;
+      els.mappingWizardModal?.close();
+    });
+  }
+
+  if (els.materialProfileGrid) {
+    els.materialProfileGrid.addEventListener("click", (e) => {
+      const delBtn = e.target.closest("[data-mp-del]");
+      if (delBtn) {
+        const idx = Number(delBtn.dataset.mpDel);
+        if (Number.isFinite(idx)) {
+          state.settings.materialProfile = (state.settings.materialProfile || []).filter((_, i) => i !== idx);
+          buildSettingsInputs();
+        }
+        return;
+      }
+      if (e.target?.id === "addMaterialRowBtn") {
+        const next = Array.isArray(state.settings.materialProfile) ? [...state.settings.materialProfile] : [];
+        next.push({ depth: 1, density: 1.9, shrink: 0, swell: 0 });
+        state.settings.materialProfile = next;
+        buildSettingsInputs();
+      }
+    });
+  }
+
   els.tableBody.addEventListener("click", (e) => {
     const trigger = e.target.closest("[data-cross-index]");
     if (!trigger) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const i = Number(trigger.dataset.crossIndex);
+    if (Number.isFinite(i)) openCrossSectionByIndex(i);
+  });
+
+  document.addEventListener("click", (e) => {
+    const trigger = e.target.closest("[data-cross-index]");
+    if (!trigger) return;
+    if (els.tableBody && els.tableBody.contains(trigger)) return;
+    e.preventDefault();
     const i = Number(trigger.dataset.crossIndex);
     if (Number.isFinite(i)) openCrossSectionByIndex(i);
   });
@@ -6514,6 +8041,259 @@ function bindEvents() {
   els.zoomResetBtn.addEventListener("click", () => {
     resetCrossView();
   });
+  
+  /* NEW ADVANCED WORKFLOW UI LISTENERS */
+  els.splitViewBtn = document.getElementById("splitViewBtn");
+  els.mainSplitter = document.getElementById("mainSplitter");
+  els.tableFab = document.getElementById("tableFab");
+  els.fabJumpProblem = document.getElementById("fabJumpProblem");
+  els.fabRecalc = document.getElementById("fabRecalc");
+  els.tableWrapUI = document.querySelector('.work-page[data-work-page="table"] .table-wrap');
+  els.diagnosticMinimap = document.getElementById("diagnosticMinimap");
+  els.diagnosticBarcode = document.getElementById("diagnosticBarcode");
+  els.xrayStationCanvas = document.getElementById("xrayStationCanvas");
+  els.rollScrubber = document.getElementById("rollScrubber");
+  els.rollPopupThumb = document.getElementById("rollPopupThumb");
+  els.rollPopupThumbTitle = document.getElementById("rollPopupThumbTitle");
+  els.rollPopupThumbCanvas = document.getElementById("rollPopupThumbCanvas");
+
+  // 1. SPLIT VIEW
+  if (els.splitViewBtn) {
+    els.splitViewBtn.addEventListener("click", () => {
+      const mainContent = document.querySelector(".main-content");
+      if (mainContent.classList.contains("split-mode")) {
+        mainContent.classList.remove("split-mode");
+        els.splitViewBtn.classList.remove('active');
+        if(els.mainSplitter) els.mainSplitter.classList.add("hidden");
+        document.body.style.setProperty("--split-pos", "50%");
+        setTimeout(() => window.dispatchEvent(new Event("resize")), 100);
+      } else {
+        mainContent.classList.add("split-mode");
+        els.splitViewBtn.classList.add('active');
+        if(els.mainSplitter) els.mainSplitter.classList.remove("hidden");
+        setTimeout(() => window.dispatchEvent(new Event("resize")), 100);
+      }
+    });
+
+    if (els.mainSplitter) {
+      let isResizing = false;
+      els.mainSplitter.addEventListener("mousedown", (e) => {
+        isResizing = true;
+        els.mainSplitter.classList.add("dragging");
+      });
+      document.addEventListener("mousemove", (e) => {
+        if (!isResizing) return;
+        const pct = (e.clientX / window.innerWidth) * 100;
+        document.body.style.setProperty("--split-pos", `${pct}%`);
+      });
+      document.addEventListener("mouseup", () => {
+        if(isResizing) window.dispatchEvent(new Event("resize"));
+        isResizing = false;
+        els.mainSplitter.classList.remove("dragging");
+      });
+    }
+  }
+
+  // 2. TABLE FAB
+  if (els.tableWrapUI && els.tableFab) {
+    els.tableWrapUI.addEventListener("scroll", () => {
+      if (els.tableWrapUI.scrollTop > 200) {
+        els.tableFab.classList.add("visible");
+      } else {
+        els.tableFab.classList.remove("visible");
+      }
+    });
+    if (els.fabRecalc) {
+      els.fabRecalc.addEventListener("click", () => {
+        recalculate();
+      });
+    }
+    if (els.fabJumpProblem) {
+      els.fabJumpProblem.addEventListener("click", () => {
+        const issues = els.tableBody.querySelectorAll(".bridge-row, [style*='color: red']");
+        if (issues.length) {
+          let nextIssue = Array.from(issues).find(el => el.getBoundingClientRect().top > (window.innerHeight/2 + 50));
+          if(!nextIssue) nextIssue = issues[0];
+          nextIssue.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          nextIssue.style.backgroundColor = "rgba(239, 68, 68, 0.2)";
+          setTimeout(() => nextIssue.style.backgroundColor = "", 1000);
+        } else {
+          alert("No significant problem rows detected.");
+        }
+      });
+    }
+  }
+
+  // 3. INLINE VALIDATION
+  document.addEventListener("input", (e) => {
+    if (e.target.tagName !== "INPUT" && e.target.tagName !== "SELECT") return;
+    const val = Number(e.target.value);
+    let isInvalid = false;
+    if (e.target.dataset.loopField === 'tc' && val !== 0 && val < 4.72) isInvalid = true;
+    if (e.target.dataset.bridgeField === 'startChainage' && val < 0) isInvalid = true;
+    if (e.target.dataset.loopField === 'pfWidth' && val !== 0 && val < 4) isInvalid = true;
+  
+    if (isInvalid) {
+      e.target.classList.add("cell-invalid");
+    } else {
+      e.target.classList.remove("cell-invalid");
+    }
+  });
+
+  // 4. ROLL DIAGRAM SCRUBBER
+  const rdWrap = document.getElementById("rollDiagramWrap");
+  if (rdWrap && els.rollScrubber) {
+    rdWrap.addEventListener("mousemove", (e) => {
+      if(!state.calcRows || state.calcRows.length === 0) return;
+      const rect = els.rollDiagramCanvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      if (x < 0 || x > rect.width) {
+        els.rollScrubber.style.display = "none";
+        els.rollPopupThumb.style.display = "none";
+        return;
+      }
+      els.rollScrubber.style.display = "block";
+      els.rollScrubber.style.left = `${x}px`;
+      els.rollPopupThumb.style.display = "flex";
+      els.rollPopupThumb.style.left = `${Math.min(x + 10, rect.width - 190)}px`;
+      
+      const pct = x / rect.width;
+      const minCh = state.calcRows[0].chainage;
+      const maxCh = state.calcRows[state.calcRows.length - 1].chainage;
+      const scrubCh = minCh + (maxCh - minCh) * pct;
+      const chText = (scrubCh < 0 ? "-" : "") + Math.floor(Math.abs(scrubCh) / 1000) + "+" + (Math.abs(scrubCh) % 1000).toFixed(0).padStart(3, "0");
+      els.rollPopupThumbTitle.textContent = `CH ${chText}`;
+
+      if (typeof drawMiniCrossSection === "function") {
+         let bestRow = state.calcRows[0];
+         let minDist = Infinity;
+         for (let r of state.calcRows) {
+            let dist = Math.abs(r.chainage - scrubCh);
+            if(dist < minDist) { minDist = dist; bestRow = r; }
+         }
+         drawMiniCrossSection(els.rollPopupThumbCanvas, bestRow);
+      }
+    });
+    rdWrap.addEventListener("mouseleave", () => {
+       els.rollScrubber.style.display = "none";
+       els.rollPopupThumb.style.display = "none";
+    });
+  }
+
+  // 5. STATION LAYOUT X-RAY 
+  if (els.stationLayoutSelect) {
+    els.stationLayoutSelect.addEventListener("change", () => updateXRayStation());
+  }
+
+}
+
+function updateDiagnosticMinimap() {
+  if (!els.diagnosticBarcode || !els.diagnosticMinimap) return;
+  if (!state.calcRows || state.calcRows.length === 0) {
+    els.diagnosticMinimap.classList.remove('visible');
+    return;
+  }
+  
+  els.diagnosticMinimap.classList.add('visible');
+  els.diagnosticBarcode.innerHTML = "";
+  
+  const total = state.calcRows.length;
+  const maxBars = 100;
+  const step = Math.ceil(total / maxBars);
+  for(let i=0; i<total; i+=step) {
+    const slice = state.calcRows.slice(i, i+step);
+    const hasError = slice.some(r => r.cut > 8 || r.bank > 8 || (r.loopTc && Math.abs(r.loopTc) < 4.72));
+    const div = document.createElement("div");
+    div.className = "diag-bar" + (hasError ? " diag-error" : "");
+    div.title = `Ch ${slice[0].chainage.toFixed(0)}`;
+    div.onclick = () => {
+       setWorkPage('table');
+       const tableRow = els.tableBody.querySelector(`tr[data-ch-index="${i}"]`);
+       if(tableRow) {
+         tableRow.scrollIntoView({behavior: 'smooth', block: 'center'});
+         tableRow.style.backgroundColor = "rgba(59, 130, 246, 0.3)";
+         setTimeout(() => tableRow.style.backgroundColor = "", 1500);
+       }
+    };
+    els.diagnosticBarcode.appendChild(div);
+  }
+}
+
+function updateXRayStation() {
+  if(!els.xrayStationCanvas) return;
+  const ctx = els.xrayStationCanvas.getContext("2d");
+  const cw = els.xrayStationCanvas.width;
+  const ch = els.xrayStationCanvas.height;
+  ctx.clearRect(0,0,cw,ch);
+  
+  if(!els.stationLayoutSelect) return;
+  const stationName = els.stationLayoutSelect.value;
+  if(!stationName) return;
+  
+  ctx.strokeStyle = "#94a3b8";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(10, ch/2);
+  ctx.lineTo(cw-10, ch/2);
+  ctx.stroke();
+  
+  const stationRows = state.loopPlatformRows.filter(r => r.station === stationName && r.lineType !== "Main Line");
+  stationRows.forEach((r, i) => {
+    const side = r.side === "RHS" ? 1 : -1;
+    const tcVal = Number.isFinite(r.tc) ? Math.abs(r.tc) : 5;
+    const yOff = ch/2 + (side * (8 + (tcVal * 1.5)));
+    
+    ctx.strokeStyle = "#3b82f6";
+    ctx.beginPath();
+    ctx.moveTo(30 + (i*15), ch/2);
+    ctx.lineTo(45 + (i*15), yOff);
+    ctx.lineTo(cw - 45 - (i*15), yOff);
+    ctx.lineTo(cw - 30 - (i*15), ch/2);
+    ctx.stroke();
+    
+    const pfVal = Number.isFinite(r.pfWidth) ? r.pfWidth : 0;
+    if (pfVal > 0) {
+      ctx.fillStyle = "rgba(236, 72, 153, 0.8)";
+      ctx.fillRect(cw/2 - 30, yOff + (side * 4) - 2.5, 60, pfVal);
+    }
+  });
+}
+
+function drawMiniCrossSection(canvas, row) {
+  if(!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const cw = canvas.width;
+  const ch = canvas.height;
+  ctx.clearRect(0,0,cw,ch);
+  if(!row) return;
+
+  const bVal = row.bank > 0 ? row.bank : 0;
+  const cVal = row.cut > 0 ? row.cut : 0;
+  
+  ctx.strokeStyle = "#3b82f6";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cw/2 - 20, ch/2 - (bVal * 2));
+  ctx.lineTo(cw/2 + 20, ch/2 - (bVal * 2)); 
+  
+  if (bVal > 0) {
+     ctx.lineTo(cw/2 + 20 + bVal * 4, ch/2);
+     ctx.lineTo(cw/2 - 20 - bVal * 4, ch/2);
+     ctx.lineTo(cw/2 - 20, ch/2 - bVal * 2);
+     ctx.fillStyle = "rgba(34, 197, 94, 0.4)";
+     ctx.fill();
+  } else if (cVal > 0) {
+     ctx.lineTo(cw/2 + 20 + cVal * 3, ch/2 - cVal * 2);
+     ctx.lineTo(cw/2 - 20 - cVal * 3, ch/2 - cVal * 2);
+     ctx.lineTo(cw/2 - 20, ch/2);
+     ctx.fillStyle = "rgba(244, 63, 94, 0.4)";
+     ctx.fill();
+  }
+  ctx.stroke();
+  
+  ctx.fillStyle = "#f8fafc";
+  ctx.font = "12px sans-serif";
+  ctx.fillText(bVal > 0 ? `FILL ${r3(bVal)}m` : (cVal > 0 ? `CUT ${r3(cVal)}m` : "LEVEL"), cw/2 - 20, ch/2 + 15);
 }
 
 function saveState() {
@@ -6532,6 +8312,11 @@ function saveState() {
     stationPlans: state.stationPlans,
   };
   localStorage.setItem("earthsoft_saved_work", JSON.stringify(data));
+  
+  // Push to Undo/Redo Stack
+  if (!window._isUndoRedoOp && window._History) {
+     window._History.push(data);
+  }
 }
 
 function loadStoredState() {
@@ -6545,6 +8330,220 @@ function loadStoredState() {
     console.error("Failed to load state:", e);
   }
 }
+
+// --- Undo / Redo Engine (Time Travel) ---
+window._History = {
+  stack: [],
+  currentIndex: -1,
+  push(stateSnapshot) {
+     this.stack = this.stack.slice(0, this.currentIndex + 1);
+     this.stack.push(JSON.stringify(stateSnapshot));
+     if (this.stack.length > 20) this.stack.shift();
+     else this.currentIndex++;
+  },
+  undo() {
+     if (this.currentIndex > 0) {
+        this.currentIndex--;
+        return JSON.parse(this.stack[this.currentIndex]);
+     }
+     return null;
+  },
+  redo() {
+     if (this.currentIndex < this.stack.length - 1) {
+        this.currentIndex++;
+        return JSON.parse(this.stack[this.currentIndex]);
+     }
+     return null;
+  }
+};
+
+window.addEventListener("keydown", (e) => {
+   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      const isShift = e.shiftKey;
+      const prevState = isShift ? window._History.redo() : window._History.undo();
+      if (prevState) {
+         window._isUndoRedoOp = true;
+         Object.assign(state, prevState);
+         recalculate();
+         updateWizardUI();
+         buildSettingsInputs();
+         buildTable();
+         setTimeout(() => window._isUndoRedoOp = false, 100);
+      }
+   }
+});
+
+// --- 3D Fly-Through Viewer (Conceptual Demo) ---
+let viewer3dScene, viewer3dCamera, viewer3dRenderer, viewer3dControls;
+let animationId;
+let flying = false;
+let flyZ = 0;
+const flyStep = 10;
+const flySpeed = 0.5;
+
+function init3DViewer() {
+   const container = document.getElementById("threeContainer");
+   if(!container || viewer3dScene) return;
+
+   viewer3dScene = new THREE.Scene();
+   viewer3dScene.background = new THREE.Color(0x0b1020);
+   viewer3dScene.fog = new THREE.FogExp2(0x0b1020, 0.002);
+
+   viewer3dCamera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 2000);
+   viewer3dCamera.position.set(20, 15, 40);
+
+   viewer3dRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+   viewer3dRenderer.setSize(container.clientWidth, container.clientHeight);
+   container.appendChild(viewer3dRenderer.domElement);
+
+   viewer3dControls = new THREE.OrbitControls(viewer3dCamera, viewer3dRenderer.domElement);
+   viewer3dControls.enableDamping = true;
+   viewer3dControls.dampingFactor = 0.05;
+
+   const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+   viewer3dScene.add(ambientLight);
+   const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+   dirLight.position.set(100, 200, 100);
+   viewer3dScene.add(dirLight);
+
+   // Decorative sky sphere (glow effect)
+   const skyGeo = new THREE.SphereGeometry(1500, 32, 32);
+   const skyMat = new THREE.MeshBasicMaterial({ color: 0x0f172a, side: THREE.BackSide });
+   const sky = new THREE.Mesh(skyGeo, skyMat);
+   viewer3dScene.add(sky);
+
+   // Grid base
+   const gridHelper = new THREE.GridHelper(5000, 200, 0x1e293b, 0x0f172a);
+   gridHelper.position.y = -10;
+   viewer3dScene.add(gridHelper);
+
+   generate3DMesh();
+
+   function animate() {
+     animationId = requestAnimationFrame(animate);
+     
+     if (flying && state.calcRows.length > 0) {
+        flyZ -= flySpeed;
+        const totalLen = state.calcRows.length * flyStep;
+        if (Math.abs(flyZ) >= totalLen) flyZ = 0;
+        
+        const idx = Math.floor(Math.abs(flyZ) / flyStep);
+        if (state.calcRows[idx]) {
+           const row = state.calcRows[idx];
+           const targetY = (row.proposedLevel / 10) + 4; // Fly slightly above track
+           
+           // Smooth camera movement
+           viewer3dCamera.position.z += (flyZ - viewer3dCamera.position.z) * 0.1;
+           viewer3dCamera.position.y += (targetY - viewer3dCamera.position.y) * 0.1;
+           viewer3dCamera.position.x += (0 - viewer3dCamera.position.x) * 0.1;
+           
+           // Look ahead
+           const lookAheadIdx = Math.min(idx + 10, state.calcRows.length - 1);
+           const aheadRow = state.calcRows[lookAheadIdx];
+           viewer3dCamera.lookAt(0, aheadRow.proposedLevel / 10, flyZ - 50);
+        }
+        viewer3dControls.enabled = false;
+     } else {
+        viewer3dControls.enabled = true;
+        viewer3dControls.update();
+     }
+     
+     viewer3dRenderer.render(viewer3dScene, viewer3dCamera);
+   }
+   animate();
+   
+   window.addEventListener('resize', () => {
+      if(container.clientWidth === 0) return;
+      viewer3dCamera.aspect = container.clientWidth / container.clientHeight;
+      viewer3dCamera.updateProjectionMatrix();
+      viewer3dRenderer.setSize(container.clientWidth, container.clientHeight);
+   });
+}
+
+function generate3DMesh() {
+   if(!viewer3dScene || state.calcRows.length === 0) return;
+   
+   // Clear old meshes
+   viewer3dScene.children = viewer3dScene.children.filter(c => c.name !== 'trackCorridor');
+   
+   const trackGroup = new THREE.Group();
+   trackGroup.name = 'trackCorridor';
+   
+   const matFill = new THREE.MeshLambertMaterial({ color: 0x22c55e, transparent: true, opacity: 0.7 });
+   const matCut = new THREE.MeshLambertMaterial({ color: 0xef4444, transparent: true, opacity: 0.7 });
+   const matTrack = new THREE.MeshPhongMaterial({ color: 0x334155, shininess: 30 });
+   const matRail = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.2 });
+   
+   let zPos = 0;
+   
+   // Limit display for performance but keep long enough for flight
+   const maxDisplay = Math.min(state.calcRows.length, 1000);
+   
+   for(let i=0; i < maxDisplay; i++) {
+     const row = state.calcRows[i];
+     const yPos = row.proposedLevel / 10;
+     
+     // Formation Bed
+     const trackGeo = new THREE.BoxGeometry(7.85, 0.5, flyStep);
+     const trackMesh = new THREE.Mesh(trackGeo, matTrack);
+     trackMesh.position.set(0, yPos, zPos);
+     trackGroup.add(trackMesh);
+
+     // Simple Rails (Two lines)
+     const railL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, flyStep), matRail);
+     railL.position.set(-0.835, yPos + 0.3, zPos);
+     trackGroup.add(railL);
+
+     const railR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, flyStep), matRail);
+     railR.position.set(0.835, yPos + 0.3, zPos);
+     trackGroup.add(railR);
+     
+     // Embankment / Cutting visualization
+     if (row.bank > 0.1) {
+        const h = row.bank / 2;
+        const fillGeo = new THREE.BoxGeometry(7.85 + (row.bank * 2), h, flyStep);
+        const fillMesh = new THREE.Mesh(fillGeo, matFill);
+        fillMesh.position.set(0, yPos - (h/2) - 0.25, zPos);
+        trackGroup.add(fillMesh);
+     } else if (row.cut > 0.1) {
+        const h = row.cut / 2;
+        const cutGeo = new THREE.BoxGeometry(12.05 + (row.cut * 2), h, flyStep);
+        const cutMesh = new THREE.Mesh(cutGeo, matCut);
+        cutMesh.position.set(0, yPos + (h/2) + 0.25, zPos);
+        trackGroup.add(cutMesh);
+     }
+     
+     zPos -= flyStep;
+   }
+   viewer3dScene.add(trackGroup);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+   const viewerBtn = document.getElementById("viewer3dBtn");
+   if(viewerBtn) {
+       viewerBtn.addEventListener('click', () => {
+           document.getElementById("viewer3dModal").showModal();
+           setTimeout(() => {
+               init3DViewer();
+               generate3DMesh();
+           }, 150);
+       });
+   }
+   document.getElementById("close3dBtn")?.addEventListener('click', () => {
+       document.getElementById("viewer3dModal").close();
+       if (animationId) cancelAnimationFrame(animationId);
+       viewer3dScene = null; // Reset for next open
+   });
+   
+   const flyBtn = document.getElementById("playFlyBtn");
+   flyBtn?.addEventListener('click', function() {
+       flying = !flying;
+       this.innerHTML = flying ? '<i class="ri-pause-fill" style="margin-right:4px;"></i> Pause Flight' : '<i class="ri-play-fill" style="margin-right:4px;"></i> Simulate Flight';
+       if(flying) {
+           flyZ = 0; // Restart from beginning
+       }
+   });
+});
 
 async function init() {
   const visualLayerDefaults = {
@@ -6564,6 +8563,38 @@ async function init() {
     ballastCushionThickness: 0.35,
     topLayerThickness: 0.5,
     activeSqCategory: 3,
+    gauge: "BG",
+    formationPreset: "single",
+    slopePreset: "default",
+    bermRulePrimary: 4,
+    bermRuleSecondary: 8,
+    showRails: true,
+    showPlatforms: true,
+    showDrains: true,
+    showLabels: true,
+    rollFilter: "all",
+    minTc: 5.3,
+    minPlatformWidth: 6.0,
+    minClearance: 1.5,
+    showMapStations: true,
+    showMapBridges: true,
+    showMapCurves: true,
+    boqMapping: {
+      range: "Range",
+      prepared: "Prepared",
+      blanket: "Blanket",
+      fill: "Fill (m³)",
+      cut: "Cut (m³)",
+    },
+    reportBrand: {
+      logo: "",
+      signature: "",
+      signName: "",
+      signTitle: "",
+    },
+    materialProfile: [
+      { depth: 1.0, density: 1.9, shrink: 0.0, swell: 0.0 },
+    ],
   };
   state.defaultSettings = { ...visualLayerDefaults };
   state.seedDefaultSettings = { ...state.defaultSettings };
@@ -6580,6 +8611,19 @@ async function init() {
   await loadAuthState();
   // Ensure settings always has all required keys (stored state may have stale/missing fields)
   state.settings = { ...state.defaultSettings, ...(state.settings || {}) };
+  if (!Array.isArray(state.settings.materialProfile) || !state.settings.materialProfile.length) {
+    state.settings.materialProfile = [...state.defaultSettings.materialProfile];
+  }
+  if (!state.settings.reportBrand || typeof state.settings.reportBrand !== "object") {
+    state.settings.reportBrand = { ...state.defaultSettings.reportBrand };
+  } else {
+    state.settings.reportBrand = { ...state.defaultSettings.reportBrand, ...state.settings.reportBrand };
+  }
+  if (!state.settings.boqMapping || typeof state.settings.boqMapping !== "object") {
+    state.settings.boqMapping = { ...state.defaultSettings.boqMapping };
+  } else {
+    state.settings.boqMapping = { ...state.defaultSettings.boqMapping, ...state.settings.boqMapping };
+  }
   state.meta = state.meta || {};
   state.project = {
     active: Boolean(state.project?.active),
@@ -6592,10 +8636,21 @@ async function init() {
       loops: Boolean(state.project?.uploads?.loops),
       kml: Boolean(state.project?.uploads?.kml) || Boolean(state.kmlData),
     },
+    profile: {
+      corridorName: String(state.project?.profile?.corridorName || ""),
+      direction: String(state.project?.profile?.direction || "Up"),
+      chainageZeroRef: String(state.project?.profile?.chainageZeroRef || ""),
+    },
   };
+  state.calcOverrides = Array.isArray(state.calcOverrides) ? state.calcOverrides : [];
+  state.slopeZones = Array.isArray(state.slopeZones) ? state.slopeZones : [];
+  state.importMappings = state.importMappings && typeof state.importMappings === "object"
+    ? state.importMappings
+    : { client: "", templates: {} };
 
   bindEvents();
   bindCrossCanvasInteraction();
+  syncRollFilterSelect();
   setWorkPage("overview");
   setResultTab("qty");
   updateAuthUI();
@@ -6722,8 +8777,10 @@ function buildReportContext(rows) {
 
 async function generateProjectReport(options) {
   window._isPdfExportCancelled = false;
-  if (typeof html2pdf === "undefined") {
-    alert("PDF library (html2pdf) failed to load. Please check your internet connection.");
+
+  const JsPdfCtor = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
+  if (!JsPdfCtor) {
+    alert("jsPDF is not available. Please refresh and try again.");
     return;
   }
 
@@ -6742,25 +8799,16 @@ async function generateProjectReport(options) {
   }
 
   try {
-    const wrapper = document.createElement("div");
-    wrapper.id = "pdf-export-wrapper";
-    wrapper.style.position = "fixed";
-    wrapper.style.left = "-9999px";
-    wrapper.style.top = "0";
-    document.body.appendChild(wrapper);
-
-    const container = document.createElement("div");
-    container.id = "pdf-report-container";
-    container.style.width = "1122px";          // Standard landscape width
-    container.style.backgroundColor = "#ffffff";
-    container.style.color = "#000000";
-    container.style.fontFamily = "'Outfit', sans-serif";
-    container.style.padding = "0";
-
-    wrapper.appendChild(container);
-
-    const exportRowsLimit = options.rowLimit && options.rowLimit > 0 ? options.rowLimit : state.calcRows.length;
-    const exportCalcRows = state.calcRows.slice(0, exportRowsLimit);
+    let exportCalcRows = [...state.calcRows];
+    if (options.exportRange) {
+      const start = Number.isFinite(options.exportRange.start) ? options.exportRange.start : -Infinity;
+      const end = Number.isFinite(options.exportRange.end) ? options.exportRange.end : Infinity;
+      const minCh = Math.min(start, end);
+      const maxCh = Math.max(start, end);
+      exportCalcRows = exportCalcRows.filter((r) => Number.isFinite(r.chainage) && r.chainage >= minCh && r.chainage <= maxCh);
+    }
+    const exportRowsLimit = options.rowLimit && options.rowLimit > 0 ? options.rowLimit : exportCalcRows.length;
+    exportCalcRows = exportCalcRows.slice(0, exportRowsLimit);
 
     if (exportCalcRows.length === 0) {
       throw new Error("No data to export.");
@@ -6772,253 +8820,387 @@ async function generateProjectReport(options) {
     if (cancelBtn) cancelBtn.style.display = "block";
 
     const reportCtx = buildReportContext(exportCalcRows);
+    const reportBrand = state.settings.reportBrand || {};
 
-    // 1. Cover Page
-    const titlePage = document.createElement("div");
-    titlePage.style.padding = "72px 60px";
-    titlePage.style.height = "750px";
-    titlePage.style.boxSizing = "border-box";
-    titlePage.style.background = "linear-gradient(135deg, #eff6ff 0%, #ffffff 36%, #f8fafc 100%)";
-    titlePage.innerHTML = `
-      <div style="display:flex; flex-direction:column; justify-content:space-between; height:100%;">
-        <div>
-          <div style="display:inline-flex; align-items:center; gap:12px; padding:10px 16px; border-radius:999px; background:rgba(37,99,235,0.08); color:#1d4ed8; font-size:12px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase;">
-            Earthsoft Professional Export
-          </div>
-          <h1 style="margin:28px 0 8px; font-size:52px; line-height:1; letter-spacing:-0.05em; color:#0f172a;">Railway Earthwork Report</h1>
-          <p style="margin:0; font-size:22px; color:#334155; font-weight:600;">${state.project.name || "Untitled Project"}</p>
-          <p style="margin:18px 0 0; max-width:760px; color:#475569; font-size:15px; line-height:1.7;">
-            Executive engineering summary including project readiness, quantity balance, calculation sheets, roll diagrams, and cross-sectional detail drawings.
-          </p>
-        </div>
-        <div style="display:grid; grid-template-columns: 1.2fr 1fr; gap:28px; align-items:end;">
-          <div style="display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px;">
-            ${reportMetricCard("Chainage Range", `${formatReportChainage(reportCtx.first.chainage)} to ${formatReportChainage(reportCtx.last.chainage)}`, "blue")}
-            ${reportMetricCard("Total Length", `${r3(reportCtx.totalLength / 1000)} km`, "slate")}
-            ${reportMetricCard("Total Fill", formatVolume(reportCtx.fillTotal), "green")}
-            ${reportMetricCard("Total Cut", formatVolume(reportCtx.cutTotal), "red")}
-          </div>
-          <div style="padding:20px 22px; border-radius:22px; background:#0f172a; color:#e2e8f0;">
-            <div style="font-size:12px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase; color:#7dd3fc;">Project Snapshot</div>
-            <table style="width:100%; margin-top:12px; border-collapse:collapse; font-size:13px;">
-              <tr><td style="padding:8px 0; color:#94a3b8;">Generated</td><td style="padding:8px 0; text-align:right; font-weight:700;">${new Date().toLocaleString()}</td></tr>
-              <tr><td style="padding:8px 0; color:#94a3b8;">Verification</td><td style="padding:8px 0; text-align:right; font-weight:700;">${state.project?.verified ? "Verified" : "Draft"}</td></tr>
-              <tr><td style="padding:8px 0; color:#94a3b8;">Cross-Sections</td><td style="padding:8px 0; text-align:right; font-weight:700;">${exportCalcRows.length}</td></tr>
-              <tr><td style="padding:8px 0; color:#94a3b8;">Bridges / Curves</td><td style="padding:8px 0; text-align:right; font-weight:700;">${reportCtx.validBridges} / ${reportCtx.validCurves}</td></tr>
-              <tr><td style="padding:8px 0; color:#94a3b8;">Mapped Stations</td><td style="padding:8px 0; text-align:right; font-weight:700;">${reportCtx.groupedStations.length}</td></tr>
-            </table>
-          </div>
-        </div>
-      </div>
-    `;
-    container.appendChild(titlePage);
+    // --- Color palette ---
+    const C = {
+      primary: [37, 99, 235],
+      dark: [15, 23, 42],
+      text: [51, 65, 85],
+      muted: [100, 116, 139],
+      light: [241, 245, 249],
+      white: [255, 255, 255],
+      green: [4, 120, 87],
+      red: [185, 28, 28],
+      amber: [180, 83, 9],
+      blue: [29, 78, 216],
+      border: [226, 232, 240],
+    };
 
-    // 2. Executive Summary
-    const summaryPage = createReportPage(
-      "Executive Summary",
-      "This section presents project readiness, quantity balance, imported dataset coverage, and the most relevant field intelligence before the detailed engineering sheets."
-    );
-    summaryPage.appendChild(createReportSection("Quantity Balance", `
-      <div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:12px;">
-        ${reportMetricCard("Fill Volume", formatVolume(reportCtx.fillTotal), "green", "Total embankment requirement")}
-        ${reportMetricCard("Cut Volume", formatVolume(reportCtx.cutTotal), "red", "Total excavation generated")}
-        ${reportMetricCard("Reusable Spoil", formatVolume(reportCtx.reusableSpoil), "amber", `${safeNum(reportCtx.reusablePct, 60).toFixed(0)}% reuse assumption`)}
-        ${reportMetricCard("Net Balance", `${reportCtx.balance >= 0 ? "+" : ""}${formatCompactVolume(reportCtx.balance)} m³`, reportCtx.balance >= 0 ? "blue" : "red", reportCtx.balance >= 0 ? "Potential surplus" : "Potential borrow requirement")}
-      </div>
-    `));
-    summaryPage.appendChild(createReportSection("Project Readiness", `
-      <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:18px;">
-        <div style="border:1px solid #e2e8f0; border-radius:16px; overflow:hidden;">
-          <table style="width:100%; border-collapse:collapse; font-size:12px;">
-            <tbody>
-              ${[
-                ["Project Name", state.project.name || "Untitled Project"],
-                ["Verification Status", state.project?.verified ? "Verified" : "Draft / Pending verification"],
-                ["Levels Imported", state.project?.uploads?.levels ? "Yes" : "No"],
-                ["Bridge List Imported", state.project?.uploads?.bridges ? "Yes" : "No"],
-                ["Curve List Imported", state.project?.uploads?.curves ? "Yes" : "No"],
-                ["Loops & Platforms Imported", state.project?.uploads?.loops ? "Yes" : "No"],
-                ["KML/KMZ Alignment Imported", state.project?.uploads?.kml ? "Yes" : "No"],
-                ["Station Plans Attached", `${Object.keys(state.stationPlans || {}).length}`],
-              ].map(([label, value], idx) => `
-                <tr style="background:${idx % 2 ? "#f8fafc" : "#ffffff"};">
-                  <td style="padding:10px 12px; color:#475569; font-weight:600; width:48%;">${label}</td>
-                  <td style="padding:10px 12px; color:#0f172a; font-weight:700;">${value}</td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        </div>
-        <div style="padding:16px; border-radius:16px; border:1px solid #e2e8f0; background:#f8fafc;">
-          <div style="font-size:11px; font-weight:800; letter-spacing:0.1em; text-transform:uppercase; color:#64748b; margin-bottom:10px;">Design Notes</div>
-          ${reportCtx.alerts.length
-            ? `<ul style="margin:0; padding-left:18px; color:#334155; font-size:12px; line-height:1.7;">${reportCtx.alerts.map((item) => `<li>${item}</li>`).join("")}</ul>`
-            : `<p style="margin:0; color:#334155; font-size:12px; line-height:1.7;">No major readiness issues detected. Imported datasets are sufficient for review and export.</p>`}
-        </div>
-      </div>
-    `));
-    const sharpestCurve = [...(state.curveRows || [])]
-      .filter((c) => safeNum(c.radius, NaN) > 0)
-      .sort((a, b) => safeNum(a.radius) - safeNum(b.radius))[0];
-    const firstBridge = [...(state.bridgeRows || [])]
-      .sort((a, b) => safeNum(a.startChainage) - safeNum(b.startChainage))[0];
-    const firstStation = reportCtx.groupedStations
-      .filter((s) => Number.isFinite(s.csb))
-      .sort((a, b) => safeNum(a.csb) - safeNum(b.csb))[0];
-    summaryPage.appendChild(createReportSection("Field Intelligence", `
-      <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px;">
-        ${reportMetricCard("First Bridge", firstBridge ? `${firstBridge.bridgeNo || "Bridge"} @ ${formatReportChainage(firstBridge.startChainage)}` : "Not available", "blue", firstBridge ? (firstBridge.bridgeType || "-") : "Bridge list missing")}
-        ${reportMetricCard("Sharpest Curve", sharpestCurve ? `${sharpestCurve.curve || "Curve"} • R=${r3(sharpestCurve.radius)} m` : "Not available", "amber", sharpestCurve ? formatReportChainage(sharpestCurve.chainage) : "Curve list missing")}
-        ${reportMetricCard("First Station", firstStation ? `${firstStation.station}` : "Not available", "slate", firstStation ? formatReportChainage(firstStation.csb) : "Loop/station data missing")}
-      </div>
-    `));
-    container.appendChild(summaryPage);
+    // Helper: draw a rounded rect
+    function roundedRect(pdf, x, y, w, h, r, fillColor, strokeColor) {
+      if (fillColor) { pdf.setFillColor(...fillColor); }
+      if (strokeColor) { pdf.setDrawColor(...strokeColor); pdf.setLineWidth(0.3); }
+      const mode = fillColor && strokeColor ? "FD" : fillColor ? "F" : "S";
+      pdf.roundedRect(x, y, w, h, r, r, mode);
+    }
 
-    // 3. Calculation Sheet
-    if (options.calcSheet) {
-      if (loadingText) loadingText.textContent = "Exporting Calculation Sheet...";
-      // Standardize table selection
-      const originalHeader = document.querySelector(".table-panel thead, .test-table thead, table thead");
-
-      const CHUNK_SIZE = 35; // Maximum rows per PDF page
-      const totalRows = exportCalcRows.length;
-
-      const calcPagesCount = Math.ceil(totalRows / CHUNK_SIZE);
-
-      for (let i = 0; i < totalRows; i += CHUNK_SIZE) {
-        if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
-
-        const currentPage = Math.floor(i / CHUNK_SIZE) + 1;
-        if (loadingText) loadingText.textContent = `Building Calculation Sheet: Page ${currentPage} of ${calcPagesCount}`;
-        if (progressBar) progressBar.style.width = `${5 + (currentPage / calcPagesCount) * 15}%`; // 5% -> 20% span
-
-        const chunkPage = document.createElement("div");
-        chunkPage.style.padding = "40px";
-        if (i === 0) {
-
-          let qtyRowsHtml = '';
-          const qtyRows = Array.from(document.querySelectorAll('#resultQtyBody tr'));
-          if (qtyRows.length) {
-            qtyRowsHtml = qtyRows.map(tr => {
-              const tds = Array.from(tr.querySelectorAll('td'));
-              return `<tr>${tds.map(td => `<td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">${td.textContent}</td>`).join('')}</tr>`;
-            }).join('');
-          } else {
-            qtyRowsHtml = `<tr><td colspan="5" style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">No calculations available</td></tr>`;
-          }
-
-          chunkPage.innerHTML = `
-            <div style="margin-bottom: 28px; padding:18px; border:1px solid #e2e8f0; border-radius:16px; background:#f8fafc;">
-              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:18px; margin-bottom:14px;">
-                <div>
-                  <div style="font-size:11px; font-weight:800; letter-spacing:0.12em; text-transform:uppercase; color:#2563eb;">Calculation Summary</div>
-                  <h2 style="margin:6px 0 0; color:#0f172a; font-size:22px;">${state.project.name || "Untitled"}</h2>
-                  <p style="margin:8px 0 0; color:#475569; font-size:12px;">Calculated chainage from ${formatReportChainage(reportCtx.first.chainage)} to ${formatReportChainage(reportCtx.last.chainage)} across ${exportCalcRows.length} sections.</p>
-                </div>
-                <div style="display:grid; grid-template-columns:repeat(2, minmax(120px,1fr)); gap:10px; min-width:320px;">
-                  ${reportMetricCard("Fill", formatVolume(reportCtx.fillTotal), "green")}
-                  ${reportMetricCard("Cut", formatVolume(reportCtx.cutTotal), "red")}
-                  ${reportMetricCard("Bridges", `${reportCtx.validBridges}`, "blue")}
-                  ${reportMetricCard("Stations", `${reportCtx.groupedStations.length}`, "slate")}
-                </div>
-              </div>
-              <h3 style="color: #0f172a; margin-bottom: 10px; font-size: 14px;">Quantity Overview</h3>
-              <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 20px;">
-                <thead>
-                  <tr style="background: #e2e8f0;">
-                    <th style="border: 1px solid #cbd5e1; padding: 6px;">Range</th>
-                    <th style="border: 1px solid #cbd5e1; padding: 6px;">Prepared</th>
-                    <th style="border: 1px solid #cbd5e1; padding: 6px;">Blanket</th>
-                    <th style="border: 1px solid #cbd5e1; padding: 6px;">Fill (m³)</th>
-                    <th style="border: 1px solid #cbd5e1; padding: 6px;">Cut (m³)</th>
-                  </tr>
-                </thead>
-                <tbody>${qtyRowsHtml}</tbody>
-              </table>
-            </div>
-            <h2 style="margin-top: 0; color: #0f172a; border-bottom: 3px solid #0f172a; padding-bottom: 12px; margin-bottom: 30px;">Detailed Calculation Sheet</h2>
-          `;
-        } else {
-          chunkPage.innerHTML = `<h2 style="margin-top: 0; color: #0f172a; border-bottom: 3px solid #0f172a; padding-bottom: 12px; margin-bottom: 30px;">Detailed Calculation Sheet - Continued</h2>`;
-        }
-
-        const table = document.createElement("table");
-        table.style.width = "100%";
-        table.style.borderCollapse = "collapse";
-        table.style.fontSize = "10.5px";
-
-        if (originalHeader) {
-          const thead = originalHeader.cloneNode(true);
-          thead.style.backgroundColor = "#fff";
-          thead.querySelectorAll("th").forEach(th => {
-            th.style.border = "1px solid #000";
-            th.style.padding = "8px 4px";
-            th.style.color = "#000";
-            th.style.textAlign = "center";
-            th.style.fontSize = "10.5px";
-          });
-          table.appendChild(thead);
-        }
-
-        const tbody = document.createElement("tbody");
-        const rowsChunk = exportCalcRows.slice(i, i + CHUNK_SIZE);
-
-        rowsChunk.forEach((r, idx) => {
-          const tr = document.createElement("tr");
-          tr.style.backgroundColor = idx % 2 === 0 ? "#ffffff" : "#fdfdfd";
-
-          const structureNo = r.structureNo ? String(r.structureNo).replace(/\n/g, " ").trim() : "-";
-          const station = (r.stationName || r.station) ? String(r.stationName || r.station).replace(/\n/g, " ") : "-";
-          const bridgeRefs = (r.bridgeRefs && r.bridgeRefs.length) ? r.bridgeRefs.join(" | ") : "-";
-
-          const chainageLabel = (r.chainage < 0 ? "-" : "") + Math.floor(Math.abs(r.chainage) / 1000) + "+" + (Math.abs(r.chainage) % 1000).toFixed(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1").padStart(3, "0");
-
-          const cellsHtml = `
-              <td>${bridgeRefs}</td>
-              <td>${station}</td>
-              <td>${chainageLabel}</td>
-              <td>${r.diff ? r3(r.diff) : "—"}</td>
-              <td>${r3(r.groundLevel)}</td>
-              <td class="t-pro">${r3(r.proposedLevel)}</td>
-              <td>${r.loopTc ? r3(r.loopTc) : "—"}</td>
-              <td>${r.loopCount ? r.loopCount : "—"}</td>
-              <td>${r.platformWidth ? r3(r.platformWidth) : "—"}</td>
-              <td>${r.bridgeDeductLen ? r3(r.bridgeDeductLen) : "—"}</td>
-              <td>${r.ewDiff ? r3(r.ewDiff) : "—"}</td>
-              <td>${r.rlDiff ? r3(r.rlDiff) : "—"}</td>
-              <td class="t-fill">${r.bank > 0.0001 ? r3(r.bank) : "—"}</td>
-              <td class="t-cut">${r.cut > 0.0001 ? r3(r.cut) : "—"}</td>
-              <td class="t-fill">${r.fillArea > 0.0001 ? r3(r.fillArea) : "—"}</td>
-              <td class="t-cut">${r.cutArea > 0.0001 ? r3(r.cutArea) : "—"}</td>
-              <td class="t-fill">${r.fillVol > 0.0001 ? r3(r.fillVol) : "—"}</td>
-              <td class="t-cut">${r.cutVol > 0.0001 ? r3(r.cutVol) : "—"}</td>
-           `;
-          tr.innerHTML = cellsHtml;
-
-          tr.querySelectorAll("td").forEach(td => {
-            td.style.border = "1px solid #000";
-            td.style.padding = "6px 4px";
-            td.style.textAlign = "center";
-            td.style.color = "#000";
-          });
-          tr.querySelectorAll(".t-fill").forEach(el => { el.style.color = "#000"; el.style.fontWeight = "600"; });
-          tr.querySelectorAll(".t-cut").forEach(el => { el.style.color = "#000"; el.style.fontWeight = "600"; });
-          tr.querySelectorAll(".t-pro").forEach(el => { el.style.color = "#000"; el.style.fontWeight = "600"; });
-          tbody.appendChild(tr);
-        });
-
-        table.appendChild(tbody);
-        chunkPage.appendChild(table);
-        container.appendChild(chunkPage);
+    // Helper: metric card drawn directly
+    function drawMetricCard(pdf, x, y, w, h, label, value, tone, sub) {
+      const tones = {
+        slate: { bg: [248, 250, 252], border: C.border, val: C.dark },
+        blue: { bg: [239, 246, 255], border: [191, 219, 254], val: C.blue },
+        green: { bg: [236, 253, 245], border: [167, 243, 208], val: C.green },
+        red: { bg: [254, 242, 242], border: [254, 202, 202], val: C.red },
+        amber: { bg: [255, 251, 235], border: [253, 230, 138], val: C.amber },
+      };
+      const t = tones[tone] || tones.slate;
+      roundedRect(pdf, x, y, w, h, 2, t.bg, t.border);
+      pdf.setFontSize(7); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...C.muted);
+      pdf.text(label.toUpperCase(), x + 3, y + 5);
+      pdf.setFontSize(14); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...t.val);
+      pdf.text(String(value), x + 3, y + 13);
+      if (sub) {
+        pdf.setFontSize(7); pdf.setFont("helvetica", "normal"); pdf.setTextColor(...C.muted);
+        pdf.text(String(sub), x + 3, y + 17);
       }
     }
 
-    if (progressBar) progressBar.style.width = "25%";
+    // Helper: section header
+    function drawSectionHeader(pdf, y, title) {
+      pdf.setDrawColor(...C.primary); pdf.setLineWidth(1);
+      pdf.line(20, y, 24, y);
+      pdf.setFontSize(12); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...C.dark);
+      pdf.text(title, 27, y + 1);
+      return y + 6;
+    }
 
-    // 4. Roll Diagram
+    // Helper: page header/footer on content pages
+    function drawPageHeaderFooter(pdf, pageTitle) {
+      // Top bar
+      pdf.setFontSize(7); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...C.primary);
+      pdf.text("EARTHSOFT ENGINEERING REPORT", 20, 12);
+      pdf.setFont("helvetica", "normal"); pdf.setTextColor(...C.muted);
+      pdf.text(state.project.name || "Untitled Project", 200, 12, { align: "right" });
+      pdf.setDrawColor(...C.border); pdf.setLineWidth(0.3);
+      pdf.line(20, 14, 200, 14);
+      // Page title
+      if (pageTitle) {
+        pdf.setFontSize(18); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...C.dark);
+        pdf.text(pageTitle, 20, 24);
+      }
+      // Footer
+      const pgH = pdf.internal.pageSize.getHeight();
+      pdf.setFontSize(6); pdf.setTextColor(...C.muted); pdf.setFont("helvetica", "normal");
+      pdf.text(`Generated ${new Date().toLocaleDateString()} • Earthsoft Professional`, 20, pgH - 8);
+      pdf.text(`Page ${pdf.internal.getNumberOfPages()}`, 200, pgH - 8, { align: "right" });
+    }
+
+    // ===== 1. COVER PAGE (Portrait) =====
+    if (loadingText) loadingText.textContent = "Building cover page...";
+    const pdf = new JsPdfCtor({ unit: "mm", format: "a4", orientation: "portrait" });
+
+    // Background gradient simulation
+    roundedRect(pdf, 0, 0, 210, 297, 0, [245, 249, 255], null);
+    roundedRect(pdf, 0, 0, 210, 80, 0, [239, 246, 255], null);
+
+    // Badge
+    roundedRect(pdf, 20, 30, 65, 7, 3, [239, 246, 255], [191, 219, 254]);
+    pdf.setFontSize(7); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...C.primary);
+    pdf.text("EARTHSOFT PROFESSIONAL EXPORT", 23, 35);
+
+    // Logo if exists
+    if (reportBrand.logo) {
+      try { pdf.addImage(reportBrand.logo, "PNG", 150, 25, 40, 15); } catch (e) { /* skip */ }
+    }
+
+    // Title
+    pdf.setFontSize(32); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...C.dark);
+    pdf.text("Railway Earthwork", 20, 60);
+    pdf.text("Report", 20, 72);
+
+    // Project name
+    pdf.setFontSize(16); pdf.setFont("helvetica", "normal"); pdf.setTextColor(...C.text);
+    pdf.text(state.project.name || "Untitled Project", 20, 84);
+
+    // Description
+    pdf.setFontSize(10); pdf.setFont("helvetica", "normal"); pdf.setTextColor(100, 116, 139);
+    const descLines = pdf.splitTextToSize("Executive engineering summary including project readiness, quantity balance, calculation sheets, roll diagrams, and cross-sectional detail drawings.", 170);
+    pdf.text(descLines, 20, 94);
+
+    // Metric cards row
+    const cardW = 40; const cardH = 20; const cardY = 120;
+    drawMetricCard(pdf, 20, cardY, cardW, cardH, "Chainage Range", `${formatReportChainage(reportCtx.first.chainage)} to ${formatReportChainage(reportCtx.last.chainage)}`, "blue");
+    drawMetricCard(pdf, 63, cardY, cardW, cardH, "Total Length", `${r3(reportCtx.totalLength / 1000)} km`, "slate");
+    drawMetricCard(pdf, 106, cardY, cardW, cardH, "Total Fill", formatVolume(reportCtx.fillTotal), "green");
+    drawMetricCard(pdf, 149, cardY, cardW, cardH, "Total Cut", formatVolume(reportCtx.cutTotal), "red");
+
+    // Snapshot box
+    const snapY = 148;
+    roundedRect(pdf, 20, snapY, 170, 55, 3, C.dark, null);
+    pdf.setFontSize(8); pdf.setFont("helvetica", "bold"); pdf.setTextColor(125, 211, 252);
+    pdf.text("PROJECT SNAPSHOT", 25, snapY + 8);
+
+    const snapRows = [
+      ["Generated", new Date().toLocaleString()],
+      ["Verification", state.project?.verified ? "Verified" : "Draft"],
+      ["Cross-Sections", String(exportCalcRows.length)],
+      ["Bridges / Curves", `${reportCtx.validBridges} / ${reportCtx.validCurves}`],
+      ["Mapped Stations", String(reportCtx.groupedStations.length)],
+    ];
+    pdf.setFontSize(9);
+    snapRows.forEach(([label, value], i) => {
+      const rowY = snapY + 16 + (i * 8);
+      pdf.setFont("helvetica", "normal"); pdf.setTextColor(148, 163, 184);
+      pdf.text(label, 25, rowY);
+      pdf.setFont("helvetica", "bold"); pdf.setTextColor(226, 232, 240);
+      pdf.text(value, 185, rowY, { align: "right" });
+    });
+
+    if (progressBar) progressBar.style.width = "10%";
+
+    // ===== 2. EXECUTIVE SUMMARY =====
+    if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+    if (loadingText) loadingText.textContent = "Building executive summary...";
+    pdf.addPage("a4", "portrait");
+    drawPageHeaderFooter(pdf, "Executive Summary");
+
+    let curY = 30;
+    // Quantity Balance
+    curY = drawSectionHeader(pdf, curY, "Quantity Balance");
+    drawMetricCard(pdf, 20, curY, 40, 20, "Fill Volume", formatVolume(reportCtx.fillTotal), "green", "Total embankment");
+    drawMetricCard(pdf, 63, curY, 40, 20, "Cut Volume", formatVolume(reportCtx.cutTotal), "red", "Total excavation");
+    drawMetricCard(pdf, 106, curY, 40, 20, "Reusable Spoil", formatVolume(reportCtx.reusableSpoil), "amber", `${safeNum(reportCtx.reusablePct, 60).toFixed(0)}% reuse`);
+    const balLabel = `${reportCtx.balance >= 0 ? "+" : ""}${formatCompactVolume(reportCtx.balance)} m³`;
+    drawMetricCard(pdf, 149, curY, 40, 20, "Net Balance", balLabel, reportCtx.balance >= 0 ? "blue" : "red", reportCtx.balance >= 0 ? "Surplus" : "Borrow needed");
+    curY += 26;
+
+    // Project Readiness table
+    curY = drawSectionHeader(pdf, curY, "Project Readiness");
+    const readinessData = [
+      ["Project Name", state.project.name || "Untitled Project"],
+      ["Verification", state.project?.verified ? "Verified" : "Draft"],
+      ["Levels Imported", state.project?.uploads?.levels ? "Yes" : "No"],
+      ["Bridge List", state.project?.uploads?.bridges ? "Yes" : "No"],
+      ["Curve List", state.project?.uploads?.curves ? "Yes" : "No"],
+      ["Loops & Platforms", state.project?.uploads?.loops ? "Yes" : "No"],
+      ["KML/KMZ Alignment", state.project?.uploads?.kml ? "Yes" : "No"],
+      ["Station Plans", `${Object.keys(state.stationPlans || {}).length}`],
+    ];
+    pdf.autoTable({
+      startY: curY,
+      head: [],
+      body: readinessData,
+      theme: "grid",
+      margin: { left: 20, right: 100 },
+      styles: { fontSize: 8, cellPadding: 2, lineColor: C.border, lineWidth: 0.2 },
+      columnStyles: { 0: { fontStyle: "bold", textColor: C.text, cellWidth: 40 }, 1: { textColor: C.dark } },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+    });
+    curY = pdf.lastAutoTable.finalY + 6;
+
+    // Design Notes
+    if (reportCtx.alerts.length) {
+      curY = drawSectionHeader(pdf, curY, "Design Notes");
+      pdf.setFontSize(8); pdf.setFont("helvetica", "normal"); pdf.setTextColor(...C.text);
+      reportCtx.alerts.forEach((alert, i) => {
+        pdf.text(`• ${alert}`, 22, curY + (i * 5));
+      });
+      curY += reportCtx.alerts.length * 5 + 4;
+    }
+
+    // Field Intelligence
+    const sharpestCurve = [...(state.curveRows || [])].filter((c) => safeNum(c.radius, NaN) > 0).sort((a, b) => safeNum(a.radius) - safeNum(b.radius))[0];
+    const firstBridge = [...(state.bridgeRows || [])].sort((a, b) => safeNum(a.startChainage) - safeNum(b.startChainage))[0];
+    const firstStation = reportCtx.groupedStations.filter((s) => Number.isFinite(s.csb)).sort((a, b) => safeNum(a.csb) - safeNum(b.csb))[0];
+    curY = drawSectionHeader(pdf, curY, "Field Intelligence");
+    drawMetricCard(pdf, 20, curY, 55, 20, "First Bridge", firstBridge ? `${firstBridge.bridgeNo || "Bridge"} @ ${formatReportChainage(firstBridge.startChainage)}` : "N/A", "blue");
+    drawMetricCard(pdf, 78, curY, 55, 20, "Sharpest Curve", sharpestCurve ? `R=${r3(sharpestCurve.radius)} m` : "N/A", "amber");
+    drawMetricCard(pdf, 136, curY, 55, 20, "First Station", firstStation ? firstStation.station : "N/A", "slate");
+
+    if (progressBar) progressBar.style.width = "15%";
+
+    // ===== OPTIONAL SECTIONS =====
+    if (options.includeProfileSection) {
+      if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+      pdf.addPage("a4", "portrait"); drawPageHeaderFooter(pdf, "Project Profile");
+      const profile = state.project?.profile || {};
+      const profileData = [
+        ["Project Name", state.project.name || "Untitled"],
+        ["Corridor Name", profile.corridorName || "-"],
+        ["Direction", profile.direction || "-"],
+        ["Chainage Zero Ref", profile.chainageZeroRef || "-"],
+      ];
+      pdf.autoTable({
+        startY: 30, head: [], body: profileData, theme: "grid",
+        margin: { left: 20, right: 80 },
+        styles: { fontSize: 9, cellPadding: 3, lineColor: C.border, lineWidth: 0.2 },
+        columnStyles: { 0: { fontStyle: "bold", textColor: C.text, cellWidth: 50 }, 1: { textColor: C.dark } },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+      });
+    }
+
+    if (options.includeStandardsSection) {
+      if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+      pdf.addPage("a4", "portrait"); drawPageHeaderFooter(pdf, "Design Standards");
+      const s = state.settings || {};
+      const stdData = [
+        ["Gauge", s.gauge || "BG"],
+        ["Formation Preset", s.formationPreset || "single"],
+        ["Formation Width (Fill)", `${r3(s.formationWidthFill)} m`],
+        ["Cutting Width", `${r3(s.cuttingWidth)} m`],
+        ["Side Slope (H:V)", r3(s.sideSlopeFactor)],
+        ["Berm Rule 1", `${r3(s.bermRulePrimary)} m`],
+        ["Berm Rule 2", `${r3(s.bermRuleSecondary)} m`],
+        ["Min Track Centre", `${r3(s.minTc)} m`],
+        ["Min Platform Width", `${r3(s.minPlatformWidth)} m`],
+        ["Min Clearance", `${r3(s.minClearance)} m`],
+      ];
+      pdf.autoTable({
+        startY: 30, head: [], body: stdData, theme: "grid",
+        margin: { left: 20, right: 80 },
+        styles: { fontSize: 9, cellPadding: 3, lineColor: C.border, lineWidth: 0.2 },
+        columnStyles: { 0: { fontStyle: "bold", textColor: C.text, cellWidth: 50 }, 1: { textColor: C.dark } },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+      });
+    }
+
+    if (options.includeMaterialSection) {
+      if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+      pdf.addPage("a4", "portrait"); drawPageHeaderFooter(pdf, "Material Profile");
+      const matRows = Array.isArray(state.settings.materialProfile) ? state.settings.materialProfile : [];
+      const matBody = matRows.length ? matRows.map(r => [r3(r.depth), r3(r.density), r3(r.shrink), r3(r.swell)]) : [["No material layers defined", "", "", ""]];
+      pdf.autoTable({
+        startY: 30, head: [["Depth (m)", "Density (t/m³)", "Shrink (%)", "Swell (%)"]],
+        body: matBody, theme: "grid", margin: { left: 20, right: 80 },
+        styles: { fontSize: 9, cellPadding: 3, halign: "center", lineColor: C.border, lineWidth: 0.2 },
+        headStyles: { fillColor: C.light, textColor: C.dark, fontStyle: "bold" },
+      });
+    }
+
+    if (options.includeQualitySection) {
+      if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+      const issues = runQualityChecks();
+      pdf.addPage("a4", "portrait"); drawPageHeaderFooter(pdf, "Quality Checks");
+      if (!issues.length) {
+        pdf.setFontSize(10); pdf.setFont("helvetica", "normal"); pdf.setTextColor(...C.text);
+        pdf.text("No critical issues detected.", 20, 35);
+      } else {
+        const issueBody = issues.map(issue => [`${issue.title}: ${issue.detail}`]);
+        pdf.autoTable({
+          startY: 30, head: [["Issue"]], body: issueBody, theme: "grid",
+          margin: { left: 20, right: 20 },
+          styles: { fontSize: 8, cellPadding: 2, lineColor: C.border, lineWidth: 0.2 },
+          headStyles: { fillColor: C.light, textColor: C.dark, fontStyle: "bold" },
+        });
+      }
+    }
+
+    if (progressBar) progressBar.style.width = "20%";
+
+    // ===== 3. CALCULATION SHEET =====
+    if (options.calcSheet) {
+      if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+      if (loadingText) loadingText.textContent = "Building calculation sheet...";
+
+      // Summary page first
+      pdf.addPage("a4", "landscape");
+      drawPageHeaderFooter(pdf, "Calculation Sheet");
+
+      // Quantity overview table from DOM
+      let qtyData = [];
+      const qtyRows = Array.from(document.querySelectorAll('#resultQtyBody tr'));
+      if (qtyRows.length) {
+        qtyData = qtyRows.map(tr => {
+          const tds = Array.from(tr.querySelectorAll('td'));
+          return tds.map(td => td.textContent.trim());
+        });
+      }
+      if (qtyData.length) {
+        pdf.autoTable({
+          startY: 30,
+          head: [["Range", "Prepared", "Blanket", "Fill (m³)", "Cut (m³)"]],
+          body: qtyData, theme: "grid",
+          margin: { left: 20, right: 20 },
+          styles: { fontSize: 8, cellPadding: 2, halign: "center", lineColor: C.border, lineWidth: 0.2 },
+          headStyles: { fillColor: C.light, textColor: C.dark, fontStyle: "bold" },
+        });
+      }
+
+      // Full calculation table
+      const calcHeaders = [
+        "Bridge", "Station", "Chainage", "Diff", "Ground RL",
+        "Proposed RL", "Loop TC", "Loops", "PF Width", "Deduct Len",
+        "EW Diff", "RL Diff", "Bank", "Cut", "Top Width",
+        "Fill Area", "Cut Area", "Fill Vol", "Cut Vol",
+      ];
+
+      const calcBody = exportCalcRows.map(r => {
+        const bridgeRefs = (r.bridgeRefs && r.bridgeRefs.length) ? r.bridgeRefs.join("|") : "-";
+        const station = (r.stationName || r.station) ? String(r.stationName || r.station) : "-";
+        const ch = (r.chainage < 0 ? "-" : "") + Math.floor(Math.abs(r.chainage) / 1000) + "+" + (Math.abs(r.chainage) % 1000).toFixed(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1").padStart(3, "0");
+        return [
+          bridgeRefs, station, ch,
+          r.diff ? r3(r.diff) : "—", r3(r.groundLevel), r3(r.proposedLevel),
+          r.loopTc ? r3(r.loopTc) : "—", r.loopCount ? String(r.loopCount) : "—",
+          r.platformWidth ? r3(r.platformWidth) : "—", r.bridgeDeductLen ? r3(r.bridgeDeductLen) : "—",
+          r.ewDiff ? r3(r.ewDiff) : "—", r.rlDiff ? r3(r.rlDiff) : "—",
+          r.bank > 0.0001 ? r3(r.bank) : "—", r.cut > 0.0001 ? r3(r.cut) : "—",
+          r.topWidth ? r3(r.topWidth) : "—",
+          r.fillArea > 0.0001 ? r3(r.fillArea) : "—", r.cutArea > 0.0001 ? r3(r.cutArea) : "—",
+          r.fillVol > 0.0001 ? r3(r.fillVol) : "—", r.cutVol > 0.0001 ? r3(r.cutVol) : "—",
+        ];
+      });
+
+      pdf.addPage("a4", "landscape");
+
+      pdf.autoTable({
+        startY: 18,
+        head: [calcHeaders],
+        body: calcBody,
+        theme: "grid",
+        margin: { left: 5, right: 5 },
+        styles: {
+          fontSize: 6.2,
+          cellPadding: 1.2,
+          halign: "center",
+          valign: "middle",
+          lineColor: [0, 0, 0],
+          lineWidth: 0.15,
+          textColor: [0, 0, 0],
+          overflow: "linebreak",
+        },
+        headStyles: {
+          fillColor: C.light,
+          textColor: C.dark,
+          fontStyle: "bold",
+          fontSize: 6,
+        },
+        alternateRowStyles: { fillColor: [253, 253, 253] },
+        didDrawPage: function (data) {
+          // Header on each calc sheet page
+          pdf.setFontSize(8); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...C.dark);
+          pdf.text("Detailed Calculation Sheet", 10, 10);
+          pdf.setFontSize(6); pdf.setFont("helvetica", "normal"); pdf.setTextColor(...C.muted);
+          pdf.text(`${state.project.name || "Project"} • Page ${pdf.internal.getNumberOfPages()}`, 287, 10, { align: "right" });
+        },
+        didParseCell: function (data) {
+          if (data.section === 'body') {
+            // Update progress
+            if (data.row.index % 50 === 0 && progressBar) {
+              progressBar.style.width = `${20 + ((data.row.index / calcBody.length) * 15)}%`;
+            }
+          }
+        },
+      });
+
+      if (progressBar) progressBar.style.width = "35%";
+    }
+
+    // ===== 4. ROLL DIAGRAM =====
     if (options.rollDiagram) {
       if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
-      if (loadingText) loadingText.textContent = "Exporting Roll Diagram...";
+      if (loadingText) loadingText.textContent = "Rendering roll diagrams...";
 
       const originalRollCanvas = els.rollDiagramCanvas;
       const originalSideCanvas = els.sideViewCanvas;
@@ -7027,154 +9209,223 @@ async function generateProjectReport(options) {
       const CHUNK_LEN = 1000;
       const minOverallCh = exportCalcRows[0].chainage;
       const maxOverallCh = exportCalcRows[exportCalcRows.length - 1].chainage;
+      let chunkIdx = 0;
+      const totalChunks = Math.ceil((maxOverallCh - minOverallCh) / CHUNK_LEN);
 
       for (let chStart = minOverallCh; chStart <= maxOverallCh; chStart += CHUNK_LEN) {
         if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
         const chunkRollRows = exportCalcRows.filter(r => r.chainage >= chStart && r.chainage <= chStart + CHUNK_LEN);
         if (chunkRollRows.length < 2) continue;
 
-        const rollPage = document.createElement("div");
-        rollPage.style.padding = "20px 40px";
-        rollPage.innerHTML = `<h2 style="margin-top: 0; color: #000; margin-bottom: 10px; font-size: 16px;">L-Section Roll Diagram (Ch ${r3(chStart)}m to ${r3(chStart + CHUNK_LEN)}m)</h2>`;
+        // --- Roll diagram: own page ---
+        pdf.addPage("a4", "landscape");
+        drawPageHeaderFooter(pdf, `L-Section Roll Diagram (Ch ${r3(chStart)}m to ${r3(chStart + CHUNK_LEN)}m)`);
+
+        const isFast = options.fastMode === true;
+        const rdW = isFast ? 1200 : 2400;
+        const rdH = isFast ? 300 : 600;
+        const imgFmt = isFast ? "image/jpeg" : "image/png";
+        const imgQual = isFast ? 0.6 : undefined;
+        const pdfFmt = isFast ? "JPEG" : "PNG";
 
         const tempRollCanvas = document.createElement("canvas");
+        tempRollCanvas.width = rdW; tempRollCanvas.height = rdH;
         els.rollDiagramCanvas = tempRollCanvas;
         state.calcRows = chunkRollRows;
-
-        window._printModeLight = true; // Use globally defined print flag for light mode render
+        window._printModeLight = true;
         renderRollDiagram();
-        if (tempRollCanvas.width > 0 && tempRollCanvas.height > 0) {
-          const img = document.createElement("img");
-          img.src = tempRollCanvas.toDataURL("image/png");
-          img.style.width = "100%";
-          img.style.border = "1px solid #e2e8f0";
-          img.style.borderRadius = "4px";
-          img.style.marginBottom = "20px";
-          img.style.filter = "invert(1) hue-rotate(180deg) contrast(1.1)"; // Force white background while preserving semantic colors (green/red) approximately
-          rollPage.appendChild(img);
-        }
 
-        rollPage.innerHTML += `<h2 style="margin-top: 20px; color: #000; margin-bottom: 10px; font-size: 16px;">Cross-Sectional Toe Width Diagram</h2>`;
-        const tempSideCanvas = document.createElement("canvas");
-        els.sideViewCanvas = tempSideCanvas;
-        renderSideView();
+        if (tempRollCanvas.width > 0 && tempRollCanvas.height > 0) {
+          try {
+            const rollImg = tempRollCanvas.toDataURL(imgFmt, imgQual);
+            const pgW = pdf.internal.pageSize.getWidth();
+            const pgH = pdf.internal.pageSize.getHeight();
+            const drawW = pgW - 16;
+            const imgAspect = tempRollCanvas.width / tempRollCanvas.height;
+            const drawH = drawW / imgAspect;
+            const rollDrawH = Math.min(drawH, (pgH - 40) / 2);
+            pdf.addImage(rollImg, pdfFmt, 8, 30, drawW, rollDrawH, undefined, "FAST");
+
+            // --- Side view: same page below ---
+            pdf.setFontSize(9); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...C.dark);
+            pdf.text("Cross-Sectional Toe Width Diagram", 8, 30 + rollDrawH + 6);
+
+            const tempSideCanvas = document.createElement("canvas");
+            tempSideCanvas.width = rdW; tempSideCanvas.height = rdH;
+            els.sideViewCanvas = tempSideCanvas;
+            renderSideView();
+
+            if (tempSideCanvas.width > 0 && tempSideCanvas.height > 0) {
+              const sideImg = tempSideCanvas.toDataURL(imgFmt, imgQual);
+              const sideAspect = tempSideCanvas.width / tempSideCanvas.height;
+              const sideDrawH = Math.min(drawW / sideAspect, (pgH - 40) / 2);
+              pdf.addImage(sideImg, pdfFmt, 8, 30 + rollDrawH + 10, drawW, sideDrawH, undefined, "FAST");
+            }
+            tempSideCanvas.width = 0; tempSideCanvas.height = 0;
+          } catch (e) { console.warn("Roll diagram image failed:", e); }
+        }
+        tempRollCanvas.width = 0; tempRollCanvas.height = 0;
         window._printModeLight = false;
 
-        if (tempSideCanvas.width > 0 && tempSideCanvas.height > 0) {
-          const sImg = document.createElement("img");
-          sImg.src = tempSideCanvas.toDataURL("image/png");
-          sImg.style.width = "100%";
-          sImg.style.border = "1px solid #e2e8f0";
-          sImg.style.borderRadius = "4px";
-          sImg.style.filter = "invert(1) hue-rotate(180deg) contrast(1.1)";
-          rollPage.appendChild(sImg);
-        }
-
-        container.appendChild(rollPage);
+        chunkIdx++;
+        if (progressBar) progressBar.style.width = `${35 + ((chunkIdx / totalChunks) * 15)}%`;
+        await new Promise(r => setTimeout(r, 10));
       }
 
       els.rollDiagramCanvas = originalRollCanvas;
       els.sideViewCanvas = originalSideCanvas;
       state.calcRows = originalRows;
-
-      if (progressBar) progressBar.style.width = "30%";
     }
 
-    // 5. Cross Sections
-    if (options.crossSections) {
-      const csHeaderPage = document.createElement("div");
-      csHeaderPage.style.padding = "40px";
-      csHeaderPage.style.height = "750px";
-      csHeaderPage.innerHTML = `<h2 style="margin-top: 0; color: #0f172a; border-bottom: 3px solid #ef4444; padding-bottom: 12px; margin-bottom: 30px;">Cross-Sectional Detail Drawings</h2>`;
-      container.appendChild(csHeaderPage);
+    if (progressBar) progressBar.style.width = "50%";
 
-      const itemsPerBatch = 2; // Exact number of items that fit well on one A4 page without breaking
-      let currentCsPage = document.createElement("div");
-      currentCsPage.style.padding = "20px";
+    // ===== 5. CROSS SECTIONS (1 per full landscape page) =====
+    if (options.crossSections) {
+      if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+      if (loadingText) loadingText.textContent = "Rendering cross sections...";
+
+      // Use the full viewBox with margins so RL summary on the right is included
+      const fullVBW = CROSS_SVG_W + (CROSS_VIEW_MARGIN_X * 2); // 2540
+      const fullVBH = CROSS_SVG_H + (CROSS_VIEW_MARGIN_Y * 2); // 1340
 
       for (let i = 0; i < exportCalcRows.length; i++) {
         if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
 
+        // One full landscape page per cross-section
+        pdf.addPage("a4", "landscape");
+
         if (loadingText && i % 5 === 0) {
-          loadingText.textContent = `Building Cross-Sections: ${i} / ${exportCalcRows.length} (Limit: ${options.rowLimit ? options.rowLimit : 'All'})`;
+          loadingText.textContent = `Rendering cross section ${i + 1} / ${exportCalcRows.length}`;
         }
         if (progressBar && i % 5 === 0) {
-          progressBar.style.width = `${30 + ((i / exportCalcRows.length) * 20)}%`; // 30% -> 50% span
+          progressBar.style.width = `${50 + ((i / exportCalcRows.length) * 40)}%`;
         }
 
         const row = exportCalcRows[i];
-        const sectionDiv = document.createElement("div");
-        sectionDiv.style.marginBottom = "50px";
-        sectionDiv.style.textAlign = "center";
-        sectionDiv.style.pageBreakInside = "avoid";
-
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-        svg.setAttribute("width", "1000"); // Fixed width for consistent scaling
-        svg.setAttribute("height", "576");
-        svg.setAttribute("viewBox", `0 0 ${CROSS_SVG_W} ${CROSS_SVG_H}`);
+        svg.setAttribute("width", String(fullVBW));
+        svg.setAttribute("height", String(fullVBH));
+        // Include the margin area so RL summary text on the right side is captured
+        svg.setAttribute("viewBox", `${-CROSS_VIEW_MARGIN_X} ${-CROSS_VIEW_MARGIN_Y} ${fullVBW} ${fullVBH}`);
+        svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
 
-        // Ensure defs are present for hatching/arrows
         const defs = els.crossSvg.querySelector("defs");
         if (defs) svg.appendChild(defs.cloneNode(true));
-
         drawCrossSection(row, svg);
 
-        sectionDiv.innerHTML = `<h3 style="text-align: left; color: #1e293b; padding-left: 20px; border-left: 5px solid #3b82f6; margin-bottom: 15px;">Chainage: ${r3(row.chainage)} m - Type: ${row.type}</h3>`;
-        sectionDiv.appendChild(svg);
-        currentCsPage.appendChild(sectionDiv);
+        // Convert SVG to image via canvas at high resolution
+        const svgStr = new XMLSerializer().serializeToString(svg);
+        const svgBlob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
+        const svgUrl = URL.createObjectURL(svgBlob);
 
-        // Page break logic
-        if ((i + 1) % itemsPerBatch === 0 || i === exportCalcRows.length - 1) {
-          container.appendChild(currentCsPage);
-          if (i < exportCalcRows.length - 1) {
-            currentCsPage = document.createElement("div");
-            currentCsPage.style.padding = "20px";
+        try {
+          const img = new Image();
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = svgUrl;
+          });
+
+          // Canvas matching SVG aspect ratio, adjusted for Fast Mode
+          const isFast = options.fastMode === true;
+          const cvsW = isFast ? 1270 : 2540;
+          const cvsH = Math.round(cvsW * (fullVBH / fullVBW));
+          const cvs = document.createElement("canvas");
+          cvs.width = cvsW; cvs.height = cvsH;
+          const ctx = cvs.getContext("2d");
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, cvsW, cvsH);
+          ctx.drawImage(img, 0, 0, cvsW, cvsH);
+
+          const jpegQuality = isFast ? 0.6 : 0.95;
+          const imgData = cvs.toDataURL("image/jpeg", jpegQuality);
+
+          const pgW = pdf.internal.pageSize.getWidth();  // 297mm landscape
+          const pgH = pdf.internal.pageSize.getHeight(); // 210mm landscape
+
+          // Header label
+          pdf.setFontSize(10); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...C.primary);
+          pdf.text(`CROSS-SECTION`, 10, 10);
+          pdf.setTextColor(...C.dark);
+          pdf.text(`Chainage: ${r3(row.chainage)} m  •  Type: ${row.type}`, 52, 10);
+          pdf.setFontSize(7); pdf.setFont("helvetica", "normal"); pdf.setTextColor(...C.muted);
+          pdf.text(`${state.project.name || "Project"}`, pgW - 10, 10, { align: "right" });
+
+          // Draw the image to fill the page, preserving aspect ratio
+          const margin = 6;
+          const availW = pgW - (margin * 2);
+          const availH = pgH - 16 - margin; // 16mm top for header
+          const imgAspect = cvsW / cvsH;
+          let drawW = availW;
+          let drawH = drawW / imgAspect;
+          if (drawH > availH) {
+            drawH = availH;
+            drawW = drawH * imgAspect;
           }
+          const offsetX = margin + (availW - drawW) / 2;
+          pdf.addImage(imgData, "JPEG", offsetX, 14, drawW, drawH, undefined, "FAST");
+
+          // Cleanup
+          cvs.width = 0; cvs.height = 0;
+          URL.revokeObjectURL(svgUrl);
+        } catch (e) {
+          console.warn(`Cross section ${i} render failed:`, e);
+          URL.revokeObjectURL(svgUrl);
         }
+
+        // Yield every 4 sections to keep browser responsive
+        if (i % 4 === 0) await new Promise(r => setTimeout(r, 5));
       }
     }
 
-    if (loadingText) loadingText.textContent = "Finalizing PDF document. This may take a minute...";
-    if (progressBar) progressBar.style.width = "50%";
+    if (progressBar) progressBar.style.width = "92%";
 
-    if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
+    // ===== 6. SIGNATURE PAGE =====
+    const signName = String(reportBrand.signName || "").trim();
+    const signTitle = String(reportBrand.signTitle || "").trim();
+    const signatureImg = reportBrand.signature;
+    if (signatureImg || signName || signTitle) {
+      pdf.addPage("a4", "portrait");
+      drawPageHeaderFooter(pdf, "");
+      const pgH = pdf.internal.pageSize.getHeight();
+      const sigY = pgH - 80;
 
-    // Allow browser time to complete layout of generated DOM tables
-    container.offsetHeight;
-    await new Promise(r => setTimeout(r, 600));
+      pdf.setFontSize(8); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...C.muted);
+      pdf.text("SIGNATURE", 20, sigY);
 
-    // Calculate dynamic JS PDF workflow sequentially for scale without black pages
-    const pagesArray = Array.from(container.children);
-    if (!pagesArray.length) {
-      throw new Error("No pages generated to export.");
+      if (signatureImg) {
+        try { pdf.addImage(signatureImg, "PNG", 20, sigY + 4, 60, 25); } catch (e) { /* skip */ }
+      }
+      pdf.setDrawColor(...C.border); pdf.setLineWidth(0.3);
+      pdf.line(20, sigY + 32, 80, sigY + 32);
+
+      pdf.setFontSize(11); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...C.dark);
+      pdf.text(signName || "Authorized Signatory", 20, sigY + 38);
+      if (signTitle) {
+        pdf.setFontSize(9); pdf.setFont("helvetica", "normal"); pdf.setTextColor(...C.text);
+        pdf.text(signTitle, 20, sigY + 44);
+      }
     }
 
-    const opt = {
-      margin: [10, 10, 10, 10], // Slightly improved margin config
-      filename: `${state.project.name || "Earthsoft_Report"}_${new Date().toISOString().split('T')[0]}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false, letterRendering: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
-      pagebreak: { mode: ['css', 'legacy'] }
-    };
-
-    let worker = html2pdf().set(opt).from(pagesArray[0]).toPdf();
-
-    // 50% -> 100% processing worker pipeline
-    for (let j = 1; j < pagesArray.length; j++) {
-      if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
-      worker = worker.get('pdf').then(pdf => {
-        pdf.addPage();
-        if (loadingText) loadingText.textContent = `Rendering page ${j} of ${pagesArray.length}...`;
-        if (progressBar) {
-          const pct = 50 + ((j / pagesArray.length) * 50);
-          progressBar.style.width = `${pct}%`;
-        }
-      }).from(pagesArray[j]).toContainer().toCanvas().toPdf();
+    // ===== STAMP PAGE NUMBERS ON ALL PAGES =====
+    if (loadingText) loadingText.textContent = "Adding page numbers...";
+    const totalPages = pdf.internal.getNumberOfPages();
+    for (let p = 1; p <= totalPages; p++) {
+      pdf.setPage(p);
+      const pgW = pdf.internal.pageSize.getWidth();
+      const pgH = pdf.internal.pageSize.getHeight();
+      pdf.setFontSize(7); pdf.setFont("helvetica", "normal"); pdf.setTextColor(148, 163, 184);
+      pdf.text(`Page ${p} of ${totalPages}`, pgW - 10, pgH - 6, { align: "right" });
+      pdf.text(`Earthsoft Professional • ${state.project.name || "Project"}`, 10, pgH - 6);
     }
 
+    // ===== SAVE =====
     if (window._isPdfExportCancelled) throw new Error("Export cancelled by user.");
-    await worker.save();
+    if (progressBar) progressBar.style.width = "96%";
+    if (loadingText) loadingText.textContent = "Saving PDF...";
+
+    const filename = `${state.project.name || "Earthsoft_Report"}_${new Date().toISOString().split('T')[0]}.pdf`;
+    pdf.save(filename);
 
     if (progressBar) progressBar.style.width = "100%";
     if (loadingText) loadingText.textContent = "Download complete!";
@@ -7183,12 +9434,11 @@ async function generateProjectReport(options) {
   } catch (error) {
     if (error.message === "Export cancelled by user.") {
       console.log("PDF Export was cancelled by the user.");
-      // Display a temporary cancellation notification or silently fail out
       if (loadingText) loadingText.textContent = "Export cancelled.";
       return;
     }
     console.error("Report Generation Error:", error);
-    alert("An error occurred during report generation. This might happen if your project data is very large. Check the console for logs.");
+    alert("An error occurred during report generation: " + error.message);
   } finally {
     const wrapper = document.getElementById("pdf-export-wrapper");
     if (wrapper) wrapper.remove();
@@ -7196,7 +9446,7 @@ async function generateProjectReport(options) {
     const cancelBtn = document.getElementById("cancelPdfExportBtn");
     if (cancelBtn) cancelBtn.style.display = "none";
 
-    if (loadingHeader) loadingHeader.textContent = "AI Processing..."; // Reset to original
+    if (loadingHeader) loadingHeader.textContent = "AI Processing...";
     if (progressBarContainer) progressBarContainer.style.display = "none";
     if (loading) loading.classList.add("hidden");
   }

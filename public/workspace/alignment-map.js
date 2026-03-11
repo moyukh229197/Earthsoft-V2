@@ -506,6 +506,9 @@ function drawAlignmentMap() {
     }
 
     const startChOffset = (state.calcRows && state.calcRows.length) ? _safeNum(state.calcRows[0].chainage) : 0;
+    const showMapStations = state.settings?.showMapStations !== false;
+    const showMapBridges = state.settings?.showMapBridges !== false;
+    const showMapCurves = state.settings?.showMapCurves !== false;
 
     // Earthwork Overlays
     if (state.calcRows && state.calcRows.length > 1) {
@@ -543,6 +546,7 @@ function drawAlignmentMap() {
     };
 
     // Bridges
+    if (showMapBridges) {
     state.bridgeRows.forEach(br => {
         const mid = (_safeNum(br.startChainage) + _safeNum(br.endChainage)) / 2;
         const spanConfig = `${_safeNum(br.bridgeSpans, 1)} x ${br.bridgeSize || br.bridgeSpanLength || "-"}`;
@@ -556,8 +560,10 @@ function drawAlignmentMap() {
         `;
         addMarker(mid, `Bridge ${br.bridgeNo}`, content, "#3b82f6");
     });
+    }
 
     // Curves
+    if (showMapCurves) {
     state.curveRows.forEach((cr, index) => {
         const length = _safeNum(cr.length);
         const startCh = _safeNum(cr.chainage);
@@ -574,6 +580,7 @@ function drawAlignmentMap() {
         `;
         addMarker(mid, cr.curve || "Curve", content, "#eab308");
     });
+    }
 
     // Stations
     const stationGroups = new Map();
@@ -601,6 +608,7 @@ function drawAlignmentMap() {
         stationGroups.set(key, group);
     });
 
+    if (showMapStations) {
     stationGroups.forEach((station) => {
         const csbCh = Number.isFinite(station.csb) ? station.csb : NaN;
         const mid = Number.isFinite(csbCh)
@@ -651,6 +659,7 @@ function drawAlignmentMap() {
             stationMarker.bringToFront();
         }
     });
+    }
 
     updateMapLegend(Object.keys(state.stationPlans || {}).length);
 }

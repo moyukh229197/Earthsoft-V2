@@ -13,6 +13,9 @@ export default defineConfig({
   base,
   plugins: [react(), tailwindcss()],
   publicDir: "public",
+  server: {
+    port: 8080,
+  },
   build: {
     sourcemap: false,
   },
