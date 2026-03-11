@@ -46,7 +46,7 @@ function readCookie(header: string, name: string) {
 }
 
 export default async function middleware(request: Request) {
-  const secret = process.env.SESSION_SECRET
+  const secret = process.env.SESSION_SECRET || "e12ddd7bbd1731c1e83aa09e577ed119f4b9ada8c0c3e404b3d6ed28f64411eb"
   if (!secret) {
     return Response.json({ error: "SESSION_SECRET is not configured." }, { status: 500 })
   }
