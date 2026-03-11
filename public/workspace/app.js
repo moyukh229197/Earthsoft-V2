@@ -8389,8 +8389,8 @@ function init3DViewer() {
    viewer3dScene.background = new THREE.Color(0x0b1020);
    viewer3dScene.fog = new THREE.FogExp2(0x0b1020, 0.002);
 
-   viewer3dCamera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 2000);
-   viewer3dCamera.position.set(20, 15, 40);
+   viewer3dCamera = new THREE.PerspectiveCamera(70, container.clientWidth / container.clientHeight, 1, 15000);
+   viewer3dCamera.position.set(20, 30, 100);
 
    viewer3dRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
    viewer3dRenderer.setSize(container.clientWidth, container.clientHeight);
@@ -8467,10 +8467,17 @@ function init3DViewer() {
 }
 
 function generate3DMesh() {
-   if(!viewer3dScene || state.calcRows.length === 0) return;
+   // Clear old meshes properly
+   const oldTrack = viewer3dScene.getObjectByName('trackCorridor');
+   if (oldTrack) viewer3dScene.remove(oldTrack);
    
-   // Clear old meshes
-   viewer3dScene.children = viewer3dScene.children.filter(c => c.name !== 'trackCorridor');
+   if (state.calcRows.length === 0) {
+      // Add a placeholder message/grid if no data
+      const helper = new THREE.GridHelper(200, 20, 0x3b82f6, 0x1e293b);
+      helper.name = 'trackCorridor';
+      viewer3dScene.add(helper);
+      return;
+   }
    
    const trackGroup = new THREE.Group();
    trackGroup.name = 'trackCorridor';
