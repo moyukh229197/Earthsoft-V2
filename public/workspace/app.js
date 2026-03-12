@@ -146,6 +146,8 @@ const els = {
   wizardUploadButtons: Array.from(document.querySelectorAll("[data-wizard-upload]")),
   bridgeAddBtn: document.getElementById("bridgeAddBtn"),
   bridgeFilterInput: document.getElementById("bridgeFilterInput"),
+  bridgeCategoryFilter: document.getElementById("bridgeCategoryFilter"),
+  bridgeTypeFilter: document.getElementById("bridgeTypeFilter"),
   bridgeApplyBtn: document.getElementById("bridgeApplyBtn"),
   bridgeTableBody: document.getElementById("bridgeTableBody"),
   bridgeMeta: document.getElementById("bridgeMeta"),
@@ -2088,6 +2090,44 @@ function renderBridgeInputs() {
     const invalidCount = Math.max(state.bridgeRows.length - allValidBridges.length, 0);
     els.bridgeMeta.textContent = `Bridge rows: ${state.bridgeRows.length} | Valid: ${allValidBridges.length} | Total Length: ${r3(totalLength)}m | Deductible (Major/RoR/etc): ${r3(deductibleLength)}m${invalidCount ? ` | Invalid: ${invalidCount}` : ""}`;
   }
+
+  filterBridgeTable();
+}
+
+function filterBridgeTable() {
+  if (!els.bridgeTableBody) return;
+  const term = (els.bridgeFilterInput?.value || "").toLowerCase();
+  const catFilter = els.bridgeCategoryFilter?.value || "";
+  const typeFilter = els.bridgeTypeFilter?.value || "";
+
+  const rows = els.bridgeTableBody.querySelectorAll("tr");
+  rows.forEach(row => {
+    const catSelect = row.querySelector("select[data-bridge-field='bridgeCategory']");
+    const typeSelect = row.querySelector("select[data-bridge-field='bridgeType']");
+
+    let isMatch = true;
+
+    // 1. Text Search
+    if (term) {
+       let textContext = row.textContent.toLowerCase();
+       row.querySelectorAll("input, select").forEach(input => {
+         if (input.value) textContext += " " + input.value.toLowerCase();
+       });
+       if (!textContext.includes(term)) isMatch = false;
+    }
+
+    // 2. Category Match
+    if (catFilter && catSelect && catSelect.value !== catFilter) {
+       isMatch = false;
+    }
+
+    // 3. Type Match
+    if (typeFilter && typeSelect && typeSelect.value !== typeFilter) {
+       isMatch = false;
+    }
+
+    row.style.display = isMatch ? "" : "none";
+  });
 }
 
 function renderCurveInputs() {
@@ -6108,6 +6148,14 @@ function bindEvents() {
     });
   });
 
+  // Populate dynamic filter options
+  if (els.bridgeCategoryFilter) {
+    els.bridgeCategoryFilter.innerHTML = '<option value="">All Categories</option>' + BRIDGE_CATEGORIES.map(cat => `<option value="${cat}">${cat}</option>`).join("");
+  }
+  if (els.bridgeTypeFilter) {
+    els.bridgeTypeFilter.innerHTML = '<option value="">All Types</option>' + BRIDGE_TYPES.map(type => `<option value="${type}">${type}</option>`).join("");
+  }
+
   if (els.sidebarToggle && els.appLayout) {
     els.sidebarToggle.addEventListener("click", () => {
       els.appLayout.classList.add("sidebar-collapsed");
@@ -7584,19 +7632,13 @@ function bindEvents() {
   }
 
   if (els.bridgeFilterInput) {
-    els.bridgeFilterInput.addEventListener("input", (e) => {
-      const term = e.target.value.toLowerCase();
-      if (!els.bridgeTableBody) return;
-      const rows = els.bridgeTableBody.querySelectorAll("tr");
-      rows.forEach(row => {
-        let textContext = row.textContent.toLowerCase();
-        // Include values from input and select boxes
-        row.querySelectorAll("input, select").forEach(input => {
-          if (input.value) textContext += " " + input.value.toLowerCase();
-        });
-        row.style.display = textContext.includes(term) ? "" : "none";
-      });
-    });
+    els.bridgeFilterInput.addEventListener("input", filterBridgeTable);
+  }
+  if (els.bridgeCategoryFilter) {
+    els.bridgeCategoryFilter.addEventListener("change", filterBridgeTable);
+  }
+  if (els.bridgeTypeFilter) {
+    els.bridgeTypeFilter.addEventListener("change", filterBridgeTable);
   }
 
   if (els.bridgeAddBtn) {

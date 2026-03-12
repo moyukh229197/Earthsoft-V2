@@ -470,6 +470,12 @@
           <div class="bridge-head">
             <h3>Bridges</h3>
             <div class="bridge-actions" style="display: flex; gap: 8px; align-items: center;">
+              <select id="bridgeCategoryFilter" style="padding: 6px 12px; border-radius: 6px; border: 1px solid var(--stroke); background: rgba(0,0,0,0.2); color: var(--text); font-size: 0.85rem;">
+                <option value="">All Categories</option>
+              </select>
+              <select id="bridgeTypeFilter" style="padding: 6px 12px; border-radius: 6px; border: 1px solid var(--stroke); background: rgba(0,0,0,0.2); color: var(--text); font-size: 0.85rem;">
+                <option value="">All Types</option>
+              </select>
               <div class="search-box" style="position: relative;">
                 <i class="ri-search-line" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted);"></i>
                 <input id="bridgeFilterInput" type="text" placeholder="Search bridges..." style="padding: 6px 12px 6px 32px; border-radius: 6px; border: 1px solid var(--stroke); background: rgba(0,0,0,0.2); color: var(--text); font-size: 0.85rem; width: 220px;" />
