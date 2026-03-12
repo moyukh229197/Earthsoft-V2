@@ -9619,7 +9619,7 @@ async function generateProjectReport(options) {
         drawPageHeaderFooter(pdf, `L-Section Roll Diagram (Ch ${r3(chStart)}m to ${r3(chStart + CHUNK_LEN)}m)`);
 
         const isFast = options.fastMode === true;
-        const rdW = isFast ? 1200 : 2400;
+        const rdW = isFast ? 1200 : 2400; // These are just initial values, renderRollDiagram will override
         const rdH = isFast ? 300 : 600;
         const imgFmt = isFast ? "image/jpeg" : "image/png";
         const imgQual = isFast ? 0.6 : undefined;
@@ -9629,7 +9629,14 @@ async function generateProjectReport(options) {
         tempRollCanvas.width = rdW; tempRollCanvas.height = rdH;
         els.rollDiagramCanvas = tempRollCanvas;
         state.calcRows = chunkRollRows;
+        
+        // Temporarily force scale to 1.0 for consistent PDF look
+        const savedPlanScale = window._planScale;
+        const savedSideScale = window._sideScale;
+        window._planScale = 1.0;
+        window._sideScale = 1.0;
         window._printModeLight = true;
+        
         renderRollDiagram();
 
         if (tempRollCanvas.width > 0 && tempRollCanvas.height > 0) {
@@ -9637,15 +9644,30 @@ async function generateProjectReport(options) {
             const rollImg = tempRollCanvas.toDataURL(imgFmt, imgQual);
             const pgW = pdf.internal.pageSize.getWidth();
             const pgH = pdf.internal.pageSize.getHeight();
-            const drawW = pgW - 16;
-            const imgAspect = tempRollCanvas.width / tempRollCanvas.height;
-            const drawH = drawW / imgAspect;
-            const rollDrawH = Math.min(drawH, (pgH - 40) / 2);
-            pdf.addImage(rollImg, pdfFmt, 8, 30, drawW, rollDrawH, undefined, "FAST");
+            
+            // Available space for two diagrams on one portrait/landscape page
+            const margin = 8;
+            const availW = pgW - (margin * 2);
+            const availH = (pgH - 45) / 2; // 45mm reserved for headers/footers/etc
+            
+            let imgAspect = tempRollCanvas.width / tempRollCanvas.height;
+            let drawW = availW;
+            let drawH = drawW / imgAspect;
+            
+            if (drawH > availH) {
+              drawH = availH;
+              drawW = drawH * imgAspect;
+            }
+            
+            const rollDrawW = drawW;
+            const rollDrawH = drawH;
+            const offsetX = margin + (availW - rollDrawW) / 2;
+            
+            pdf.addImage(rollImg, pdfFmt, offsetX, 30, rollDrawW, rollDrawH, undefined, "FAST");
 
             // --- Side view: same page below ---
             pdf.setFontSize(9); pdf.setFont("helvetica", "bold"); pdf.setTextColor(...C.dark);
-            pdf.text("Cross-Sectional Toe Width Diagram", 8, 30 + rollDrawH + 6);
+            pdf.text("Cross-Sectional Toe Width Diagram", margin, 30 + rollDrawH + 6);
 
             const tempSideCanvas = document.createElement("canvas");
             tempSideCanvas.width = rdW; tempSideCanvas.height = rdH;
@@ -9654,15 +9676,27 @@ async function generateProjectReport(options) {
 
             if (tempSideCanvas.width > 0 && tempSideCanvas.height > 0) {
               const sideImg = tempSideCanvas.toDataURL(imgFmt, imgQual);
-              const sideAspect = tempSideCanvas.width / tempSideCanvas.height;
-              const sideDrawH = Math.min(drawW / sideAspect, (pgH - 40) / 2);
-              pdf.addImage(sideImg, pdfFmt, 8, 30 + rollDrawH + 10, drawW, sideDrawH, undefined, "FAST");
+              let sideAspect = tempSideCanvas.width / tempSideCanvas.height;
+              let sDrawW = availW;
+              let sDrawH = sDrawW / sideAspect;
+              
+              if (sDrawH > availH) {
+                sDrawH = availH;
+                sDrawW = sDrawH * sideAspect;
+              }
+              
+              const sOffsetX = margin + (availW - sDrawW) / 2;
+              pdf.addImage(sideImg, pdfFmt, sOffsetX, 30 + rollDrawH + 10, sDrawW, sDrawH, undefined, "FAST");
             }
             tempSideCanvas.width = 0; tempSideCanvas.height = 0;
           } catch (e) { console.warn("Roll diagram image failed:", e); }
         }
-        tempRollCanvas.width = 0; tempRollCanvas.height = 0;
+        
+        // Restore scales
+        window._planScale = savedPlanScale;
+        window._sideScale = savedSideScale;
         window._printModeLight = false;
+        tempRollCanvas.width = 0; tempRollCanvas.height = 0;
 
         chunkIdx++;
         if (progressBar) progressBar.style.width = `${35 + ((chunkIdx / totalChunks) * 15)}%`;

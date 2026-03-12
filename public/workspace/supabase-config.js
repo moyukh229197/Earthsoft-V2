@@ -1,7 +1,7 @@
 // Supabase Configuration
 window.SUPABASE_CONFIG = {
   url: 'https://gpiujhtcuagyopinszbe.supabase.co',
-  anonKey: 'sb_publishable_eFDWMkF_h-UqdJulydi8pQ_IqotB83e'
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdwaXVqaHRjdWFneW9waW5zemJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzMjI3NDAsImV4cCI6MjA4ODg5ODc0MH0.5VFWVFKuFvTbFbBJlpSl7c8U8cueb_uBWgIV5fSjrP4'
 };
 
 // Initialize Supabase Client
