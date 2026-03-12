@@ -4342,6 +4342,81 @@ function renderRollDiagram() {
     ctx.setLineDash([]);
   }
 
+  // ── Land Acquisition Boundary ──────────────────────────────────────────
+  {
+    const laSettings = getLASettings();
+    const laOffset = laSettings.offsetFromToe;
+    const laBridgeExtra = laSettings.bridgeExtraWidth;
+    const bridgeWidth = safeNum(state.settings.formationWidthFill, 7.85);
+
+    // Compute LA half-widths per row
+    const laHalves = rows.map(r => {
+      const ch = r.chainage;
+      const bridge = bridges.find(b => ch >= b.startChainage && ch <= b.endChainage);
+
+      if (bridge) {
+        const cat = String(bridge.bridgeCategory || "").trim();
+        if (/tunnel/i.test(cat)) return 0; // No land for tunnels
+        if (LA_BRIDGE_LAND_CATEGORIES.some(c => c.toLowerCase() === cat.toLowerCase()) ||
+            /\brob\b/i.test(bridge.bridgeNo) || /\brub\b/i.test(bridge.bridgeNo)) {
+          return (bridgeWidth + 2 * laBridgeExtra) / 2;
+        }
+      }
+      // Normal section: toe + offset
+      const toeW = r.bank > 0.001
+        ? safeNum(r.fillBottom, safeNum(r.topWidth, state.settings.formationWidthFill))
+        : r.cut > 0.001
+          ? safeNum(r.cutBottom, safeNum(r.topWidth, state.settings.cuttingWidth))
+          : safeNum(r.topWidth, state.settings.formationWidthFill);
+      return (toeW / 2) + laOffset;
+    });
+
+    // Draw the LA boundary as orange dashed lines
+    ctx.setLineDash([8, 5]);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = lightMode ? "rgba(234,88,12,0.55)" : "rgba(251,146,60,0.5)";
+
+    // Top boundary
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < rows.length; i++) {
+      const x = getX(rows[i].chainage);
+      if (x == null) continue;
+      const h = laHalves[i] * PX_PER_M_Y;
+      if (laHalves[i] === 0) { started = false; continue; }
+      if (!started) { ctx.moveTo(x, centerY - h); started = true; }
+      else ctx.lineTo(x, centerY - h);
+    }
+    ctx.stroke();
+
+    // Bottom boundary
+    ctx.beginPath();
+    started = false;
+    for (let i = 0; i < rows.length; i++) {
+      const x = getX(rows[i].chainage);
+      if (x == null) continue;
+      const h = laHalves[i] * PX_PER_M_Y;
+      if (laHalves[i] === 0) { started = false; continue; }
+      if (!started) { ctx.moveTo(x, centerY + h); started = true; }
+      else ctx.lineTo(x, centerY + h);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Label at start
+    const firstValidIdx = laHalves.findIndex(h => h > 0);
+    if (firstValidIdx >= 0) {
+      const lx = getX(rows[firstValidIdx].chainage);
+      const lh = laHalves[firstValidIdx] * PX_PER_M_Y;
+      if (lx != null) {
+        ctx.fillStyle = lightMode ? "rgba(234,88,12,0.8)" : "rgba(251,146,60,0.7)";
+        ctx.font = `${Math.max(8, 9 * baseScale)}px Outfit,sans-serif`;
+        ctx.textAlign = "left";
+        ctx.fillText("LA Boundary", lx + 4, centerY - lh - 4);
+      }
+    }
+  }
+
   // ── Draw Bridge Rectangles ──────────────────────────────────────────────
   for (const b of bridges) {
     const bx1 = getX(b.startChainage), bx2 = getX(b.endChainage);
