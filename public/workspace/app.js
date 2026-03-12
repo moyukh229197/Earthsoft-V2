@@ -19,7 +19,7 @@ const CROSS_DEFAULT_VIEWBOX = {
   h: CROSS_SVG_H + (CROSS_VIEW_MARGIN_Y * 2),
 };
 
-const BRIDGE_CATEGORIES = ["Minor", "Major", "Viaduct", "Important", "RoR", "Tunnel", "ROB", "Aqueduct"];
+const BRIDGE_CATEGORIES = ["Minor", "Major", "Viaduct", "Important", "RoR", "Tunnel", "ROB", "RUB", "Aqueduct"];
 const BRIDGE_TYPES = ["Box", "PSC Slab", "Composite Girder", "OWG", "Other"];
 const BRIDGE_DEDUCT_RULES = ["Auto", "Always", "Never"];
 const LOOP_LINE_TYPES = ["Loop", "TM Siding", "Ballast Siding", "Connecting Line", "Main Line", "Platform"];
@@ -73,6 +73,7 @@ const state = {
   },
   calcOverrides: [],
   slopeZones: [],
+  laZones: [],
   importMappings: { client: "", templates: {} },
   mappingWizard: { aoa: null, headerRow: 0, headers: [], kind: "levels" },
   activeWorkPage: "overview",
@@ -2790,6 +2791,339 @@ function updateEstimates() {
   }
 }
 
+// ============== LAND ACQUISITION MODULE ==============
+
+const LA_LAND_TYPES = ["Agricultural", "Commercial", "Residential", "Govt/Forest", "Barren/Waste"];
+const LA_BRIDGE_LAND_CATEGORIES = ["Major", "ROB", "RUB", "Viaduct"];
+
+function getLASettings() {
+  return {
+    offsetFromToe: safeNum(parseFloat(document.getElementById("laOffsetFromToe")?.value), state.settings.laOffsetFromToe || 10),
+    bridgeExtraWidth: safeNum(parseFloat(document.getElementById("laBridgeExtraWidth")?.value), state.settings.laBridgeExtraWidth || 5),
+    defaultRate: safeNum(parseFloat(document.getElementById("laDefaultRate")?.value), state.settings.laDefaultRate || 2500),
+    solatiumPct: safeNum(parseFloat(document.getElementById("laSolatiumPct")?.value), state.settings.laSolatiumPct || 100),
+    multiplierFactor: safeNum(parseFloat(document.getElementById("laMultiplierFactor")?.value), state.settings.laMultiplierFactor || 1.0),
+  };
+}
+
+function getLandRateForChainage(chainage, laSettings) {
+  if (!state.laZones || !state.laZones.length) return laSettings.defaultRate;
+  for (const zone of state.laZones) {
+    const from = parseChainage(zone.fromCh);
+    const to = parseChainage(zone.toCh);
+    if (Number.isFinite(from) && Number.isFinite(to) && chainage >= from && chainage <= to) {
+      return safeNum(zone.rate, laSettings.defaultRate);
+    }
+  }
+  return laSettings.defaultRate;
+}
+
+function renderLAZones() {
+  const tbody = document.getElementById("laZoneTableBody");
+  if (!tbody) return;
+  if (!state.laZones || !state.laZones.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="muted" style="text-align: center; padding: 16px;">No custom zones defined. The default rate will be applied to the entire corridor.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = state.laZones.map((z, i) => `
+    <tr>
+      <td><input data-la-zone="${i}" data-la-field="name" value="${z.name || ''}" style="width: 120px; padding: 4px 6px; border: 1px solid var(--stroke); border-radius: 6px; background: rgba(0,0,0,0.2); color: var(--text);" /></td>
+      <td><input data-la-zone="${i}" data-la-field="fromCh" value="${z.fromCh || ''}" style="width: 100px; padding: 4px 6px; border: 1px solid var(--stroke); border-radius: 6px; background: rgba(0,0,0,0.2); color: var(--text);" /></td>
+      <td><input data-la-zone="${i}" data-la-field="toCh" value="${z.toCh || ''}" style="width: 100px; padding: 4px 6px; border: 1px solid var(--stroke); border-radius: 6px; background: rgba(0,0,0,0.2); color: var(--text);" /></td>
+      <td>
+        <select data-la-zone="${i}" data-la-field="landType" style="padding: 4px 6px; border: 1px solid var(--stroke); border-radius: 6px; background: rgba(0,0,0,0.2); color: var(--text);">
+          ${LA_LAND_TYPES.map(t => `<option value="${t}" ${z.landType === t ? 'selected' : ''}>${t}</option>`).join("")}
+        </select>
+      </td>
+      <td><input data-la-zone="${i}" data-la-field="rate" type="number" value="${z.rate || ''}" style="width: 100px; padding: 4px 6px; border: 1px solid var(--stroke); border-radius: 6px; background: rgba(0,0,0,0.2); color: var(--text); text-align: right;" /></td>
+      <td><button type="button" class="bridge-del" data-la-del="${i}">Delete</button></td>
+    </tr>
+  `).join("");
+}
+
+function syncLAZonesFromTable() {
+  const tbody = document.getElementById("laZoneTableBody");
+  if (!tbody) return;
+  const rows = Array.from(tbody.querySelectorAll("tr"));
+  const zones = [];
+  rows.forEach((tr) => {
+    if (tr.querySelectorAll("[data-la-field]").length === 0) return;
+    zones.push({
+      name: tr.querySelector('[data-la-field="name"]')?.value || "",
+      fromCh: tr.querySelector('[data-la-field="fromCh"]')?.value || "",
+      toCh: tr.querySelector('[data-la-field="toCh"]')?.value || "",
+      landType: tr.querySelector('[data-la-field="landType"]')?.value || "Agricultural",
+      rate: parseFloat(tr.querySelector('[data-la-field="rate"]')?.value) || 0,
+    });
+  });
+  state.laZones = zones;
+}
+
+function calculateLandAcquisition() {
+  const rows = state.calcRows;
+  if (!rows || rows.length < 2) return [];
+
+  const laSettings = getLASettings();
+  const bridgeIntervals = buildBridgeIntervals();
+  const segments = [];
+
+  // Build a map of which bridges cover which chainages
+  function getBridgeAtChainage(ch) {
+    for (const b of bridgeIntervals) {
+      if (ch >= b.startChainage && ch <= b.endChainage) return b;
+    }
+    return null;
+  }
+
+  // Iterate through calcRows and build LA segments
+  let currentSegment = null;
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const ch = r.chainage;
+    const bridge = getBridgeAtChainage(ch);
+
+    let segType = "Normal";
+    let laWidth = 0;
+    let toeWidth = 0;
+
+    if (bridge) {
+      const cat = String(bridge.bridgeCategory || "").trim();
+
+      // Tunnel: zero land
+      if (/tunnel/i.test(cat)) {
+        segType = "Tunnel";
+        laWidth = 0;
+        toeWidth = 0;
+      }
+      // Major, ROB, RUB, Viaduct: bridge width + extra both sides
+      else if (LA_BRIDGE_LAND_CATEGORIES.some(c => c.toLowerCase() === cat.toLowerCase()) ||
+               /\brob\b/i.test(bridge.bridgeNo) || /\brub\b/i.test(bridge.bridgeNo)) {
+        segType = cat || "Bridge";
+        // Bridge width: use formation width as proxy for bridge deck width
+        const bridgeWidth = safeNum(state.settings.formationWidthFill, 7.85);
+        laWidth = bridgeWidth + (2 * laSettings.bridgeExtraWidth);
+        toeWidth = bridgeWidth;
+      }
+      // Minor bridges: treated as normal embankment/cutting
+      else {
+        segType = "Normal";
+        if (r.bank > 0.001) {
+          toeWidth = safeNum(r.fillBottom, safeNum(r.topWidth, state.settings.formationWidthFill));
+          laWidth = toeWidth + (2 * laSettings.offsetFromToe);
+        } else if (r.cut > 0.001) {
+          toeWidth = safeNum(r.cutBottom, safeNum(r.topWidth, state.settings.cuttingWidth));
+          laWidth = toeWidth + (2 * laSettings.offsetFromToe);
+        } else {
+          toeWidth = safeNum(r.topWidth, state.settings.formationWidthFill);
+          laWidth = toeWidth + (2 * laSettings.offsetFromToe);
+        }
+      }
+    } else {
+      // Normal section (no bridge)
+      segType = "Normal";
+      if (r.bank > 0.001) {
+        toeWidth = safeNum(r.fillBottom, safeNum(r.topWidth, state.settings.formationWidthFill));
+        laWidth = toeWidth + (2 * laSettings.offsetFromToe);
+      } else if (r.cut > 0.001) {
+        toeWidth = safeNum(r.cutBottom, safeNum(r.topWidth, state.settings.cuttingWidth));
+        laWidth = toeWidth + (2 * laSettings.offsetFromToe);
+      } else {
+        toeWidth = safeNum(r.topWidth, state.settings.formationWidthFill);
+        laWidth = toeWidth + (2 * laSettings.offsetFromToe);
+      }
+    }
+
+    // Get rate for this chainage
+    const rate = getLandRateForChainage(ch, laSettings);
+
+    // Check if we should continue the current segment or start a new one
+    const canMerge = currentSegment &&
+      currentSegment.type === segType &&
+      Math.abs(currentSegment.rate - rate) < 0.01;
+
+    if (canMerge) {
+      // Extend current segment
+      currentSegment.endCh = ch;
+      currentSegment.toeWidths.push(toeWidth);
+      currentSegment.laWidths.push(laWidth);
+      currentSegment.chainages.push(ch);
+    } else {
+      // Save previous segment
+      if (currentSegment && currentSegment.chainages.length > 0) {
+        segments.push(finalizeSegment(currentSegment, laSettings));
+      }
+      // Start new segment
+      currentSegment = {
+        type: segType,
+        startCh: ch,
+        endCh: ch,
+        rate,
+        toeWidths: [toeWidth],
+        laWidths: [laWidth],
+        chainages: [ch],
+      };
+    }
+  }
+
+  // Finalize last segment
+  if (currentSegment && currentSegment.chainages.length > 0) {
+    segments.push(finalizeSegment(currentSegment, laSettings));
+  }
+
+  return segments;
+}
+
+function finalizeSegment(seg, laSettings) {
+  const length = Math.max(seg.endCh - seg.startCh, 0);
+  const avgToeWidth = seg.toeWidths.reduce((a, b) => a + b, 0) / seg.toeWidths.length;
+  const avgLAWidth = seg.laWidths.reduce((a, b) => a + b, 0) / seg.laWidths.length;
+  const area = seg.type === "Tunnel" ? 0 : (avgLAWidth * length);
+  const baseCost = area * seg.rate;
+  const solatiumMultiplier = 1 + (laSettings.solatiumPct / 100);
+  const totalCost = baseCost * solatiumMultiplier * laSettings.multiplierFactor;
+
+  return {
+    type: seg.type,
+    startCh: seg.startCh,
+    endCh: seg.endCh,
+    length,
+    avgToeWidth,
+    avgLAWidth,
+    area,
+    areaHectare: area / 10000,
+    rate: seg.rate,
+    baseCost,
+    totalCost,
+  };
+}
+
+function formatINR(v) {
+  if (!Number.isFinite(v)) return "₹0.00";
+  if (v >= 10000000) return `₹${(v / 10000000).toFixed(2)} Cr`;
+  if (v >= 100000) return `₹${(v / 100000).toFixed(2)} Lk`;
+  return "₹" + v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatCh(ch) {
+  if (!Number.isFinite(ch)) return "—";
+  return (ch < 0 ? "-" : "") + Math.floor(Math.abs(ch) / 1000) + "+" + (Math.abs(ch) % 1000).toFixed(0).padStart(3, "0");
+}
+
+function renderLandAcquisition() {
+  syncLAZonesFromTable();
+  const segments = calculateLandAcquisition();
+  const resultsBody = document.getElementById("laResultsBody");
+  const grandTotalEl = document.getElementById("laGrandTotal");
+
+  if (!resultsBody) return;
+
+  if (!segments.length) {
+    resultsBody.innerHTML = '<tr><td colspan="12" class="muted" style="text-align: center; padding: 24px;">No calculation data. Recalculate the project first.</td></tr>';
+    if (grandTotalEl) grandTotalEl.textContent = "₹0.00";
+    return;
+  }
+
+  let totalLength = 0;
+  let totalArea = 0;
+  let totalBaseCost = 0;
+  let totalCompensation = 0;
+  let sn = 0;
+
+  let html = "";
+  segments.forEach(seg => {
+    if (seg.length < 0.01) return;
+    sn++;
+    totalLength += seg.length;
+    totalArea += seg.area;
+    totalBaseCost += seg.baseCost;
+    totalCompensation += seg.totalCost;
+
+    const typeColor = seg.type === "Tunnel" ? "#a855f7" :
+      (LA_BRIDGE_LAND_CATEGORIES.includes(seg.type) ? "#eab308" : "var(--text)");
+    const typeIcon = seg.type === "Tunnel" ? "🚇" :
+      (LA_BRIDGE_LAND_CATEGORIES.includes(seg.type) ? "🌉" : "");
+
+    html += `
+      <tr>
+        <td style="text-align: center; color: var(--muted);">${sn}</td>
+        <td style="font-family: monospace; color: var(--blue);">${formatCh(seg.startCh)}</td>
+        <td style="font-family: monospace; color: var(--blue);">${formatCh(seg.endCh)}</td>
+        <td style="text-align: right;">${r3(seg.length)}</td>
+        <td style="color: ${typeColor}; font-weight: 600;">${typeIcon} ${seg.type}</td>
+        <td style="text-align: right;">${r3(seg.avgToeWidth)}</td>
+        <td style="text-align: right; font-weight: 600;">${r3(seg.avgLAWidth)}</td>
+        <td style="text-align: right;">${seg.area.toLocaleString('en-IN', { maximumFractionDigits: 1 })}</td>
+        <td style="text-align: right;">${seg.areaHectare.toFixed(4)}</td>
+        <td style="text-align: right;">₹${seg.rate.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+        <td style="text-align: right;">${formatINR(seg.baseCost)}</td>
+        <td style="text-align: right; font-weight: 700; color: var(--blue);">${formatINR(seg.totalCost)}</td>
+      </tr>
+    `;
+  });
+
+  resultsBody.innerHTML = html || '<tr><td colspan="12" class="muted" style="text-align: center;">No segments to display.</td></tr>';
+  if (grandTotalEl) grandTotalEl.textContent = formatINR(totalCompensation);
+
+  // Update summary cards
+  const elLen = document.getElementById("laTotalLength");
+  const elArea = document.getElementById("laTotalArea");
+  const elBase = document.getElementById("laBaseCost");
+  const elTotal = document.getElementById("laTotalCost");
+  if (elLen) elLen.textContent = `${(totalLength / 1000).toFixed(3)} km`;
+  if (elArea) elArea.textContent = `${(totalArea / 10000).toFixed(3)} Ha (${totalArea.toLocaleString('en-IN', { maximumFractionDigits: 0 })} Sq.m)`;
+  if (elBase) elBase.textContent = formatINR(totalBaseCost);
+  if (elTotal) elTotal.textContent = formatINR(totalCompensation);
+}
+
+function exportLandAcquisition() {
+  syncLAZonesFromTable();
+  const segments = calculateLandAcquisition();
+  if (!segments.length) {
+    alert("No LA data to export. Calculate first.");
+    return;
+  }
+  const laSettings = getLASettings();
+
+  const header = ["Segment", "From Chainage", "To Chainage", "Length (m)", "Type", "Avg Toe Width (m)", "LA Width (m)", "Area (Sq.m)", "Area (Ha)", "Rate (₹/Sq.m)", "Base Cost (₹)", "Total Cost (₹)"];
+  const dataRows = segments.filter(s => s.length > 0.01).map((s, i) => [
+    i + 1, formatCh(s.startCh), formatCh(s.endCh), r3(s.length), s.type,
+    r3(s.avgToeWidth), r3(s.avgLAWidth), s.area.toFixed(1), s.areaHectare.toFixed(4),
+    s.rate.toFixed(2), s.baseCost.toFixed(2), s.totalCost.toFixed(2)
+  ]);
+
+  const totalArea = segments.reduce((a, s) => a + s.area, 0);
+  const totalCost = segments.reduce((a, s) => a + s.totalCost, 0);
+  dataRows.push(["", "", "", "", "", "", "TOTAL", totalArea.toFixed(1), (totalArea / 10000).toFixed(4), "", "", totalCost.toFixed(2)]);
+
+  // Settings summary row
+  dataRows.push([]);
+  dataRows.push(["Settings:"]);
+  dataRows.push(["Offset from Toe", laSettings.offsetFromToe + " m"]);
+  dataRows.push(["Bridge Extra Width", laSettings.bridgeExtraWidth + " m each side"]);
+  dataRows.push(["Default Rate", "₹" + laSettings.defaultRate + "/Sq.m"]);
+  dataRows.push(["Solatium", laSettings.solatiumPct + "%"]);
+  dataRows.push(["Multiplier", laSettings.multiplierFactor]);
+
+  if (typeof XLSX !== "undefined") {
+    const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Land Acquisition");
+    XLSX.writeFile(wb, `Land_Acquisition_${state.project.name || "Project"}.xlsx`);
+  } else {
+    const csv = [header.join(","), ...dataRows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Land_Acquisition_${state.project.name || "Project"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+}
+
+// ============== END LAND ACQUISITION MODULE ==============
+
 function recalculate() {
   const settings = state.settings;
   const sorted = [...state.rawRows].sort((a, b) => a.chainage - b.chainage);
@@ -3090,6 +3424,7 @@ function collectProjectPayload() {
     loopPlatformRows: state.loopPlatformRows,
     calcOverrides: state.calcOverrides,
     slopeZones: state.slopeZones,
+    laZones: state.laZones,
     importMappings: state.importMappings,
     kmlData: state.kmlData,
     stationPlans: state.stationPlans,
@@ -3157,6 +3492,7 @@ function loadProjectFromPayload(data, options = {}) {
   state.stationPlans = data?.stationPlans && typeof data.stationPlans === "object" ? data.stationPlans : {};
   state.calcOverrides = Array.isArray(data?.calcOverrides) ? data.calcOverrides : [];
   state.slopeZones = Array.isArray(data?.slopeZones) ? data.slopeZones : [];
+  state.laZones = Array.isArray(data?.laZones) ? data.laZones : [];
   state.importMappings = data?.importMappings && typeof data.importMappings === "object"
     ? data.importMappings
     : { client: "", templates: {} };
@@ -7086,6 +7422,44 @@ function bindEvents() {
     }
   });
 
+  // --- Land Acquisition ---
+  const laRecalcBtn = document.getElementById("laRecalcBtn");
+  const laExportBtn = document.getElementById("laExportBtn");
+  const laAddZoneBtn = document.getElementById("laAddZoneBtn");
+  const laZoneTableBody = document.getElementById("laZoneTableBody");
+
+  if (laRecalcBtn) {
+    laRecalcBtn.addEventListener("click", renderLandAcquisition);
+  }
+  if (laExportBtn) {
+    laExportBtn.addEventListener("click", exportLandAcquisition);
+  }
+  if (laAddZoneBtn) {
+    laAddZoneBtn.addEventListener("click", () => {
+      syncLAZonesFromTable();
+      const firstCh = state.calcRows.length ? state.calcRows[0].chainage : 0;
+      const lastCh = state.calcRows.length ? state.calcRows[state.calcRows.length - 1].chainage : 0;
+      state.laZones.push({
+        name: `Zone ${state.laZones.length + 1}`,
+        fromCh: r3(firstCh),
+        toCh: r3(lastCh),
+        landType: "Agricultural",
+        rate: 2500,
+      });
+      renderLAZones();
+    });
+  }
+  if (laZoneTableBody) {
+    laZoneTableBody.addEventListener("click", (e) => {
+      const delIdx = e.target.closest("[data-la-del]")?.dataset.laDel;
+      if (delIdx !== undefined) {
+        syncLAZonesFromTable();
+        state.laZones.splice(parseInt(delIdx), 1);
+        renderLAZones();
+      }
+    });
+  }
+
   // --- Expandable Graphs Logic ---
   let expandedChartInstance = null;
 
@@ -9394,6 +9768,12 @@ async function init() {
     materialProfile: [
       { depth: 1.0, density: 1.9, shrink: 0.0, swell: 0.0 },
     ],
+    // --- Land Acquisition Parameters ---
+    laOffsetFromToe: 10,
+    laBridgeExtraWidth: 5,
+    laDefaultRate: 2500,
+    laSolatiumPct: 100,
+    laMultiplierFactor: 1.0,
   };
   state.defaultSettings = { ...visualLayerDefaults };
   state.seedDefaultSettings = { ...state.defaultSettings };

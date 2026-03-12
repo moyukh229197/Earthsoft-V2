@@ -144,6 +144,14 @@
           </svg>
           <span class="nav-text">Estimates</span>
         </button>
+        <button class="work-nav-btn" data-work-page-btn="land-acquisition" type="button">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M2 16h16M4 12l3-6 3 4 3-2 3 4" />
+            <rect x="5" y="13" width="3" height="3" rx="0.5" fill="currentColor" opacity="0.3" />
+            <rect x="12" y="13" width="3" height="3" rx="0.5" fill="currentColor" opacity="0.3" />
+          </svg>
+          <span class="nav-text">Land Acquisition</span>
+        </button>
         <button class="work-nav-btn" data-work-page-btn="alignment-map" type="button">
           <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M3 7l5-3 4 3 5-3v12l-5 3-4-3-5 3V7z" />
@@ -894,6 +902,166 @@
                 <tr style="font-weight: 800; background: rgba(0,0,0,0.05); color: var(--blue);">
                   <td colspan="6" style="text-align: right; font-size: 1.1rem;">Grand Total for Formation (1130):</td>
                   <td id="estimateGrandTotal" style="text-align: right; font-size: 1.3rem;">₹0.00</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="work-page" data-work-page="land-acquisition">
+        <div class="summary-strip" style="gap: 20px;">
+          <!-- Left: LA Settings -->
+          <article class="glass formula-panel" style="flex: 2;">
+            <h3><i class="ri-landscape-line" style="margin-right: 6px;"></i>Land Acquisition Parameters</h3>
+            <p class="muted" style="margin-bottom: 12px;">Configure offset from toe, bridge exclusions, and land rates per zone.</p>
+            <div class="import-option-grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
+              <label class="wizard-name" style="font-size: 0.8rem;">
+                Offset from Toe Line (m)
+                <input type="number" id="laOffsetFromToe" value="10" min="0" step="0.5"
+                  style="border: 1px solid var(--stroke); border-radius: 8px; padding: 6px; width: 100%;"
+                  title="Land acquired beyond the toe of embankment/cutting on each side" />
+              </label>
+              <label class="wizard-name" style="font-size: 0.8rem;">
+                Bridge Extra Width (m each side)
+                <input type="number" id="laBridgeExtraWidth" value="5" min="0" step="0.5"
+                  style="border: 1px solid var(--stroke); border-radius: 8px; padding: 6px; width: 100%;"
+                  title="For Major/ROB/RUB/Viaduct: land = bridge width + this value on each side" />
+              </label>
+              <label class="wizard-name" style="font-size: 0.8rem;">
+                Default Land Rate (₹/Sq.m)
+                <input type="number" id="laDefaultRate" value="2500" min="0" step="10"
+                  style="border: 1px solid var(--stroke); border-radius: 8px; padding: 6px; width: 100%;"
+                  title="Fallback rate when no zone-specific rate is defined" />
+              </label>
+              <label class="wizard-name" style="font-size: 0.8rem;">
+                Solatium Factor (%)
+                <input type="number" id="laSolatiumPct" value="100" min="0" step="5"
+                  style="border: 1px solid var(--stroke); border-radius: 8px; padding: 6px; width: 100%;"
+                  title="RFCTLARR Act 2013: 100% solatium for rural, 100% for urban" />
+              </label>
+              <label class="wizard-name" style="font-size: 0.8rem;">
+                Multiplier Factor
+                <input type="number" id="laMultiplierFactor" value="1.0" min="0" step="0.1"
+                  style="border: 1px solid var(--stroke); border-radius: 8px; padding: 6px; width: 100%;"
+                  title="State-specific land value multiplier (1.0 = no change)" />
+              </label>
+            </div>
+          </article>
+
+          <!-- Right: Reference Info -->
+          <article class="glass formula-panel" style="flex: 1;">
+            <h3><i class="ri-information-line" style="margin-right: 6px;"></i>Land Acquisition Rules</h3>
+            <p class="muted" style="margin-bottom: 10px;">Based on RFCTLARR Act 2013 &amp; Indian Railways guidelines.</p>
+            <div style="font-size: 0.8rem; display: flex; flex-direction: column; gap: 6px;">
+              <div style="padding: 8px; border-radius: 8px; background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.15);">
+                <strong style="color: var(--blue);">Normal Sections</strong><br/>
+                <span class="muted">Land = Toe Width + Offset (both sides) × Length</span>
+              </div>
+              <div style="padding: 8px; border-radius: 8px; background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.15);">
+                <strong style="color: #a855f7;">Tunnels</strong><br/>
+                <span class="muted">No surface land acquired for tunnel sections.</span>
+              </div>
+              <div style="padding: 8px; border-radius: 8px; background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.15);">
+                <strong style="color: #eab308;">Major/ROB/RUB/Viaduct</strong><br/>
+                <span class="muted">Land = Bridge Width + Extra (both sides) × Length</span>
+              </div>
+              <div style="padding: 8px; border-radius: 8px; background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.15);">
+                <strong style="color: var(--green);">RFCTLARR 2013</strong><br/>
+                <span class="muted">Total Cost = Area × Rate × (1 + Solatium%) × Multiplier</span>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <!-- Zone-wise Rate Table -->
+        <div class="panel glass" style="margin-top: 20px;">
+          <div class="panel-head">
+            <h2>Zone-wise Land Rates</h2>
+            <div style="display: flex; gap: 8px;">
+              <button id="laAddZoneBtn" class="btn btn-secondary" type="button"><i class="ri-add-line"></i> Add Zone</button>
+            </div>
+          </div>
+          <p class="muted" style="margin: 0 0 12px; font-size: 0.8rem;">Define chainage ranges with different land rates. Zones without rates will use the default rate above.</p>
+          <div class="table-wrap" style="max-height: 300px;">
+            <table class="result-table">
+              <thead>
+                <tr>
+                  <th>Zone Name</th>
+                  <th>From Chainage (m)</th>
+                  <th>To Chainage (m)</th>
+                  <th>Land Type</th>
+                  <th style="text-align: right;">Rate (₹/Sq.m)</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="laZoneTableBody">
+                <tr>
+                  <td colspan="6" class="muted" style="text-align: center; padding: 16px;">No custom zones defined. The default rate will be applied to the entire corridor.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Results  -->
+        <div class="panel glass" style="margin-top: 20px;">
+          <div class="panel-head">
+            <h2>Land Acquisition Summary</h2>
+            <div style="display: flex; gap: 8px;">
+              <button id="laRecalcBtn" class="btn btn-primary" style="padding: 8px 16px;"><i class="ri-calculator-line" style="margin-right: 4px;"></i> Calculate LA</button>
+              <button id="laExportBtn" class="btn btn-secondary" style="padding: 8px 16px;"><i class="ri-file-download-line" style="margin-right: 4px;"></i> Export</button>
+            </div>
+          </div>
+
+          <!-- Summary Cards -->
+          <div id="laSummaryCards" class="mission-stats" style="margin-bottom: 16px;">
+            <div class="glass-card mission-stat">
+              <div class="mission-stat-label"><i class="ri-ruler-line"></i> Total Corridor Length</div>
+              <div id="laTotalLength" class="mission-stat-value">—</div>
+            </div>
+            <div class="glass-card mission-stat">
+              <div class="mission-stat-label"><i class="ri-shape-2-line"></i> Total Land Area</div>
+              <div id="laTotalArea" class="mission-stat-value">—</div>
+            </div>
+            <div class="glass-card mission-stat">
+              <div class="mission-stat-label"><i class="ri-money-rupee-circle-line"></i> Base Land Cost</div>
+              <div id="laBaseCost" class="mission-stat-value">—</div>
+            </div>
+            <div class="glass-card mission-stat">
+              <div class="mission-stat-label"><i class="ri-coins-line"></i> Total Compensation</div>
+              <div id="laTotalCost" class="mission-stat-value" style="color: var(--blue);">—</div>
+            </div>
+          </div>
+
+          <!-- Detailed breakdown table -->
+          <div class="table-wrap">
+            <table class="result-table">
+              <thead>
+                <tr>
+                  <th>Segment</th>
+                  <th>From Ch.</th>
+                  <th>To Ch.</th>
+                  <th>Length (m)</th>
+                  <th>Type</th>
+                  <th>Avg Toe Width (m)</th>
+                  <th>LA Width (m)</th>
+                  <th>Area (Sq.m)</th>
+                  <th>Area (Hectare)</th>
+                  <th style="text-align: right;">Rate (₹/Sq.m)</th>
+                  <th style="text-align: right;">Base Cost (₹)</th>
+                  <th style="text-align: right;">Total (₹)</th>
+                </tr>
+              </thead>
+              <tbody id="laResultsBody">
+                <tr>
+                  <td colspan="12" class="muted" style="text-align: center; padding: 24px;">Click "Calculate LA" to compute land acquisition estimates.</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr style="font-weight: 800; background: rgba(0,0,0,0.05); color: var(--blue);">
+                  <td colspan="11" style="text-align: right; font-size: 1.1rem;">Grand Total Land Acquisition Cost:</td>
+                  <td id="laGrandTotal" style="text-align: right; font-size: 1.3rem;">₹0.00</td>
                 </tr>
               </tfoot>
             </table>
