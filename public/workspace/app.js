@@ -5098,11 +5098,19 @@ function buildSettingsInputs() {
 
 function applySettingsFromForm() {
   const fd = new FormData(els.settingsForm);
+  const corridorName = String(fd.get("corridorName") || "").trim();
   state.project.profile = {
-    corridorName: String(fd.get("corridorName") || "").trim(),
+    corridorName: corridorName,
     direction: String(fd.get("direction") || "Up"),
     chainageZeroRef: String(fd.get("chainageZeroRef") || "").trim(),
   };
+  if (corridorName) {
+    state.project.name = corridorName;
+  }
+  updateWizardUI();
+  updateDashboard();
+  applyProjectGate();
+  debouncedSaveState();
   const gauge = String(fd.get("gauge") || "BG");
   const formationPreset = String(fd.get("formationPreset") || "single");
   const slopePreset = String(fd.get("slopePreset") || "default");
@@ -6822,8 +6830,12 @@ function bindEvents() {
 
   if (els.projectNameInput) {
     els.projectNameInput.addEventListener("input", () => {
-      state.project.name = String(els.projectNameInput.value || "").trim();
+      const name = String(els.projectNameInput.value || "").trim();
+      state.project.name = name;
+      if (!state.project.profile) state.project.profile = {};
+      state.project.profile.corridorName = name;
       updateWizardUI();
+      updateDashboard();
       applyProjectGate();
     });
   }
@@ -8043,15 +8055,46 @@ function bindEvents() {
     }
 
     list.innerHTML = filtered.map(p => `
-      <div class="mission-list-item" style="cursor: pointer; padding: 12px; border-radius: 8px; transition: background 0.2s;" onmouseover="this.style.background='var(--nav-hover)'" onmouseout="this.style.background='transparent'" onclick="loadFromSupabase('${p.id}'); document.getElementById('cloudProjectsModal').close();">
-        <div style="display: flex; flex-direction: column;">
+      <div class="mission-list-item" style="cursor: pointer; padding: 12px; border-radius: 8px; transition: background 0.2s; display: flex; justify-content: space-between; align-items: center;" onmouseover="this.style.background='var(--nav-hover)'" onmouseout="this.style.background='transparent'">
+        <div style="flex: 1; display: flex; flex-direction: column;" onclick="loadFromSupabase('${p.id}'); document.getElementById('cloudProjectsModal').close();">
           <strong>${p.name}</strong>
           <small class="muted">Last modified: ${new Date(p.updated_at).toLocaleString()}</small>
         </div>
-        <div class="mission-list-value"><i class="ri-arrow-right-s-line"></i></div>
+        <div style="display: flex; gap: 12px; align-items: center;">
+          <button class="icon-btn-danger" title="Delete Project" onclick="event.stopPropagation(); deleteCloudProject('${p.id}', '${escapeAttr(p.name)}')">
+            <i class="ri-delete-bin-line"></i>
+          </button>
+          <div class="mission-list-value" onclick="loadFromSupabase('${p.id}'); document.getElementById('cloudProjectsModal').close();"><i class="ri-arrow-right-s-line"></i></div>
+        </div>
       </div>
     `).join("");
   }
+
+  window.deleteCloudProject = async function(projectId, projectName) {
+    if (!confirm(`Are you sure you want to delete "${projectName}" from the cloud? This cannot be undone.`)) return;
+    
+    try {
+      const { error: dataError } = await window.supabaseClient
+        .from('project_data')
+        .delete()
+        .eq('project_id', projectId);
+      
+      if (dataError) throw dataError;
+
+      const { error: projectError } = await window.supabaseClient
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+      
+      if (projectError) throw projectError;
+
+      alert("Project deleted from cloud.");
+      fetchCloudProjects();
+    } catch (err) {
+      console.error("Delete Project Error:", err);
+      alert("Failed to delete project: " + err.message);
+    }
+  };
 
   els.settingsForm.addEventListener("submit", (e) => {
     e.preventDefault();
