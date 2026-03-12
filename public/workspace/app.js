@@ -3461,51 +3461,105 @@ function volumeCapsule(value, kind, active) {
   return `<span class="volume-pill ${kind}">${v}</span>`;
 }
 
+let currentRenderId = 0;
+
 function renderTable() {
-  const html = state.calcRows.map((r, idx) => {
-    const structureNo = r.structureNo ? String(r.structureNo).replace(/\n/g, " ").trim() : "-";
-    const station = (r.stationName || r.station) ? String(r.stationName || r.station).replace(/\n/g, " ") : "-";
+  const tableBody = els.tableBody;
+  if (!tableBody) return;
 
-    let bridgeRefs = "-";
-    if (r.bridgeRefs && r.bridgeRefs.length) {
-      bridgeRefs = r.bridgeRefs.map(ref => {
-        const b = state.bridgeRows.find(br => String(br.bridgeNo) === String(ref));
-        if (!b) return ref;
-        const bColor = getBridgeStyleInfo(b.bridgeCategory, b.bridgeType);
-        return `<span style="display:inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; color: ${bColor.col}; background: ${bColor.bg}; border: ${bColor.border}; white-space: nowrap; margin: 2px;">${ref}</span>`;
-      }).join(" ");
-    }
-    const rowClass = (r.bridgeRefs && r.bridgeRefs.length) ? "bridge-row" : "";
-    return `
-      <tr class="${rowClass}" data-ch-index="${idx}">
-        <td>${bridgeRefs}</td>
-        <td>${station}</td>
-        <td><button class="chainage-link theme-ch" data-cross-index="${idx}" title="Open cross-section">${(r.chainage < 0 ? "-" : "") + Math.floor(Math.abs(r.chainage) / 1000) + "+" + (Math.abs(r.chainage) % 1000).toFixed(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1").padStart(3, "0")}</button></td>
-        <td>${r.diff ? r3(r.diff) : "—"}</td>
-        <td>${r3(r.groundLevel)}</td>
-        <td class="t-pro">${r3(r.proposedLevel)}</td>
-        <td>${r.loopTc ? r3(r.loopTc) : "—"}</td>
-        <td>${r.loopCount ? r.loopCount : "—"}</td>
-        <td>${r.platformWidth ? r3(r.platformWidth) : "—"}</td>
-        <td>${r.bridgeDeductLen ? r3(r.bridgeDeductLen) : "—"}</td>
-        <td>${r.ewDiff ? r3(r.ewDiff) : "—"}</td>
-        <td>${r.rlDiff ? r3(r.rlDiff) : "—"}</td>
-        <td class="t-fill">${r.bank > 0.0001 ? r3(r.bank) : "—"}</td>
-        <td class="t-cut">${r.cut > 0.0001 ? r3(r.cut) : "—"}</td>
-        <td>${r.topWidth > 0.0001 ? r3(r.topWidth) : "—"}</td>
-        <td class="t-fill">${r.fillArea > 0.0001 ? r3(r.fillArea) : "—"}</td>
-        <td class="t-cut">${r.cutArea > 0.0001 ? r3(r.cutArea) : "—"}</td>
-        <td class="t-fill">${r.fillVol > 0.0001 ? r3(r.fillVol) : "—"}</td>
-        <td class="t-cut">${r.cutVol > 0.0001 ? r3(r.cutVol) : "—"}</td>
-      </tr>
-    `;
-  }).join("");
-
-  els.tableBody.innerHTML = html;
-  
-  if (typeof updateDiagnosticMinimap === 'function') {
-    updateDiagnosticMinimap();
+  const rows = state.calcRows;
+  if (!rows || rows.length === 0) {
+    tableBody.innerHTML = '<tr><td colspan="19" class="muted">No calculation data available. Recalculate to generate.</td></tr>';
+    return;
   }
+
+  // Cancel any ongoing render
+  currentRenderId++;
+  const thisRenderId = currentRenderId;
+
+  // Pre-calculate bridge lookups for $O(1)$ lookup during render
+  const bridgeMap = {};
+  if (Array.isArray(state.bridgeRows)) {
+    state.bridgeRows.forEach(br => {
+      bridgeMap[String(br.bridgeNo)] = getBridgeStyleInfo(br.bridgeCategory, br.bridgeType);
+    });
+  }
+
+  tableBody.innerHTML = ""; // Clear existing table
+  
+  const chunkSize = 250;
+  let offset = 0;
+
+  function renderChunk() {
+    // If a newer render has started, abort this one
+    if (thisRenderId !== currentRenderId) return;
+
+    if (offset >= rows.length) {
+      if (typeof updateDiagnosticMinimap === 'function') {
+        updateDiagnosticMinimap();
+      }
+      return;
+    }
+
+    const end = Math.min(offset + chunkSize, rows.length);
+    let chunkHtml = "";
+
+    for (let i = offset; i < end; i++) {
+      const r = rows[i];
+      const idx = i;
+      
+      const station = (r.stationName || r.station) ? String(r.stationName || r.station).replace(/\n/g, " ") : "-";
+
+      let bridgeRefs = "-";
+      if (r.bridgeRefs && r.bridgeRefs.length) {
+        bridgeRefs = r.bridgeRefs.map(ref => {
+          const style = bridgeMap[String(ref)];
+          if (!style) return ref;
+          return `<span style="display:inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; color: ${style.col}; background: ${style.bg}; border: ${style.border}; white-space: nowrap; margin: 2px;">${ref}</span>`;
+        }).join(" ");
+      }
+
+      const rowClass = (r.bridgeRefs && r.bridgeRefs.length) ? "bridge-row" : "";
+      
+      chunkHtml += `
+        <tr class="${rowClass}" data-ch-index="${idx}">
+          <td>${bridgeRefs}</td>
+          <td>${station}</td>
+          <td><button class="chainage-link theme-ch" data-cross-index="${idx}" title="Open cross-section">${(r.chainage < 0 ? "-" : "") + Math.floor(Math.abs(r.chainage) / 1000) + "+" + (Math.abs(r.chainage) % 1000).toFixed(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1").padStart(3, "0")}</button></td>
+          <td>${r.diff ? r3(r.diff) : "—"}</td>
+          <td>${r3(r.groundLevel)}</td>
+          <td class="t-pro">${r3(r.proposedLevel)}</td>
+          <td>${r.loopTc ? r3(r.loopTc) : "—"}</td>
+          <td>${r.loopCount ? r.loopCount : "—"}</td>
+          <td>${r.platformWidth ? r3(r.platformWidth) : "—"}</td>
+          <td>${r.bridgeDeductLen ? r3(r.bridgeDeductLen) : "—"}</td>
+          <td>${r.ewDiff ? r3(r.ewDiff) : "—"}</td>
+          <td>${r.rlDiff ? r3(r.rlDiff) : "—"}</td>
+          <td class="t-fill">${r.bank > 0.0001 ? r3(r.bank) : "—"}</td>
+          <td class="t-cut">${r.cut > 0.0001 ? r3(r.cut) : "—"}</td>
+          <td>${r.topWidth > 0.0001 ? r3(r.topWidth) : "—"}</td>
+          <td class="t-fill">${r.fillArea > 0.0001 ? r3(r.fillArea) : "—"}</td>
+          <td class="t-cut">${r.cutArea > 0.0001 ? r3(r.cutArea) : "—"}</td>
+          <td class="t-fill">${r.fillVol > 0.0001 ? r3(r.fillVol) : "—"}</td>
+          <td class="t-cut">${r.cutVol > 0.0001 ? r3(r.cutVol) : "—"}</td>
+        </tr>
+      `;
+    }
+
+    const fragment = document.createRange().createContextualFragment(chunkHtml);
+    tableBody.appendChild(fragment);
+
+    offset += chunkSize;
+    
+    // Performance optimization: Render next chunk and yield thread
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(renderChunk);
+    } else {
+      setTimeout(renderChunk, 1);
+    }
+  }
+
+  renderChunk();
 }
 
 function renderCharts() {
