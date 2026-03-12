@@ -1063,7 +1063,6 @@ function resolveBridgeColumns(headerCells) {
     spanLength: findColByAliases(headerCells, ["spanlength", "individualspan", "unitsize", "spanarrangement", "arrangement"]),
     clearSpan: findColByAliases(headerCells, ["clearspan", "clear span", "clearwidth", "clear width"]),
     deductRule: findColByAliases(headerCells, ["deductrule", "deductionrule", "deduct", "deduction"]),
-    autoDeduct: findColByAliases(headerCells, ["autodeduct", "auto deduct", "deductflag"]),
   };
 }
 
@@ -1192,7 +1191,6 @@ function normalizeBridgeEntry(raw, index = 0) {
     bridgeSpanLength: Number.isFinite(spanLen) ? spanLen : "",
     clearSpan,
     deductRule,
-    autoDeduct,
     startChainage: start,
     endChainage: end,
     length,
@@ -1292,7 +1290,6 @@ function parseBridgeRowsFromAoa(aoa, sheetName = '') {
       bridgeSpanLength: cols.spanLength >= 0 ? row[cols.spanLength] : "",
       clearSpan: cols.clearSpan >= 0 ? row[cols.clearSpan] : "",
       deductRule: cols.deductRule >= 0 ? row[cols.deductRule] : "",
-      autoDeduct: cols.autoDeduct >= 0 ? row[cols.autoDeduct] : "",
       startChainage: cols.startChainage >= 0 ? row[cols.startChainage] : "",
       endChainage: cols.endChainage >= 0 ? row[cols.endChainage] : "",
       length: cols.length >= 0 ? row[cols.length] : "",
@@ -1343,7 +1340,6 @@ const IMPORT_MAPPING_FIELDS = {
     { key: "bridgeSpanLength", label: "Span Length" },
     { key: "clearSpan", label: "Clear Span" },
     { key: "deductRule", label: "Deduct Rule" },
-    { key: "autoDeduct", label: "Auto Deduct" },
     { key: "startChainage", label: "Start Chainage" },
     { key: "endChainage", label: "End Chainage" },
     { key: "length", label: "Length" },
@@ -7715,7 +7711,6 @@ function bindEvents() {
         bridgeSpans: "1",
         clearSpan: "",
         deductRule: "Auto",
-        autoDeduct: true,
         startChainage: r3(base),
         endChainage: r3(base + 20),
         length: r3(20),
