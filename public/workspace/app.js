@@ -8251,6 +8251,12 @@ function bindEvents() {
   els.tableWrapUI = document.querySelector('.work-page[data-work-page="table"] .table-wrap');
   els.diagnosticMinimap = document.getElementById("diagnosticMinimap");
   els.diagnosticBarcode = document.getElementById("diagnosticBarcode");
+  els.expandMinimapBtn = document.getElementById("expandMinimapBtn");
+  els.diagnosticDetails = document.getElementById("diagnosticDetails");
+  els.statCutCount = document.getElementById("statCutCount");
+  els.statFillCount = document.getElementById("statFillCount");
+  els.statClashCount = document.getElementById("statClashCount");
+  els.statSafeCount = document.getElementById("statSafeCount");
   els.xrayStationCanvas = document.getElementById("xrayStationCanvas");
   els.rollScrubber = document.getElementById("rollScrubber");
   els.rollPopupThumb = document.getElementById("rollPopupThumb");
@@ -8385,6 +8391,14 @@ function bindEvents() {
     els.stationLayoutSelect.addEventListener("change", () => updateXRayStation());
   }
 
+  if (els.expandMinimapBtn) {
+    els.expandMinimapBtn.addEventListener("click", () => {
+      els.diagnosticMinimap.classList.toggle("expanded");
+      if (els.diagnosticDetails) {
+        els.diagnosticDetails.style.display = els.diagnosticMinimap.classList.contains("expanded") ? "block" : "none";
+      }
+    });
+  }
 }
 
 function updateDiagnosticMinimap() {
@@ -8417,6 +8431,22 @@ function updateDiagnosticMinimap() {
     };
     els.diagnosticBarcode.appendChild(div);
   }
+
+  // Statistics calculation for expanded view
+  let cutErrors = 0;
+  let fillErrors = 0;
+  let clashErrors = 0;
+  
+  state.calcRows.forEach(r => {
+    if (r.cut > 8) cutErrors++;
+    if (r.bank > 8) fillErrors++;
+    if (r.loopTc && Math.abs(r.loopTc) < 4.72) clashErrors++;
+  });
+
+  if (els.statCutCount) els.statCutCount.textContent = cutErrors;
+  if (els.statFillCount) els.statFillCount.textContent = fillErrors;
+  if (els.statClashCount) els.statClashCount.textContent = clashErrors;
+  if (els.statSafeCount) els.statSafeCount.textContent = state.calcRows.length - (cutErrors + fillErrors + clashErrors);
 }
 
 function updateXRayStation() {

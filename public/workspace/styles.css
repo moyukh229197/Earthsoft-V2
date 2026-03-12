@@ -4252,11 +4252,22 @@ td:first-child {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  transition: transform 0.3s ease;
+  transition: transform 0.3s ease, width 0.3s ease, height 0.3s ease, bottom 0.3s ease;
   transform: translateY(200%);
 }
 .diagnostic-minimap.visible {
   transform: translateY(0);
+}
+.diagnostic-minimap.expanded {
+  width: 400px;
+  height: auto;
+  bottom: 24px;
+}
+.diagnostic-minimap.expanded .diagnostic-barcode {
+  height: 40px;
+}
+.diagnostic-minimap.expanded #expandMinimapBtn i {
+  transform: rotate(180deg);
 }
 .diagnostic-title {
   font-size: 0.75rem;

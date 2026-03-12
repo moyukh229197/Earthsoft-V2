@@ -245,8 +245,21 @@
       <section class="work-page active" data-work-page="overview">
         <!-- Diagnostic Minimap / Automated Clash Detection -->
         <div id="diagnosticMinimap" class="diagnostic-minimap" title="Quality Dashboard / Clash Detection">
-          <div class="diagnostic-title">Diagnostic Minimap</div>
+          <div class="diagnostic-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <div class="diagnostic-title" style="text-align: left; margin: 0;">Diagnostic Minimap</div>
+            <button id="expandMinimapBtn" class="icon-btn-sm" style="background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px;">
+              <i class="ri-expand-up-down-line"></i>
+            </button>
+          </div>
           <div class="diagnostic-barcode" id="diagnosticBarcode"></div>
+          <div id="diagnosticDetails" class="diagnostic-details" style="display: none; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
+            <div id="diagnosticStats" class="diagnostic-stats" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.75rem;">
+               <div class="stat-item"><span class="muted">Critical Cuts:</span> <span id="statCutCount" style="color: var(--red); font-weight: 700;">0</span></div>
+               <div class="stat-item"><span class="muted">Critical Fills:</span> <span id="statFillCount" style="color: var(--red); font-weight: 700;">0</span></div>
+               <div class="stat-item"><span class="muted">Clashes:</span> <span id="statClashCount" style="color: var(--red); font-weight: 700;">0</span></div>
+               <div class="stat-item"><span class="muted">Safe Segments:</span> <span id="statSafeCount" style="color: var(--green);">0</span></div>
+            </div>
+          </div>
         </div>
         
         <section class="overview-mission">
