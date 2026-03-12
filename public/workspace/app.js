@@ -8719,7 +8719,7 @@ function generate3DMesh() {
     const cutMat = new THREE.MeshLambertMaterial({ color: 0xf87171, side: THREE.DoubleSide });
     const trackMat = new THREE.MeshPhongMaterial({ color: 0x334155, shininess: 20 });
     const railMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.9, roughness: 0.1 });
-    const tunnelMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, side: THREE.DoubleSide, metalness: 0.1 });
+    const tunnelMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, side: THREE.DoubleSide, roughness: 0.8 });
     const textMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
     
     // --- Configuration ---
@@ -8806,56 +8806,71 @@ function generate3DMesh() {
        const currentFormationW = maxX - minX;
        const centerOffset = (minX + maxX) / 2;
 
+       // --- Query Bridges & Tunnels for Deduction Check ---
+       const bridgeInRange = state.bridgeRows.find(b => {
+           const start = parseChainage(b.startChainage);
+           const end = parseChainage(b.endChainage);
+           return row.chainage >= start && row.chainage <= end;
+       });
+       const isTunnel = bridgeInRange ? (bridgeInRange.bridgeCategory || "").toLowerCase() === "tunnel" : false;
+
        // a) Main Formation Bed (widened for loops)
-       const trackGeo = new THREE.BoxGeometry(currentFormationW, 0.5, flyStep);
-       const trackMesh = new THREE.Mesh(trackGeo, trackMat);
-       trackMesh.position.set(centerOffset, yPos, zPos);
-       trackGroup.add(trackMesh);
+       if (!bridgeInRange || isTunnel) {
+           const trackGeo = new THREE.BoxGeometry(currentFormationW, 0.5, flyStep);
+           const trackMesh = new THREE.Mesh(trackGeo, trackMat);
+           trackMesh.position.set(centerOffset, yPos, zPos);
+           trackGroup.add(trackMesh);
+       }
 
        // b) Smooth Embankment / Cutting (dynamically sized & continuous)
        const sf = 2.0;
-       if (row.bank > 0.1) {
-          const lT = new THREE.Vector3(centerOffset - currentFormationW/2, yPos - 0.25, zPos);
-          const lB = new THREE.Vector3(centerOffset - currentFormationW/2 - (row.bank * sf), Math.min(yPos - 0.25, glYPos), zPos);
-          const rT = new THREE.Vector3(centerOffset + currentFormationW/2, yPos - 0.25, zPos);
-          const rB = new THREE.Vector3(centerOffset + currentFormationW/2 + (row.bank * sf), Math.min(yPos - 0.25, glYPos), zPos);
-          
-          if (prevFillNode) {
-             const p = prevFillNode;
-             // Left Slope
-             fillVerts.push(p.lB.x, p.lB.y, p.lB.z,   lB.x, lB.y, lB.z,   lT.x, lT.y, lT.z,   p.lT.x, p.lT.y, p.lT.z);
-             let vL = fillVerts.length/3 - 4;
-             fillInds.push(vL, vL+1, vL+2, vL, vL+2, vL+3);
-             // Right Slope
-             fillVerts.push(p.rT.x, p.rT.y, p.rT.z,   rT.x, rT.y, rT.z,   rB.x, rB.y, rB.z,   p.rB.x, p.rB.y, p.rB.z);
-             let vR = fillVerts.length/3 - 4;
-             fillInds.push(vR, vR+1, vR+2, vR, vR+2, vR+3);
-          }
-          prevFillNode = { lT, lB, rT, rB };
-       } else {
-          prevFillNode = null;
-       }
+       if (!bridgeInRange) {
+           if (row.bank > 0.1) {
+              const lT = new THREE.Vector3(centerOffset - currentFormationW/2, yPos - 0.25, zPos);
+              const lB = new THREE.Vector3(centerOffset - currentFormationW/2 - (row.bank * sf), Math.min(yPos - 0.25, glYPos), zPos);
+              const rT = new THREE.Vector3(centerOffset + currentFormationW/2, yPos - 0.25, zPos);
+              const rB = new THREE.Vector3(centerOffset + currentFormationW/2 + (row.bank * sf), Math.min(yPos - 0.25, glYPos), zPos);
+              
+              if (prevFillNode) {
+                 const p = prevFillNode;
+                 // Left Slope
+                 fillVerts.push(p.lB.x, p.lB.y, p.lB.z,   lB.x, lB.y, lB.z,   lT.x, lT.y, lT.z,   p.lT.x, p.lT.y, p.lT.z);
+                 let vL = fillVerts.length/3 - 4;
+                 fillInds.push(vL, vL+1, vL+2, vL, vL+2, vL+3);
+                 // Right Slope
+                 fillVerts.push(p.rT.x, p.rT.y, p.rT.z,   rT.x, rT.y, rT.z,   rB.x, rB.y, rB.z,   p.rB.x, p.rB.y, p.rB.z);
+                 let vR = fillVerts.length/3 - 4;
+                 fillInds.push(vR, vR+1, vR+2, vR, vR+2, vR+3);
+              }
+              prevFillNode = { lT, lB, rT, rB };
+           } else {
+              prevFillNode = null;
+           }
 
-       if (row.cut > 0.1) {
-          const lB = new THREE.Vector3(centerOffset - currentFormationW/2 - 2, yPos + 0.25, zPos);
-          const lT = new THREE.Vector3(centerOffset - currentFormationW/2 - 2 - (row.cut * sf), Math.max(yPos + 0.25, glYPos), zPos);
-          const rB = new THREE.Vector3(centerOffset + currentFormationW/2 + 2, yPos + 0.25, zPos);
-          const rT = new THREE.Vector3(centerOffset + currentFormationW/2 + 2 + (row.cut * sf), Math.max(yPos + 0.25, glYPos), zPos);
-          
-          if (prevCutNode) {
-             const p = prevCutNode;
-             // Left Slope
-             cutVerts.push(p.lT.x, p.lT.y, p.lT.z,   lT.x, lT.y, lT.z,   lB.x, lB.y, lB.z,   p.lB.x, p.lB.y, p.lB.z);
-             let vL = cutVerts.length/3 - 4;
-             cutInds.push(vL, vL+1, vL+2, vL, vL+2, vL+3);
-             // Right Slope
-             cutVerts.push(p.rB.x, p.rB.y, p.rB.z,   rB.x, rB.y, rB.z,   rT.x, rT.y, rT.z,   p.rT.x, p.rT.y, p.rT.z);
-             let vR = cutVerts.length/3 - 4;
-             cutInds.push(vR, vR+1, vR+2, vR, vR+2, vR+3);
-          }
-          prevCutNode = { lT, lB, rT, rB };
+           if (row.cut > 0.1) {
+              const lB = new THREE.Vector3(centerOffset - currentFormationW/2 - 2, yPos + 0.25, zPos);
+              const lT = new THREE.Vector3(centerOffset - currentFormationW/2 - 2 - (row.cut * sf), Math.max(yPos + 0.25, glYPos), zPos);
+              const rB = new THREE.Vector3(centerOffset + currentFormationW/2 + 2, yPos + 0.25, zPos);
+              const rT = new THREE.Vector3(centerOffset + currentFormationW/2 + 2 + (row.cut * sf), Math.max(yPos + 0.25, glYPos), zPos);
+              
+              if (prevCutNode) {
+                 const p = prevCutNode;
+                 // Left Slope
+                 cutVerts.push(p.lT.x, p.lT.y, p.lT.z,   lT.x, lT.y, lT.z,   lB.x, lB.y, lB.z,   p.lB.x, p.lB.y, p.lB.z);
+                 let vL = cutVerts.length/3 - 4;
+                 cutInds.push(vL, vL+1, vL+2, vL, vL+2, vL+3);
+                 // Right Slope
+                 cutVerts.push(p.rB.x, p.rB.y, p.rB.z,   rB.x, rB.y, rB.z,   rT.x, rT.y, rT.z,   p.rT.x, p.rT.y, p.rT.z);
+                 let vR = cutVerts.length/3 - 4;
+                 cutInds.push(vR, vR+1, vR+2, vR, vR+2, vR+3);
+              }
+              prevCutNode = { lT, lB, rT, rB };
+           } else {
+              prevCutNode = null;
+           }
        } else {
-          prevCutNode = null;
+           prevFillNode = null;
+           prevCutNode = null;
        }
 
        // c) Render Rails for all active tracks
@@ -8905,19 +8920,19 @@ function generate3DMesh() {
                
                const btex = new THREE.CanvasTexture(c);
                const bMat = new THREE.MeshBasicMaterial({ map: btex });
-               const bGeo = new THREE.BoxGeometry(0.2, 2, 8);
+               const bGeo = new THREE.BoxGeometry(8, 2, 0.2); // Perpendicular to track
                const bMesh = new THREE.Mesh(bGeo, bMat);
                
-               const boardOffset = cx + (isLeft ? -(pfW/2 + 0.5) : (pfW/2 + 0.5));
+               const boardOffset = cx; // Center on platform
                bMesh.position.set(boardOffset, yPos + 3, zPos);
                trackGroup.add(bMesh);
 
                const pGeo = new THREE.BoxGeometry(0.2, 3, 0.2);
                const pMat = new THREE.MeshBasicMaterial({ color: 0x334155 });
                const post1 = new THREE.Mesh(pGeo, pMat);
-               post1.position.set(boardOffset, yPos + 1.5, zPos - 3.5);
+               post1.position.set(boardOffset - 3.5, yPos + 1.5, zPos);
                const post2 = new THREE.Mesh(pGeo, pMat);
-               post2.position.set(boardOffset, yPos + 1.5, zPos + 3.5);
+               post2.position.set(boardOffset + 3.5, yPos + 1.5, zPos);
                trackGroup.add(post1); trackGroup.add(post2);
 
                renderedStationBoard = true;
@@ -8925,15 +8940,7 @@ function generate3DMesh() {
        });
 
        // e) Render Bridges & Tunnels
-       const bridgeInRange = state.bridgeRows.find(b => {
-           const start = parseChainage(b.startChainage);
-           const end = parseChainage(b.endChainage);
-           return row.chainage >= start && row.chainage <= end;
-       });
-
        if (bridgeInRange) {
-           const isTunnel = (bridgeInRange.bridgeCategory || "").toLowerCase() === "tunnel";
-
            if (isTunnel) {
                // Render Tunnel Tube with proper opening
                // dynamically calculate tunnel width if there are loops
@@ -8943,17 +8950,17 @@ function generate3DMesh() {
                const rh = 7.5; // height
                
                const tShape = new THREE.Shape();
-               tShape.moveTo(-rw - 0.5, 0);
-               tShape.lineTo(rw + 0.5, 0);
+               tShape.moveTo(-rw - 0.5, -0.5);
+               tShape.lineTo(rw + 0.5, -0.5);
                tShape.lineTo(rw + 0.5, rh/2);
                tShape.absarc(0, rh/2, rw + 0.5, 0, Math.PI, false);
-               tShape.lineTo(-rw - 0.5, 0);
+               tShape.lineTo(-rw - 0.5, -0.5);
                
                const hole = new THREE.Path();
-               hole.moveTo(rw, 0);
+               hole.moveTo(rw, -0.2);
                hole.lineTo(rw, rh/2);
                hole.absarc(0, rh/2, rw, 0, Math.PI, true);
-               hole.lineTo(-rw, 0);
+               hole.lineTo(-rw, -0.2);
                tShape.holes.push(hole);
 
                const extrudeSettings = { depth: flyStep + 0.1, bevelEnabled: false };
