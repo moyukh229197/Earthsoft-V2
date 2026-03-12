@@ -1115,7 +1115,6 @@ function normalizeBridgeEntry(raw, index = 0) {
   const center = parseChainage(raw.chainage);
   const clearSpanRaw = parseLooseNumber(raw.clearSpan, NaN);
   const deductRule = normalizeDeductRule(raw.deductRule);
-  const autoDeduct = normalizeBoolean(raw.autoDeduct, true);
 
   // Derive parameters from size string if possible
   const sizeParsed = parseBridgeSpanSize(raw.bridgeSize);
@@ -1176,7 +1175,8 @@ function normalizeBridgeEntry(raw, index = 0) {
   } else if (deductRule === "Never") {
     shouldDeduct = false;
   } else {
-    shouldDeduct = autoDeduct && DEDUCTIBLE_CATEGORIES.some(c => cat.toLowerCase() === c.toLowerCase());
+    // Auto mode
+    shouldDeduct = DEDUCTIBLE_CATEGORIES.some(c => cat.toLowerCase() === c.toLowerCase()) || (Number.isFinite(length) && length >= 12);
   }
 
   const clearSpan = Number.isFinite(clearSpanRaw)
@@ -2070,9 +2070,6 @@ function renderBridgeInputs() {
           ${BRIDGE_DEDUCT_RULES.map(rule => `<option value="${rule}" ${String(b.deductRule || "Auto") === rule ? "selected" : ""}>${rule}</option>`).join("")}
         </select>
       </td>
-      <td style="text-align:center;">
-        <input data-bridge-field="autoDeduct" type="checkbox" class="toggle-input sm" ${b.autoDeduct !== false ? "checked" : ""} />
-      </td>
       <td><input data-bridge-field="startChainage" value="${Number.isFinite(parseChainage(b.startChainage)) ? r3(parseChainage(b.startChainage)) : String(b.startChainage ?? "")}" /></td>
       <td><input data-bridge-field="endChainage" value="${Number.isFinite(parseChainage(b.endChainage)) ? r3(parseChainage(b.endChainage)) : String(b.endChainage ?? "")}" /></td>
       <td><input data-bridge-field="length" value="${Number.isFinite(parseLooseNumber(b.length, NaN)) ? r3(parseLooseNumber(b.length, NaN)) : String(b.length ?? "")}" /></td>
@@ -2294,7 +2291,6 @@ function syncBridgeStateFromTable() {
       bridgeSpanLength: tr.querySelector('[data-bridge-field="bridgeSpanLength"]')?.value ?? "",
       clearSpan: tr.querySelector('[data-bridge-field="clearSpan"]')?.value ?? "",
       deductRule: tr.querySelector('[data-bridge-field="deductRule"]')?.value ?? "Auto",
-      autoDeduct: tr.querySelector('[data-bridge-field="autoDeduct"]')?.checked ?? true,
       startChainage: tr.querySelector('[data-bridge-field="startChainage"]')?.value ?? "",
       endChainage: tr.querySelector('[data-bridge-field="endChainage"]')?.value ?? "",
       length: tr.querySelector('[data-bridge-field="length"]')?.value ?? "",
