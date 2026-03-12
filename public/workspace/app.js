@@ -145,6 +145,7 @@ const els = {
   wizardCalculateBtn: document.getElementById("wizardCalculateBtn"),
   wizardUploadButtons: Array.from(document.querySelectorAll("[data-wizard-upload]")),
   bridgeAddBtn: document.getElementById("bridgeAddBtn"),
+  bridgeFilterInput: document.getElementById("bridgeFilterInput"),
   bridgeApplyBtn: document.getElementById("bridgeApplyBtn"),
   bridgeTableBody: document.getElementById("bridgeTableBody"),
   bridgeMeta: document.getElementById("bridgeMeta"),
@@ -7579,6 +7580,22 @@ function bindEvents() {
         els.importOptionsModal.close();
         els.kmlImportInput.click();
       }
+    });
+  }
+
+  if (els.bridgeFilterInput) {
+    els.bridgeFilterInput.addEventListener("input", (e) => {
+      const term = e.target.value.toLowerCase();
+      if (!els.bridgeTableBody) return;
+      const rows = els.bridgeTableBody.querySelectorAll("tr");
+      rows.forEach(row => {
+        let textContext = row.textContent.toLowerCase();
+        // Include values from input and select boxes
+        row.querySelectorAll("input, select").forEach(input => {
+          if (input.value) textContext += " " + input.value.toLowerCase();
+        });
+        row.style.display = textContext.includes(term) ? "" : "none";
+      });
     });
   }
 
