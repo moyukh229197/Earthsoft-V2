@@ -8590,6 +8590,12 @@ let flyZ = 0;
 const flyStep = 10;
 let flySpeed = 0.5; // Default speed multiplier
 
+let camOffsetX = 0;
+let camOffsetY = 2.5; // Default low front view
+let camOffsetZ = 0;
+let isIsoCam = false;
+let currentLookAhead = 15;
+
 function init3DViewer() {
    const container = document.getElementById("threeContainer");
    if(!container || viewer3dScene) return;
@@ -8809,7 +8815,8 @@ function generate3DMesh() {
            trackGroup.add(railR);
        });
 
-       // d) Render Platforms
+       // d) Render Platforms & Station Names
+       let renderedStationBoard = false;
        platforms.forEach(pf => {
            const pfW = parseFloat(pf.row.pfWidth) || 6.0;
            const isLeft = pf.side === "Left";
@@ -8823,6 +8830,44 @@ function generate3DMesh() {
            const pfMesh = new THREE.Mesh(pfGeo, new THREE.MeshStandardMaterial({color: 0x94a3b8}));
            pfMesh.position.set(cx, yPos + 0.4, zPos);
            trackGroup.add(pfMesh);
+
+           // Render Station Board once per station area (roughly)
+           if (!renderedStationBoard && i % 10 === 0) { // Place board periodically along platform
+               const stName = pf.row.station || "Station";
+               const c = document.createElement('canvas');
+               c.width = 512;
+               c.height = 128;
+               const ctx = c.getContext('2d');
+               ctx.fillStyle = '#facc15';
+               ctx.fillRect(0, 0, 512, 128);
+               ctx.fillStyle = '#0f172a';
+               ctx.font = 'bold 64px sans-serif';
+               ctx.textAlign = 'center';
+               ctx.textBaseline = 'middle';
+               ctx.fillText(stName.toUpperCase(), 256, 64);
+               ctx.lineWidth = 10;
+               ctx.strokeStyle = '#0f172a';
+               ctx.strokeRect(0, 0, 512, 128);
+               
+               const btex = new THREE.CanvasTexture(c);
+               const bMat = new THREE.MeshBasicMaterial({ map: btex });
+               const bGeo = new THREE.BoxGeometry(0.2, 2, 8);
+               const bMesh = new THREE.Mesh(bGeo, bMat);
+               
+               const boardOffset = cx + (isLeft ? -(pfW/2 + 0.5) : (pfW/2 + 0.5));
+               bMesh.position.set(boardOffset, yPos + 3, zPos);
+               trackGroup.add(bMesh);
+
+               const pGeo = new THREE.BoxGeometry(0.2, 3, 0.2);
+               const pMat = new THREE.MeshBasicMaterial({ color: 0x334155 });
+               const post1 = new THREE.Mesh(pGeo, pMat);
+               post1.position.set(boardOffset, yPos + 1.5, zPos - 3.5);
+               const post2 = new THREE.Mesh(pGeo, pMat);
+               post2.position.set(boardOffset, yPos + 1.5, zPos + 3.5);
+               trackGroup.add(post1); trackGroup.add(post2);
+
+               renderedStationBoard = true;
+           }
        });
 
        // e) Render Bridges & Tunnels
@@ -8930,16 +8975,80 @@ document.addEventListener("DOMContentLoaded", () => {
        document.getElementById("viewer3dModal").close();
        if (animationId) cancelAnimationFrame(animationId);
        viewer3dScene = null; // Reset for next open
+       flying = false;
+       document.getElementById("playFlyBtn").innerHTML = '<i class="ri-play-fill" style="margin-right:4px;"></i> Simulate';
    });
    
+   // Start Simulation / Resume
    const flyBtn = document.getElementById("playFlyBtn");
    flyBtn?.addEventListener('click', function() {
        flying = !flying;
-       this.innerHTML = flying ? '<i class="ri-pause-fill" style="margin-right:4px;"></i> Pause Flight' : '<i class="ri-play-fill" style="margin-right:4px;"></i> Simulate Flight';
-       if(flying) {
-           flyZ = 0; // Restart from beginning
+       this.innerHTML = flying ? '<i class="ri-pause-fill" style="margin-right:4px;"></i> Pause' : '<i class="ri-play-fill" style="margin-right:4px;"></i> Simulate';
+       
+       if (flying && flyZ === 0) {
+           // Fresh start, check if user provided a starting chainage
+           const startCh = parseFloat(document.getElementById("flyStartChainage")?.value);
+           if (!isNaN(startCh) && state.calcRows.length > 0) {
+               // Find index closest to this chainage
+               const baseCh = state.calcRows[0].chainage;
+               const offsetCh = startCh - baseCh;
+               if (offsetCh > 0) {
+                   const rowsCount = Math.floor(offsetCh / (state.calcRows[1].chainage - state.calcRows[0].chainage));
+                   flyZ = -(Math.min(rowsCount, state.calcRows.length - 1)) * flyStep;
+               }
+           }
        }
    });
+
+   // Start Over
+   const startOverBtn = document.getElementById("startOverBtn");
+   startOverBtn?.addEventListener('click', function() {
+       const startCh = parseFloat(document.getElementById("flyStartChainage")?.value);
+       flyZ = 0;
+       if (!isNaN(startCh) && state.calcRows.length > 0) {
+           const baseCh = state.calcRows[0].chainage;
+           const offsetCh = startCh - baseCh;
+           if (offsetCh > 0) {
+               const spacing = Math.max(0.1, state.calcRows[1].chainage - state.calcRows[0].chainage);
+               const rowsCount = Math.floor(offsetCh / spacing);
+               flyZ = -(Math.min(rowsCount, state.calcRows.length - 1)) * flyStep;
+           }
+       }
+       if (document.getElementById("flyStationFlash")) {
+           document.getElementById("flyStationFlash").dataset.lastStation = "";
+           document.getElementById("flyStationFlash").style.display = "none";
+       }
+       if (!flying) {
+           flyBtn.click(); // Automatically start playing if paused
+       }
+   });
+
+   // Camera Preset Hotkeys
+   const camBtns = document.querySelectorAll(".cam-preset-btn");
+   camBtns.forEach(btn => {
+       btn.addEventListener("click", (e) => {
+           // Reset styles
+           camBtns.forEach(b => b.style.background = "transparent");
+           e.target.style.background = "rgba(255,255,255,0.2)";
+
+           const camType = e.target.dataset.cam;
+           isIsoCam = false;
+           
+           if (camType === "front") {
+               camOffsetX = 0; camOffsetY = 2.5; camOffsetZ = 0; currentLookAhead = 15;
+           } else if (camType === "top") {
+               camOffsetX = 0; camOffsetY = 150; camOffsetZ = 20; currentLookAhead = 1;
+           } else if (camType === "left") {
+               camOffsetX = -40; camOffsetY = 10; camOffsetZ = 10; currentLookAhead = 5;
+           } else if (camType === "right") {
+               camOffsetX = 40; camOffsetY = 10; camOffsetZ = 10; currentLookAhead = 5;
+           } else if (camType === "iso") {
+               isIsoCam = true;
+               camOffsetX = 40; camOffsetY = 30; camOffsetZ = 60; currentLookAhead = 15;
+           }
+       });
+   });
+
 });
 
 async function init() {
