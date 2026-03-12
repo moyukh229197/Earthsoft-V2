@@ -8638,35 +8638,51 @@ function init3DViewer() {
      if (!viewer3dScene) return;
      animationId = requestAnimationFrame(animate);
      
-     if (flying && state.calcRows.length > 0) {
-        const speedMultiplier = parseFloat(document.getElementById("flySpeedSelect")?.value || "0.5");
-        flyZ -= (flyStep * 0.1) * speedMultiplier;
-        
-        const totalLen = (state.calcRows.length - 1) * flyStep;
-        if (Math.abs(flyZ) >= totalLen) {
-           flyZ = 0; // Loop flight
+     if (state.calcRows.length > 0) {
+        if (flying) {
+          const speedMultiplier = parseFloat(document.getElementById("flySpeedSelect")?.value || "0.5");
+          flyZ -= (flyStep * 0.1) * speedMultiplier;
+          
+          const totalLen = (state.calcRows.length - 1) * flyStep;
+          if (Math.abs(flyZ) >= totalLen) {
+             flyZ = 0; // Loop flight
+          }
         }
         
         const idx = Math.floor(Math.abs(flyZ) / flyStep);
-        if (state.calcRows[idx]) {
-           const row = state.calcRows[idx];
-           const targetY = (row.proposedLevel / 10) + 2.5; // Fly slightly above track (lowered for intimacy)
-           
-           // Smooth camera movement (lerp)
-           viewer3dCamera.position.z += (flyZ - viewer3dCamera.position.z) * 0.05;
-           viewer3dCamera.position.y += (targetY - viewer3dCamera.position.y) * 0.05;
-           viewer3dCamera.position.x += (0 - viewer3dCamera.position.x) * 0.05;
-           
-           // Look ahead logic
-           const lookAheadIdx = Math.min(idx + 15, state.calcRows.length - 1);
-           const aheadRow = state.calcRows[lookAheadIdx];
-           const lookTarget = new THREE.Vector3(0, aheadRow.proposedLevel / 10, flyZ - 60);
-           viewer3dCamera.lookAt(lookTarget);
+        const row = state.calcRows[idx];
+        if (row) {
+           // Update HUD
+           const hudCh = document.getElementById("flyHudChainage");
+           if (hudCh) hudCh.textContent = formatReportChainage(row.chainage);
+           const hudGl = document.getElementById("flyHudGL");
+           if (hudGl) hudGl.textContent = (row.groundLevel || 0).toFixed(3);
+           const hudPl = document.getElementById("flyHudPL");
+           if (hudPl) hudPl.textContent = (row.proposedLevel || 0).toFixed(3);
+           const hudType = document.getElementById("flyHudType");
+           if (hudType) hudType.textContent = (row.bank > Math.max(0.01, row.cut)) ? "Fill" : ((row.cut > Math.max(0.01, row.bank)) ? "Cut" : "Level");
+
+           if (flying) {
+              const targetY = (row.proposedLevel / 10) + camOffsetY;
+              const targetZ = flyZ + camOffsetZ;
+              const targetX = camOffsetX;
+              
+              // Smooth camera movement (lerp)
+              viewer3dCamera.position.z += (targetZ - viewer3dCamera.position.z) * 0.05;
+              viewer3dCamera.position.y += (targetY - viewer3dCamera.position.y) * 0.05;
+              viewer3dCamera.position.x += (targetX - viewer3dCamera.position.x) * 0.05;
+              
+              // Look ahead logic
+              const lookAheadIdx = Math.min(idx + currentLookAhead, state.calcRows.length - 1);
+              const aheadRow = state.calcRows[lookAheadIdx] || row;
+              const lookTarget = new THREE.Vector3(0, aheadRow.proposedLevel / 10, isIsoCam ? (flyZ - 20) : (flyZ - 60));
+              viewer3dCamera.lookAt(lookTarget);
+              viewer3dControls.enabled = false;
+           } else {
+              viewer3dControls.enabled = true;
+              viewer3dControls.update();
+           }
         }
-        viewer3dControls.enabled = false;
-     } else {
-        viewer3dControls.enabled = true;
-        viewer3dControls.update();
      }
      
      viewer3dRenderer.render(viewer3dScene, viewer3dCamera);
@@ -8754,6 +8770,13 @@ function generate3DMesh() {
     // --- 3. Process each chainage station ---
     zPos = 0;
     let lastRenderedKm = -1;
+    
+    // Arrays for smooth continuous surfaces
+    const fillVerts = []; const fillInds = [];
+    const cutVerts = []; const cutInds = [];
+    let prevFillNode = null;
+    let prevCutNode = null;
+
     for(let i=0; i < maxDisplay; i++) {
        const row = state.calcRows[i];
        const yPos = row.proposedLevel / 10;
@@ -8789,19 +8812,50 @@ function generate3DMesh() {
        trackMesh.position.set(centerOffset, yPos, zPos);
        trackGroup.add(trackMesh);
 
-       // b) Embankment / Cutting (dynamically sized)
+       // b) Smooth Embankment / Cutting (dynamically sized & continuous)
+       const sf = 2.0;
        if (row.bank > 0.1) {
-          const h = (yPos - glYPos);
-          const fillGeo = new THREE.BoxGeometry(currentFormationW + (row.bank * 2), h, flyStep);
-          const fillMesh = new THREE.Mesh(fillGeo, bankMat);
-          fillMesh.position.set(centerOffset, yPos - (h/2) - 0.25, zPos);
-          trackGroup.add(fillMesh);
-       } else if (row.cut > 0.1) {
-          const h = (glYPos - yPos);
-          const cutGeo = new THREE.BoxGeometry(currentFormationW + 4 + (row.cut * 2), h, flyStep);
-          const cutMesh = new THREE.Mesh(cutGeo, cutMat);
-          cutMesh.position.set(centerOffset, yPos + (h/2) + 0.25, zPos);
-          trackGroup.add(cutMesh);
+          const lT = new THREE.Vector3(centerOffset - currentFormationW/2, yPos - 0.25, zPos);
+          const lB = new THREE.Vector3(centerOffset - currentFormationW/2 - (row.bank * sf), Math.min(yPos - 0.25, glYPos), zPos);
+          const rT = new THREE.Vector3(centerOffset + currentFormationW/2, yPos - 0.25, zPos);
+          const rB = new THREE.Vector3(centerOffset + currentFormationW/2 + (row.bank * sf), Math.min(yPos - 0.25, glYPos), zPos);
+          
+          if (prevFillNode) {
+             const p = prevFillNode;
+             // Left Slope
+             fillVerts.push(p.lB.x, p.lB.y, p.lB.z,   lB.x, lB.y, lB.z,   lT.x, lT.y, lT.z,   p.lT.x, p.lT.y, p.lT.z);
+             let vL = fillVerts.length/3 - 4;
+             fillInds.push(vL, vL+1, vL+2, vL, vL+2, vL+3);
+             // Right Slope
+             fillVerts.push(p.rT.x, p.rT.y, p.rT.z,   rT.x, rT.y, rT.z,   rB.x, rB.y, rB.z,   p.rB.x, p.rB.y, p.rB.z);
+             let vR = fillVerts.length/3 - 4;
+             fillInds.push(vR, vR+1, vR+2, vR, vR+2, vR+3);
+          }
+          prevFillNode = { lT, lB, rT, rB };
+       } else {
+          prevFillNode = null;
+       }
+
+       if (row.cut > 0.1) {
+          const lB = new THREE.Vector3(centerOffset - currentFormationW/2 - 2, yPos + 0.25, zPos);
+          const lT = new THREE.Vector3(centerOffset - currentFormationW/2 - 2 - (row.cut * sf), Math.max(yPos + 0.25, glYPos), zPos);
+          const rB = new THREE.Vector3(centerOffset + currentFormationW/2 + 2, yPos + 0.25, zPos);
+          const rT = new THREE.Vector3(centerOffset + currentFormationW/2 + 2 + (row.cut * sf), Math.max(yPos + 0.25, glYPos), zPos);
+          
+          if (prevCutNode) {
+             const p = prevCutNode;
+             // Left Slope
+             cutVerts.push(p.lT.x, p.lT.y, p.lT.z,   lT.x, lT.y, lT.z,   lB.x, lB.y, lB.z,   p.lB.x, p.lB.y, p.lB.z);
+             let vL = cutVerts.length/3 - 4;
+             cutInds.push(vL, vL+1, vL+2, vL, vL+2, vL+3);
+             // Right Slope
+             cutVerts.push(p.rB.x, p.rB.y, p.rB.z,   rB.x, rB.y, rB.z,   rT.x, rT.y, rT.z,   p.rT.x, p.rT.y, p.rT.z);
+             let vR = cutVerts.length/3 - 4;
+             cutInds.push(vR, vR+1, vR+2, vR, vR+2, vR+3);
+          }
+          prevCutNode = { lT, lB, rT, rB };
+       } else {
+          prevCutNode = null;
        }
 
        // c) Render Rails for all active tracks
@@ -8957,6 +9011,23 @@ function generate3DMesh() {
        
        zPos -= flyStep;
     }
+    
+    // Add generated continuous meshes to scene
+    if (fillVerts.length > 0) {
+        const fillGeo = new THREE.BufferGeometry();
+        fillGeo.setAttribute('position', new THREE.Float32BufferAttribute(fillVerts, 3));
+        fillGeo.setIndex(fillInds);
+        fillGeo.computeVertexNormals();
+        trackGroup.add(new THREE.Mesh(fillGeo, bankMat));
+    }
+    if (cutVerts.length > 0) {
+        const cutGeo = new THREE.BufferGeometry();
+        cutGeo.setAttribute('position', new THREE.Float32BufferAttribute(cutVerts, 3));
+        cutGeo.setIndex(cutInds);
+        cutGeo.computeVertexNormals();
+        trackGroup.add(new THREE.Mesh(cutGeo, cutMat));
+    }
+
     viewer3dScene.add(trackGroup);
 }
 
@@ -9045,6 +9116,22 @@ document.addEventListener("DOMContentLoaded", () => {
            } else if (camType === "iso") {
                isIsoCam = true;
                camOffsetX = 40; camOffsetY = 30; camOffsetZ = 60; currentLookAhead = 15;
+           }
+           
+           if (viewer3dCamera && state.calcRows.length > 0) {
+              const idx = Math.floor(Math.abs(flyZ) / flyStep);
+              const row = state.calcRows[idx];
+              if (row) {
+                  viewer3dCamera.position.set(camOffsetX, (row.proposedLevel / 10) + camOffsetY, flyZ + camOffsetZ);
+                  const lookAheadIdx = Math.min(idx + currentLookAhead, state.calcRows.length - 1);
+                  const aheadRow = state.calcRows[lookAheadIdx] || row;
+                  const lookTarget = new THREE.Vector3(0, aheadRow.proposedLevel / 10, isIsoCam ? (flyZ - 20) : (flyZ - 60));
+                  viewer3dCamera.lookAt(lookTarget);
+                  if (viewer3dControls) {
+                     viewer3dControls.target.copy(lookTarget);
+                     viewer3dControls.update();
+                  }
+              }
            }
        });
    });
