@@ -173,6 +173,7 @@ const els = {
   themeToggleCheckbox: document.getElementById("themeToggleCheckbox"),
   importProjectBtn: document.getElementById("importProjectBtn"),
   saveProjectBtn: document.getElementById("saveProjectBtn"),
+  saveAsProjectBtn: document.getElementById("saveAsProjectBtn"),
   resetProjectBtn: document.getElementById("resetProjectBtn"),
   snapshotsBtn: document.getElementById("snapshotsBtn"),
   snapshotsModal: document.getElementById("snapshotsModal"),
@@ -3034,6 +3035,8 @@ function applyProjectGate() {
   if (els.importBtn) els.importBtn.disabled = !active;
   if (els.openSettingsBtn) els.openSettingsBtn.disabled = !active;
   if (els.saveProjectBtn) els.saveProjectBtn.disabled = !active;
+  if (els.saveAsProjectBtn) els.saveAsProjectBtn.disabled = !active;
+  if (els.resetProjectBtn) els.resetProjectBtn.disabled = !active;
   if (els.projectMeta) {
     els.projectMeta.textContent = "Earthwork Calculations";
   }
@@ -3144,6 +3147,27 @@ async function saveCurrentProject() {
     alert("Create and name a project before saving.");
     return;
   }
+  
+  if (window.supabaseClient) {
+    try {
+      await saveToSupabase();
+      state.meta = { ...(state.meta || {}), lastSavedAt: new Date().toISOString() };
+      alert(`Project saved to cloud: ${state.project.name}`);
+    } catch (err) {
+      console.error("Cloud save failed", err);
+      alert("Failed to save to cloud. Try 'Save As' to backup locally. Error: " + err.message);
+    }
+  } else {
+    // Fallback if supabase isn't connected
+    saveAsLocalProject();
+  }
+}
+
+async function saveAsLocalProject() {
+  if (!state.project.active || !state.project.name) {
+    alert("Create and name a project before saving.");
+    return;
+  }
   const payload = collectProjectPayload();
   const fileBase = String(state.project.name || "project")
     .replace(/[^\w.-]+/g, "_")
@@ -3152,18 +3176,12 @@ async function saveCurrentProject() {
   const jsonStr = JSON.stringify(payload, null, 2);
 
   try {
-    if (state.projectFileHandle) {
-      const writable = await state.projectFileHandle.createWritable();
-      await writable.write(jsonStr);
-      await writable.close();
-      state.meta = { ...(state.meta || {}), lastSavedAt: new Date().toISOString() };
-      alert(`Project updated: ${state.project.name}`);
-    } else if ("showSaveFilePicker" in window) {
+    if ("showSaveFilePicker" in window) {
       const handle = await window.showSaveFilePicker({
         suggestedName: `${fileBase}.EW`,
         types: [{
           description: "Earthwork Project File",
-          accept: { "application/json": [".EW"] },
+          accept: { "application/json": [".EW", ".ew"] },
         }],
       });
       state.projectFileHandle = handle;
@@ -3171,7 +3189,7 @@ async function saveCurrentProject() {
       await writable.write(jsonStr);
       await writable.close();
       state.meta = { ...(state.meta || {}), lastSavedAt: new Date().toISOString() };
-      alert(`Project saved: ${state.project.name}`);
+      alert(`Project saved locally as: ${handle.name}`);
     } else {
       // Fallback for unsupported browsers
       const blob = new Blob([jsonStr], { type: "application/json" });
@@ -3181,12 +3199,12 @@ async function saveCurrentProject() {
       a.click();
       URL.revokeObjectURL(a.href);
       state.meta = { ...(state.meta || {}), lastSavedAt: new Date().toISOString() };
-      alert(`Project saved: ${state.project.name}`);
+      alert(`Project downloaded locally: ${fileBase}.EW`);
     }
   } catch (err) {
     if (err.name !== "AbortError") {
       console.error("Save project error:", err);
-      alert("Failed to save the project. " + err.message);
+      alert("Failed to save the project locally. " + err.message);
     }
   }
 }
@@ -6853,6 +6871,12 @@ function bindEvents() {
   if (els.saveProjectBtn) {
     els.saveProjectBtn.addEventListener("click", () => {
       saveCurrentProject();
+    });
+  }
+
+  if (els.saveAsProjectBtn) {
+    els.saveAsProjectBtn.addEventListener("click", () => {
+      saveAsLocalProject();
     });
   }
 
