@@ -3817,8 +3817,9 @@ td:first-child {
 
 .stat .fluid-wave-back {
   background: rgba(46, 204, 113, 0.2);
+}
 
-  /* ── Calculation Table Custom Theme ───────────────────────────────────── */
+/* ── Calculation Table Custom Theme ───────────────────────────────────── */
   .work-page[data-work-page="table"] .table-wrap {
     background: #0b0f19;
     border: 1px solid #1e293b;
@@ -3842,10 +3843,6 @@ td:first-child {
 
   .work-page[data-work-page="table"] tbody tr {
     border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-  }
-
-  .work-page[data-work-page="table"] tbody tr:hover {
-    background: rgba(255, 255, 255, 0.02);
   }
 
   .work-page[data-work-page="table"] th,
@@ -3885,7 +3882,6 @@ td:first-child {
     color: #ef4444;
     font-weight: 500;
   }
-}
 
 /* Background Beams animations */
 .background-beams-container {
@@ -4193,20 +4189,6 @@ td:first-child {
   position: relative;
   z-index: 1;
   transition: background-color 0.1s;
-}
-.work-page[data-work-page="table"] tbody td:hover::after {
-  content: "";
-  position: absolute;
-  top: -10000px;
-  bottom: -10000px;
-  left: 0;
-  right: 0;
-  background-color: hsla(233, 100%, 57%, 0.15); /* crosshair column highlight */
-  z-index: -1;
-  pointer-events: none;
-}
-.work-page[data-work-page="table"] tbody tr:hover {
-  background-color: hsla(233, 100%, 57%, 0.1);
 }
 
 /* Inline Validation */
