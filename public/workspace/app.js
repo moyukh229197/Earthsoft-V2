@@ -19,7 +19,7 @@ const CROSS_DEFAULT_VIEWBOX = {
   h: CROSS_SVG_H + (CROSS_VIEW_MARGIN_Y * 2),
 };
 
-const BRIDGE_CATEGORIES = ["Minor", "Major", "Viaduct", "Important", "RoR", "Tunnel", "ROB", "MIBOR", "Aqueduct"];
+const BRIDGE_CATEGORIES = ["Minor", "Major", "Viaduct", "Important", "RoR", "Tunnel", "ROB", "Aqueduct"];
 const BRIDGE_TYPES = ["Box", "PSC Slab", "Composite Girder", "OWG", "Other"];
 const BRIDGE_DEDUCT_RULES = ["Auto", "Always", "Never"];
 const LOOP_LINE_TYPES = ["Loop", "TM Siding", "Ballast Siding", "Connecting Line", "Main Line", "Platform"];
@@ -1210,7 +1210,6 @@ function detectCategoryFromText(text) {
   if (s.includes("important")) return "Important";
   if (s.includes("ror") || s.includes("road over rail")) return "RoR";
   if (s.includes("rob") || s.includes("road over bridge")) return "ROB";
-  if (s.includes("mibor") || s.includes("missing bridge")) return "MIBOR";
   if (s.includes("aqueduct") || s.includes("aquiduct")) return "Aqueduct";
   return null;
 }
