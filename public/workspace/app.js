@@ -3538,10 +3538,9 @@ function renderTable() {
       `;
     }
 
-    const fragment = document.createRange().createContextualFragment(chunkHtml);
-    tableBody.appendChild(fragment);
-
+    tableBody.insertAdjacentHTML('beforeend', chunkHtml);
     offset += chunkSize;
+
     
     // Performance optimization: Render next chunk and yield thread
     if (window.requestIdleCallback) {
