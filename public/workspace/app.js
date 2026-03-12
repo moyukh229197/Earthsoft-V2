@@ -90,6 +90,7 @@ const state = {
     authenticated: false,
     user: "",
   },
+  supabaseProjectId: null,
 };
 
 const els = {
@@ -284,6 +285,11 @@ const els = {
   exportModal: document.getElementById("exportModal"),
   confirmExportBtn: document.getElementById("confirmExportBtn"),
   cancelExportBtn: document.getElementById("cancelExportBtn"),
+  openCloudProjectsBtn: document.getElementById("openCloudProjectsBtn"),
+  cloudProjectsModal: document.getElementById("cloudProjectsModal"),
+  closeCloudProjectsBtn: document.getElementById("closeCloudProjectsBtn"),
+  cloudProjectsList: document.getElementById("cloudProjectsList"),
+  cloudProjectSearch: document.getElementById("cloudProjectSearch")
 };
 
 async function loadAuthState() {
@@ -760,7 +766,8 @@ function updateDashboard() {
   const balanceGrid = document.getElementById("volumeBalanceGrid");
   const alertsList = document.getElementById("designAlertsList");
 
-  const projectName = state.project?.name || "No active project";
+  const corridorName = state.project?.profile?.corridorName;
+  const projectName = corridorName ? corridorName : (state.project?.name || "No active project");
   const active = Boolean(state.project?.active);
   const uploads = state.project?.uploads || {};
   const rawRows = Array.isArray(state.rawRows) ? state.rawRows : [];
@@ -2935,7 +2942,13 @@ function renderSummary() {
   const vBtn = document.getElementById("verifyCalcBtn");
   if (vBtn) vBtn.disabled = !state.calcRows.length;
 
-  saveState();
+  debouncedSaveState();
+}
+
+let _saveTimeout = null;
+function debouncedSaveState() {
+  if (_saveTimeout) clearTimeout(_saveTimeout);
+  _saveTimeout = setTimeout(saveState, 2000);
 }
 
 function setResultTab(tabName) {
@@ -3199,6 +3212,7 @@ function resetForNewProject() {
   state.kmlData = null;
   state.stationPlans = {};
   state.projectFileHandle = null;
+  state.supabaseProjectId = null;
   state.settings = { ...state.seedDefaultSettings };
   if (els.projectNameInput) els.projectNameInput.value = "";
   if (els.importInput) els.importInput.value = "";
@@ -7793,8 +7807,6 @@ function bindEvents() {
           droppedRow.style.transition = "background-color 0.8s ease";
           droppedRow.style.backgroundColor = "rgba(59, 130, 246, 0.3)";
           setTimeout(() => {
-             // Let css restore the original via inline style cleanup if needed,
-             // or just fade back
              droppedRow.style.backgroundColor = "";
           }, 800);
         }
@@ -7895,6 +7907,69 @@ function bindEvents() {
     els.settingsModal.showModal();
   });
   els.closeSettingsBtn.addEventListener("click", () => els.settingsModal.close());
+
+  if (els.openCloudProjectsBtn) {
+    els.openCloudProjectsBtn.addEventListener("click", () => {
+      els.cloudProjectsModal.showModal();
+      fetchCloudProjects();
+    });
+  }
+
+  if (els.closeCloudProjectsBtn) {
+    els.closeCloudProjectsBtn.addEventListener("click", () => {
+      els.cloudProjectsModal.close();
+    });
+  }
+  
+  if (els.cloudProjectSearch) {
+    els.cloudProjectSearch.addEventListener("input", (e) => {
+      renderCloudProjects(e.target.value);
+    });
+  }
+
+  async function fetchCloudProjects() {
+    if (!window.supabaseClient) return;
+    const list = els.cloudProjectsList;
+    if (!list) return;
+
+    try {
+      const { data, error } = await window.supabaseClient
+        .from('projects')
+        .select('id, name, updated_at')
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
+      window._cloudProjects = data;
+      renderCloudProjects();
+    } catch (err) {
+      console.error("Fetch Cloud Projects Error:", err);
+      list.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--red);">Error: ${err.message}</div>`;
+    }
+  }
+
+  function renderCloudProjects(filter = "") {
+    const list = els.cloudProjectsList;
+    if (!list || !window._cloudProjects) return;
+
+    const filtered = window._cloudProjects.filter(p => 
+      p.name.toLowerCase().includes(filter.toLowerCase())
+    );
+
+    if (filtered.length === 0) {
+      list.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--muted);">No projects found.</div>`;
+      return;
+    }
+
+    list.innerHTML = filtered.map(p => `
+      <div class="mission-list-item" style="cursor: pointer; padding: 12px; border-radius: 8px; transition: background 0.2s;" onmouseover="this.style.background='var(--nav-hover)'" onmouseout="this.style.background='transparent'" onclick="loadFromSupabase('${p.id}'); document.getElementById('cloudProjectsModal').close();">
+        <div style="display: flex; flex-direction: column;">
+          <strong>${p.name}</strong>
+          <small class="muted">Last modified: ${new Date(p.updated_at).toLocaleString()}</small>
+        </div>
+        <div class="mission-list-value"><i class="ri-arrow-right-s-line"></i></div>
+      </div>
+    `).join("");
+  }
 
   els.settingsForm.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -8310,12 +8385,143 @@ function saveState() {
     snapshots: state.snapshots,
     kmlData: state.kmlData,
     stationPlans: state.stationPlans,
+    supabaseProjectId: state.supabaseProjectId
   };
   localStorage.setItem("earthsoft_saved_work", JSON.stringify(data));
   
+  // Also sync to Supabase if config is present
+  if (window.supabaseClient && state.project.active) {
+    saveToSupabase();
+  }
+
   // Push to Undo/Redo Stack
   if (!window._isUndoRedoOp && window._History) {
      window._History.push(data);
+  }
+}
+
+async function saveToSupabase() {
+  if (!window.supabaseClient || !state.project.name) return;
+  const syncEl = document.getElementById("syncStatus");
+  if (syncEl) {
+    syncEl.classList.add("syncing");
+    syncEl.classList.remove("synced", "error");
+    syncEl.querySelector("span").textContent = "Syncing...";
+  }
+  
+  try {
+    const { data: projectData, error: projectError } = await window.supabaseClient
+      .from('projects')
+      .upsert({
+        id: state.supabaseProjectId || undefined,
+        name: state.project.name,
+        meta: state.meta || {},
+        settings: state.settings || {},
+        project_config: state.project || {}
+      }, { onConflict: 'id' })
+      .select('id')
+      .single();
+
+    if (projectError) throw projectError;
+    
+    if (!state.supabaseProjectId) {
+      state.supabaseProjectId = projectData.id;
+      const saved = JSON.parse(localStorage.getItem("earthsoft_saved_work") || "{}");
+      saved.supabaseProjectId = projectData.id;
+      localStorage.setItem("earthsoft_saved_work", JSON.stringify(saved));
+    }
+    
+    const heavyParts = [
+      { type: 'levels', data: state.rawRows },
+      { type: 'bridges', data: state.bridgeRows },
+      { type: 'curves', data: state.curveRows },
+      { type: 'loops', data: state.loopPlatformRows },
+      { type: 'snapshots', data: state.snapshots || [] },
+      { type: 'kml', data: state.kmlData },
+      { type: 'station_plans', data: state.stationPlans || {} }
+    ];
+
+    for (const part of heavyParts) {
+      if (part.data && (Array.isArray(part.data) ? part.data.length > 0 : Object.keys(part.data).length > 0)) {
+        await window.supabaseClient
+          .from('project_data')
+          .upsert({
+            project_id: state.supabaseProjectId,
+            data_type: part.type,
+            data: part.data
+          }, { onConflict: 'project_id, data_type' });
+      }
+    }
+    
+    if (syncEl) {
+      syncEl.classList.remove("syncing");
+      syncEl.classList.add("synced");
+      syncEl.querySelector("span").textContent = "Synced";
+    }
+  } catch (err) {
+    console.error("Supabase Save Error:", err);
+    if (syncEl) {
+      syncEl.classList.remove("syncing");
+      syncEl.classList.add("error");
+      syncEl.querySelector("span").textContent = "Sync Error";
+    }
+  }
+}
+
+async function loadFromSupabase(projectId) {
+  if (!window.supabaseClient || !projectId) return;
+  const syncEl = document.getElementById("syncStatus");
+  if (syncEl) {
+    syncEl.classList.add("syncing");
+    syncEl.querySelector("span").textContent = "Loading...";
+  }
+
+  try {
+    const { data: project, error: projectError } = await window.supabaseClient
+      .from('projects')
+      .select('*')
+      .eq('id', projectId)
+      .single();
+
+    if (projectError) throw projectError;
+
+    state.supabaseProjectId = project.id;
+    state.project = project.project_config;
+    state.meta = project.meta;
+    state.settings = project.settings;
+
+    const { data: parts, error: partsError } = await window.supabaseClient
+      .from('project_data')
+      .select('data_type, data')
+      .eq('project_id', projectId);
+
+    if (partsError) throw partsError;
+
+    parts.forEach(part => {
+      if (part.data_type === 'levels') state.rawRows = part.data;
+      if (part.data_type === 'bridges') state.bridgeRows = part.data;
+      if (part.data_type === 'curves') state.curveRows = part.data;
+      if (part.data_type === 'loops') state.loopPlatformRows = part.data;
+      if (part.data_type === 'snapshots') state.snapshots = part.data;
+      if (part.data_type === 'kml') state.kmlData = part.data;
+      if (part.data_type === 'station_plans') state.stationPlans = part.data;
+    });
+
+    updateDashboard();
+    recalculate(); 
+    
+    if (syncEl) {
+      syncEl.classList.remove("syncing");
+      syncEl.classList.add("synced");
+      syncEl.querySelector("span").textContent = "Synced";
+    }
+  } catch (err) {
+    console.error("Supabase Load Error:", err);
+    if (syncEl) {
+      syncEl.classList.remove("syncing");
+      syncEl.classList.add("error");
+      syncEl.querySelector("span").textContent = "Load Error";
+    }
   }
 }
 
@@ -8326,6 +8532,9 @@ function loadStoredState() {
     const data = JSON.parse(saved);
     if (!data) return;
     Object.assign(state, data);
+    
+    // If we have a supabase ID but maybe some data is missing locally, we could sync here
+    // But for now just trust the local storage if it exists.
   } catch (e) {
     console.error("Failed to load state:", e);
   }
@@ -8389,7 +8598,7 @@ function init3DViewer() {
    viewer3dScene.background = new THREE.Color(0x0b1020);
    viewer3dScene.fog = new THREE.FogExp2(0x0b1020, 0.002);
 
-   viewer3dCamera = new THREE.PerspectiveCamera(70, container.clientWidth / container.clientHeight, 1, 15000);
+   viewer3dCamera = new THREE.PerspectiveCamera(65, container.clientWidth / container.clientHeight, 1, 15000);
    viewer3dCamera.position.set(20, 30, 100);
 
    viewer3dRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -8479,114 +8688,231 @@ function generate3DMesh() {
       return;
    }
    
-   const trackGroup = new THREE.Group();
-   trackGroup.name = 'trackCorridor';
-   
-   const matFill = new THREE.MeshLambertMaterial({ color: 0x22c55e, transparent: true, opacity: 0.7 });
-   const matCut = new THREE.MeshLambertMaterial({ color: 0xef4444, transparent: true, opacity: 0.7 });
-   const matTrack = new THREE.MeshPhongMaterial({ color: 0x334155, shininess: 30 });
-   const matRail = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.2 });
-   
-   let zPos = 0;
-   
-   // Limit display for performance but keep long enough for flight
-   const maxDisplay = Math.min(state.calcRows.length, 1000);
-   
-   for(let i=0; i < maxDisplay; i++) {
-     const row = state.calcRows[i];
-     const yPos = row.proposedLevel / 10;
-     
-     // Formation Bed
-     const trackGeo = new THREE.BoxGeometry(7.85, 0.5, flyStep);
-     const trackMesh = new THREE.Mesh(trackGeo, matTrack);
-     trackMesh.position.set(0, yPos, zPos);
-     trackGroup.add(trackMesh);
-
-     // Simple Rails (Two lines)
-     const railL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, flyStep), matRail);
-     railL.position.set(-0.835, yPos + 0.3, zPos);
-     trackGroup.add(railL);
-
-     const railR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, flyStep), matRail);
-     railR.position.set(0.835, yPos + 0.3, zPos);
-     trackGroup.add(railR);
-     
-    // Embankment / Cutting visualization
-    if (row.bank > 0.1) {
-       const h = row.bank / 2;
-       const fillGeo = new THREE.BoxGeometry(7.85 + (row.bank * 2), h, flyStep);
-       const fillMesh = new THREE.Mesh(fillGeo, matFill);
-       fillMesh.position.set(0, yPos - (1.2), zPos); // Fixed position below formation
-       trackGroup.add(fillMesh);
-    } else if (row.cut > 0.1) {
-       const h = row.cut / 2;
-       const cutGeo = new THREE.BoxGeometry(10.05 + (row.cut * 2), h, flyStep);
-       const cutMesh = new THREE.Mesh(cutGeo, matCut);
-       cutMesh.position.set(0, yPos + (1.2), zPos);
-       trackGroup.add(cutMesh);
-    }
-
-    // --- Add Bridges ---
-    const currentCh = row.chainage;
-    const bridgeInRange = state.bridgeRows.find(b => {
-       const start = parseChainage(b.startChainage);
-       const end = parseChainage(b.endChainage);
-       return currentCh >= start && currentCh <= end;
-    });
-
-    if (bridgeInRange) {
-       const bridgeGeo = new THREE.BoxGeometry(10, 2, flyStep + 0.1);
-       const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.5 });
-       const bridgeMesh = new THREE.Mesh(bridgeGeo, bridgeMat);
-       bridgeMesh.position.set(0, yPos - 1.25, zPos);
-       trackGroup.add(bridgeMesh);
-       
-       // Siderails for bridge
-       const railBarGeo = new THREE.BoxGeometry(0.2, 1.2, flyStep);
-       const railBarMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8 });
-       const leftBar = new THREE.Mesh(railBarGeo, railBarMat);
-       leftBar.position.set(-5, yPos + 0.6, zPos);
-       trackGroup.add(leftBar);
-       const rightBar = new THREE.Mesh(railBarGeo, railBarMat);
-       rightBar.position.set(5, yPos + 0.6, zPos);
-       trackGroup.add(rightBar);
-    }
-
-    // --- Add Stations/Platforms ---
-    const stationInRange = state.loopPlatformRows.find(s => {
-       const start = parseChainage(s.pfStartCh);
-       const end = parseChainage(s.pfEndCh);
-       return (Number.isFinite(start) && Number.isFinite(end) && currentCh >= start && currentCh <= end);
-    });
-
-    if (stationInRange) {
-       const pfSide = String(stationInRange.side).toLowerCase() === 'left' ? -1 : 1;
-       const pfWidth = parseFloat(stationInRange.pfWidth) || 5;
-       const pfGeo = new THREE.BoxGeometry(pfWidth, 0.4, flyStep);
-       const pfMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8 });
-       const pfMesh = new THREE.Mesh(pfGeo, pfMat);
-       pfMesh.position.set(pfSide * (3.925 + pfWidth/2), yPos + 0.2, zPos);
-       trackGroup.add(pfMesh);
-       
-       // Station Sign/Pillar every 50m
-       if (Math.abs(row.chainage % 50) < 5) {
-          const pillarGeo = new THREE.BoxGeometry(0.5, 6, 0.5);
-          const pillarMat = new THREE.MeshPhongMaterial({ color: 0x1e293b });
-          const pillar = new THREE.Mesh(pillarGeo, pillarMat);
-          pillar.position.set(pfSide * (3.925 + pfWidth - 0.5), yPos + 3, zPos);
-          trackGroup.add(pillar);
-          
-          const boardGeo = new THREE.BoxGeometry(4, 1.5, 0.2);
-          const boardMat = new THREE.MeshStandardMaterial({ color: 0xfacc15 });
-          const board = new THREE.Mesh(boardGeo, boardMat);
-          board.position.set(pfSide * (3.925 + pfWidth - 0.5), yPos + 5.5, zPos);
-          trackGroup.add(board);
-       }
-    }
+    const trackGroup = new THREE.Group();
+    trackGroup.name = 'trackCorridor';
     
-    zPos -= flyStep;
- }
- viewer3dScene.add(trackGroup);
+    // --- Materials ---
+    const groundMat = new THREE.MeshLambertMaterial({ color: 0x64748b, side: THREE.DoubleSide, opacity: 0.9, transparent: true });
+    const bankMat = new THREE.MeshLambertMaterial({ color: 0x4ade80, side: THREE.DoubleSide });
+    const cutMat = new THREE.MeshLambertMaterial({ color: 0xf87171, side: THREE.DoubleSide });
+    const trackMat = new THREE.MeshPhongMaterial({ color: 0x334155, shininess: 20 });
+    const railMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.9, roughness: 0.1 });
+    const tunnelMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, side: THREE.DoubleSide, metalness: 0.1 });
+    const textMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    
+    // --- Configuration ---
+    let zPos = 0;
+    const maxDisplay = Math.min(state.calcRows.length, 2500); // 25km typical limit
+    const formationW = parseFloat(state.settings.visual?.formationWidthFill || 7.85);
+    const standardTc = parseFloat(state.settings.visual?.minTc || 5.3);
+
+    // Track points for continuous ground generation
+    const pointsGL = [];
+    const pointsPL = [];
+    
+    // --- 1. Pre-collect geometric paths ---
+    for(let i=0; i < maxDisplay; i++) {
+        const row = state.calcRows[i];
+        pointsPL.push(new THREE.Vector3(0, row.proposedLevel / 10, -i * flyStep));
+        pointsGL.push(new THREE.Vector3(0, row.groundLevel / 10, -i * flyStep));
+    }
+
+    // --- 2. Generate Smooth Ground Level Surface ---
+    if (pointsGL.length > 1) {
+        const verts = [];
+        const indices = [];
+        const halfW = 120;
+        for (let i = 0; i < pointsGL.length; i++) {
+            const z = pointsGL[i].z;
+            const y = pointsGL[i].y;
+            verts.push(-halfW, y, z);
+            verts.push(halfW, y, z);
+        }
+        for (let i = 0; i < pointsGL.length - 1; i++) {
+            const a = i * 2;
+            const b = i * 2 + 1;
+            const c = (i + 1) * 2;
+            const d = (i + 1) * 2 + 1;
+            indices.push(a, b, d);
+            indices.push(a, d, c);
+        }
+        const groundGeo = new THREE.BufferGeometry();
+        groundGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+        groundGeo.setIndex(indices);
+        groundGeo.computeVertexNormals();
+        const landMat = new THREE.MeshLambertMaterial({ color: 0x4d7c36, side: THREE.DoubleSide, opacity: 0.95, transparent: false });
+        const glMesh = new THREE.Mesh(groundGeo, landMat);
+        trackGroup.add(glMesh);
+    }
+
+    // --- 3. Process each chainage station ---
+    zPos = 0;
+    let lastRenderedKm = -1;
+    for(let i=0; i < maxDisplay; i++) {
+       const row = state.calcRows[i];
+       const yPos = row.proposedLevel / 10;
+       const glYPos = row.groundLevel / 10;
+       
+       // --- Query active layouts for this exact chainage ---
+       const activeLayout = buildStationSequenceLayout(row.chainage, "", standardTc, { useRanges: true });
+       const tracks = activeLayout ? activeLayout.trackItems.map(item => ({...item, offset: activeLayout.offsetByItem.get(item)})) : [{ order: 0, isMain: true, offset: 0 }];
+       const platforms = activeLayout ? activeLayout.platformItems : [];
+
+       // Dynamically determine formation width for loops/platforms
+       let minX = -formationW/2;
+       let maxX = formationW/2;
+       tracks.forEach(tr => {
+           minX = Math.min(minX, tr.offset - 2.5);
+           maxX = Math.max(maxX, tr.offset + 2.5);
+       });
+       platforms.forEach(pf => {
+           const pfW = parseFloat(pf.row.pfWidth) || 6.0;
+           const isLeft = pf.side === "Left";
+           const refTrack = tracks.find(t => t.side === pf.side) || tracks.find(t => t.isMain) || tracks[0];
+           const pfEdgeDistance = 2.8;
+           let cx = refTrack.offset + (isLeft ? -(pfEdgeDistance + pfW/2) : (pfEdgeDistance + pfW/2));
+           minX = Math.min(minX, cx - pfW/2);
+           maxX = Math.max(maxX, cx + pfW/2);
+       });
+       const currentFormationW = maxX - minX;
+       const centerOffset = (minX + maxX) / 2;
+
+       // a) Main Formation Bed (widened for loops)
+       const trackGeo = new THREE.BoxGeometry(currentFormationW, 0.5, flyStep);
+       const trackMesh = new THREE.Mesh(trackGeo, trackMat);
+       trackMesh.position.set(centerOffset, yPos, zPos);
+       trackGroup.add(trackMesh);
+
+       // b) Embankment / Cutting (dynamically sized)
+       if (row.bank > 0.1) {
+          const h = (yPos - glYPos);
+          const fillGeo = new THREE.BoxGeometry(currentFormationW + (row.bank * 2), h, flyStep);
+          const fillMesh = new THREE.Mesh(fillGeo, bankMat);
+          fillMesh.position.set(centerOffset, yPos - (h/2) - 0.25, zPos);
+          trackGroup.add(fillMesh);
+       } else if (row.cut > 0.1) {
+          const h = (glYPos - yPos);
+          const cutGeo = new THREE.BoxGeometry(currentFormationW + 4 + (row.cut * 2), h, flyStep);
+          const cutMesh = new THREE.Mesh(cutGeo, cutMat);
+          cutMesh.position.set(centerOffset, yPos + (h/2) + 0.25, zPos);
+          trackGroup.add(cutMesh);
+       }
+
+       // c) Render Rails for all active tracks
+       tracks.forEach(tr => {
+           const cx = tr.offset;
+           const railL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, flyStep), railMat);
+           railL.position.set(cx - 0.835, yPos + 0.35, zPos);
+           trackGroup.add(railL);
+           const railR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, flyStep), railMat);
+           railR.position.set(cx + 0.835, yPos + 0.35, zPos);
+           trackGroup.add(railR);
+       });
+
+       // d) Render Platforms
+       platforms.forEach(pf => {
+           const pfW = parseFloat(pf.row.pfWidth) || 6.0;
+           const isLeft = pf.side === "Left";
+           const refTrack = tracks.find(t => t.side === pf.side) || tracks.find(t => t.isMain) || tracks[0];
+           const pfEdgeDistance = 2.8; // Distance from track center to platform edge
+           
+           let cx = refTrack.offset;
+           cx += isLeft ? -(pfEdgeDistance + pfW/2) : (pfEdgeDistance + pfW/2);
+
+           const pfGeo = new THREE.BoxGeometry(pfW, 0.8, flyStep);
+           const pfMesh = new THREE.Mesh(pfGeo, new THREE.MeshStandardMaterial({color: 0x94a3b8}));
+           pfMesh.position.set(cx, yPos + 0.4, zPos);
+           trackGroup.add(pfMesh);
+       });
+
+       // e) Render Bridges & Tunnels
+       const bridgeInRange = state.bridgeRows.find(b => {
+           const start = parseChainage(b.startChainage);
+           const end = parseChainage(b.endChainage);
+           return row.chainage >= start && row.chainage <= end;
+       });
+
+       if (bridgeInRange) {
+           const isTunnel = (bridgeInRange.bridgeCategory || "").toLowerCase() === "tunnel";
+
+           if (isTunnel) {
+               // Render Tunnel Tube with proper opening
+               // dynamically calculate tunnel width if there are loops
+               const currentFormationW = typeof centerOffset !== 'undefined' && maxX ? (maxX - minX) : formationW;
+               const cO = typeof centerOffset !== 'undefined' ? centerOffset : 0;
+               const rw = currentFormationW / 2 + 2;
+               const rh = 7.5; // height
+               
+               const tShape = new THREE.Shape();
+               tShape.moveTo(-rw - 0.5, 0);
+               tShape.lineTo(rw + 0.5, 0);
+               tShape.lineTo(rw + 0.5, rh/2);
+               tShape.absarc(0, rh/2, rw + 0.5, 0, Math.PI, false);
+               tShape.lineTo(-rw - 0.5, 0);
+               
+               const hole = new THREE.Path();
+               hole.moveTo(rw, 0);
+               hole.lineTo(rw, rh/2);
+               hole.absarc(0, rh/2, rw, 0, Math.PI, true);
+               hole.lineTo(-rw, 0);
+               tShape.holes.push(hole);
+
+               const extrudeSettings = { depth: flyStep + 0.1, bevelEnabled: false };
+               const tGeo = new THREE.ExtrudeGeometry(tShape, extrudeSettings);
+               const tMesh = new THREE.Mesh(tGeo, tunnelMat);
+               tMesh.position.set(cO, yPos, zPos); 
+               trackGroup.add(tMesh);
+           } else {
+               // Render Bridge Deck
+               const currentFormationW = typeof centerOffset !== 'undefined' && maxX ? (maxX - minX) : formationW;
+               const cO = typeof centerOffset !== 'undefined' ? centerOffset : 0;
+               const bGeo = new THREE.BoxGeometry(currentFormationW + 2, 2, flyStep + 0.1);
+               const bMesh = new THREE.Mesh(bGeo, new THREE.MeshStandardMaterial({ color: 0x475569 }));
+               bMesh.position.set(cO, yPos - 1.25, zPos);
+               trackGroup.add(bMesh);
+           }
+       }
+
+       // f) Render KM Chainage Markers
+       const currentKm = Math.floor(row.chainage / 1000);
+       if (currentKm > lastRenderedKm || i === 0 || i === maxDisplay - 1) {
+           if (i !== 0 || currentKm >= 0) {
+               // Dynamic canvas text for proper km markers
+               const canvas = document.createElement('canvas');
+               canvas.width = 256;
+               canvas.height = 128;
+               const ctx = canvas.getContext('2d');
+               ctx.fillStyle = '#facc15';
+               ctx.fillRect(0, 0, 256, 128);
+               ctx.fillStyle = '#0f172a';
+               ctx.font = 'bold 54px sans-serif';
+               ctx.textAlign = 'center';
+               ctx.textBaseline = 'middle';
+               ctx.fillText(`KM ${currentKm}`, 128, 64);
+               ctx.lineWidth = 10;
+               ctx.strokeStyle = '#0f172a';
+               ctx.strokeRect(0, 0, 256, 128);
+               
+               const tex = new THREE.CanvasTexture(canvas);
+               const boardMat = new THREE.MeshBasicMaterial({ map: tex });
+               const boardGeo = new THREE.BoxGeometry(5, 3, 0.2);
+               const board = new THREE.Mesh(boardGeo, boardMat);
+               board.position.set(formationW / 2 + 5, yPos + 5, zPos);
+               trackGroup.add(board);
+               
+               const postGeo = new THREE.BoxGeometry(0.4, 5, 0.4);
+               const postMat = new THREE.MeshBasicMaterial({ color: 0x334155 });
+               const post = new THREE.Mesh(postGeo, postMat);
+               post.position.set(formationW / 2 + 5, yPos + 2.5, zPos);
+               trackGroup.add(post);
+               
+               lastRenderedKm = currentKm;
+           }
+       }
+       
+       zPos -= flyStep;
+    }
+    viewer3dScene.add(trackGroup);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
