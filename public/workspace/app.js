@@ -9603,7 +9603,7 @@ async function generateProjectReport(options) {
       const originalSideCanvas = els.sideViewCanvas;
       const originalRows = state.calcRows;
 
-      const CHUNK_LEN = 1000;
+      const CHUNK_LEN = 2000;
       const minOverallCh = exportCalcRows[0].chainage;
       const maxOverallCh = exportCalcRows[exportCalcRows.length - 1].chainage;
       let chunkIdx = 0;
