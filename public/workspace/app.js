@@ -3230,7 +3230,11 @@ function recalculate() {
   renderCurveInputs();
   renderLoopInputs();
   renderSummary();
-  renderTable();
+  if (state.activeWorkPage === "table") {
+    renderTable();
+  } else if (els.tableBody) {
+    els.tableBody.innerHTML = '<tr><td colspan="19" class="muted">Table DOM is paused to guarantee fast performance. Switch to this tab to render.</td></tr>';
+  }
   renderCharts();
   renderRollDiagram();
   renderSideView();
@@ -3331,6 +3335,13 @@ function setResultTab(tabName) {
 
 function setWorkPage(pageName) {
   const selected = pageName || "overview";
+  const oldPage = state.activeWorkPage;
+  
+  if (oldPage === "table" && selected !== "table") {
+    currentRenderId++;
+    if (els.tableBody) els.tableBody.innerHTML = '<tr><td colspan="19" class="muted">Table detached to save memory...</td></tr>';
+  }
+
   state.activeWorkPage = selected;
   els.workPageButtons.forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.workPageBtn === selected);
@@ -3338,6 +3349,9 @@ function setWorkPage(pageName) {
   els.workPages.forEach((page) => {
     page.classList.toggle("active", page.dataset.workPage === selected);
   });
+  if (selected === "table" && state.calcRows.length) {
+    if (oldPage !== "table") renderTable();
+  }
   if (selected === "roll-diagram" && state.calcRows.length) {
     requestAnimationFrame(() => { renderRollDiagram(); renderSideView(); });
   }
