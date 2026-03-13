@@ -9992,8 +9992,9 @@ function processVisualEditorLogic() {
       updateVECanvasTransform();
     }
     if (veState.draggingNode) {
-      veState.draggingNode.x = e.clientX - veState.offset.x - veState.pan.x;
-      veState.draggingNode.y = e.clientY - veState.offset.y - veState.pan.y;
+      const wrapperRect = document.getElementById("veCanvasWrapper").getBoundingClientRect();
+      veState.draggingNode.x = e.clientX - wrapperRect.left - veState.offset.x - veState.pan.x;
+      veState.draggingNode.y = e.clientY - wrapperRect.top - veState.offset.y - veState.pan.y;
       updateVEDOM();
     }
     if (veState.wiringStartPort) {
