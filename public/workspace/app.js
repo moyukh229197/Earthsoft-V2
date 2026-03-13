@@ -9927,6 +9927,318 @@ async function init() {
   recalculate();
 }
 
+// ==================== VISUAL P-WAY EDITOR MODULE ====================
+const veState = {
+  nodes: [],
+  wires: [],
+  draggingNode: null,
+  offset: { x: 0, y: 0 },
+  pan: { x: 0, y: 0 },
+  isPanning: false,
+  panStart: { x: 0, y: 0 },
+  wiringStartPort: null,
+  tempWireEnd: { x: 0, y: 0 },
+  nodeIdCounter: 1,
+};
+
+const VE_NODE_DEFS = {
+  MainLine: { title: "Main Line", in: ["Start Ch (m)", "End Ch (m)"], out: ["Track Out"] },
+  LoopLine: { title: "Loop / Siding", in: ["Track In", "Takeoff Ch", "Length (m)", "Side (L/R)"], out: ["Track Out"] },
+  Crossover: { title: "Crossover", in: ["Track A", "Track B", "Chainage"], out: [] },
+  DS: { title: "Derailing Switch", in: ["Track", "Chainage", "Side"], out: [] },
+  DeadEnd: { title: "Dead End", in: ["Track", "Chainage"], out: [] },
+  OverRun: { title: "Over Run Line", in: ["Track In", "Takeoff Ch", "Length"], out: [] },
+  Platform: { title: "Platform", in: ["Track", "Side", "Width (m)", "Length (m)"], out: ["PF Out"] },
+  Rails: { title: "Rails Form", in: ["Type (52kg/60kg)"], out: ["Material"] },
+  Sleepers: { title: "Sleepers Form", in: ["Type", "Density (/km)"], out: ["Material"] },
+};
+
+function processVisualEditorLogic() {
+  const canvas = document.getElementById("veCanvas");
+  const svg = document.getElementById("veSvg");
+  const wrapper = document.getElementById("veCanvasWrapper");
+  if (!canvas || !svg || !wrapper) return;
+
+  // Add Drag and Drop listeners to sidebar items
+  document.querySelectorAll(".ve-node-drag").forEach(el => {
+    el.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("application/json", JSON.stringify({ type: el.dataset.type }));
+    });
+  });
+
+  wrapper.addEventListener("dragover", (e) => e.preventDefault());
+  wrapper.addEventListener("drop", (e) => {
+    e.preventDefault();
+    const data = JSON.parse(e.dataTransfer.getData("application/json") || "null");
+    if (!data) return;
+    const rect = wrapper.getBoundingClientRect();
+    const x = e.clientX - rect.left - veState.pan.x;
+    const y = e.clientY - rect.top - veState.pan.y;
+    createVENode(data.type, x, y);
+  });
+
+  // Panning Support
+  wrapper.addEventListener("mousedown", (e) => {
+    if (e.target === wrapper || e.target === canvas || e.target === svg) {
+      veState.isPanning = true;
+      veState.panStart = { x: e.clientX - veState.pan.x, y: e.clientY - veState.pan.y };
+    }
+  });
+
+  window.addEventListener("mousemove", (e) => {
+    if (veState.isPanning) {
+      veState.pan.x = e.clientX - veState.panStart.x;
+      veState.pan.y = e.clientY - veState.panStart.y;
+      updateVECanvasTransform();
+    }
+    if (veState.draggingNode) {
+      veState.draggingNode.x = e.clientX - veState.offset.x - veState.pan.x;
+      veState.draggingNode.y = e.clientY - veState.offset.y - veState.pan.y;
+      updateVEDOM();
+    }
+    if (veState.wiringStartPort) {
+      const rect = wrapper.getBoundingClientRect();
+      veState.tempWireEnd = {
+        x: e.clientX - rect.left - veState.pan.x,
+        y: e.clientY - rect.top - veState.pan.y
+      };
+      drawVEWires();
+    }
+  });
+
+  window.addEventListener("mouseup", (e) => {
+    veState.isPanning = false;
+    veState.draggingNode = null;
+    if (veState.wiringStartPort) {
+      const portEl = e.target.closest(".ve-socket");
+      if (portEl) {
+        const endNodeId = portEl.dataset.nodeId;
+        const endPortIdx = portEl.dataset.portIdx;
+        const isInput = portEl.classList.contains("input");
+        if (veState.wiringStartPort.isOutput && isInput && veState.wiringStartPort.nodeId !== endNodeId) {
+          veState.wires.push({
+            fromNodeId: veState.wiringStartPort.nodeId,
+            fromPortIdx: veState.wiringStartPort.portIdx,
+            toNodeId: endNodeId,
+            toPortIdx: endPortIdx
+          });
+        }
+      }
+      veState.wiringStartPort = null;
+      drawVEWires();
+    }
+  });
+
+  document.getElementById("veClearBtn")?.addEventListener("click", () => {
+    veState.nodes = []; veState.wires = []; veState.nodeIdCounter = 1; updateVEDOM();
+  });
+
+  document.getElementById("veCompileBtn")?.addEventListener("click", () => {
+    compileVELayout();
+  });
+}
+
+function updateVECanvasTransform() {
+  document.getElementById("veCanvas").style.transform = `translate(${veState.pan.x}px, ${veState.pan.y}px)`;
+}
+
+function createVENode(type, x, y) {
+  const def = VE_NODE_DEFS[type];
+  if (!def) return;
+  const node = { id: "node_" + (veState.nodeIdCounter++), type, x, y, inputs: {}, def };
+  def.in.forEach(label => node.inputs[label] = "");
+  veState.nodes.push(node);
+  updateVEDOM();
+}
+
+function updateVEDOM() {
+  const canvas = document.getElementById("veCanvas");
+  // Remove nodes that are no longer in state
+  Array.from(canvas.querySelectorAll(".ve-node")).forEach(el => {
+    if (!veState.nodes.find(n => n.id === el.dataset.nodeId)) el.remove();
+  });
+
+  veState.nodes.forEach(node => {
+    let el = canvas.querySelector(`.ve-node[data-node-id="${node.id}"]`);
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "ve-node";
+      el.dataset.nodeId = node.id;
+      
+      let html = `<div class="ve-node-header">${node.def.title} <i class="ri-close-line" style="cursor:pointer;" onclick="deleteVENode('${node.id}')"></i></div><div class="ve-node-body">`;
+      
+      // Inputs
+      node.def.in.forEach((label, idx) => {
+        html += `<div class="ve-port-row ve-port-left">
+          <div class="ve-socket input" data-node-id="${node.id}" data-port-idx="${idx}"></div>
+          <span class="ve-port-label">${label}</span>
+          <input class="ve-port-input" type="text" data-node-id="${node.id}" data-port-label="${label}" value="${node.inputs[label]}" />
+        </div>`;
+      });
+      // Outputs
+      node.def.out.forEach((label, idx) => {
+        html += `<div class="ve-port-row ve-port-right">
+          <span class="ve-port-label">${label}</span>
+          <div class="ve-socket output" data-node-id="${node.id}" data-port-idx="${idx}"></div>
+        </div>`;
+      });
+      
+      html += `</div>`;
+      el.innerHTML = html;
+      canvas.appendChild(el);
+
+      // Node Dragging
+      el.querySelector(".ve-node-header").addEventListener("mousedown", (e) => {
+        if(e.target.tagName !== 'I') {
+            veState.draggingNode = node;
+            const rect = el.getBoundingClientRect();
+            veState.offset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+            document.querySelectorAll(".ve-node").forEach(n => n.classList.remove("selected"));
+            el.classList.add("selected");
+        }
+      });
+
+      // Socket Wiring
+      el.querySelectorAll(".ve-socket").forEach(socket => {
+        socket.addEventListener("mousedown", (e) => {
+          e.stopPropagation();
+          veState.wiringStartPort = {
+            nodeId: socket.dataset.nodeId,
+            portIdx: socket.dataset.portIdx,
+            isOutput: socket.classList.contains("output")
+          };
+          const rect = socket.getBoundingClientRect();
+          const wrapperRect = document.getElementById("veCanvasWrapper").getBoundingClientRect();
+          veState.tempWireEnd = {
+            x: rect.left + rect.width/2 - wrapperRect.left - veState.pan.x,
+            y: rect.top + rect.height/2 - wrapperRect.top - veState.pan.y
+          };
+        });
+      });
+
+      // Input listening
+      el.querySelectorAll(".ve-port-input").forEach(input => {
+        input.addEventListener("input", (e) => {
+          const n = veState.nodes.find(nx => nx.id === e.target.dataset.nodeId);
+          if (n) n.inputs[e.target.dataset.portLabel] = e.target.value;
+        });
+      });
+    }
+
+    el.style.left = `${node.x}px`;
+    el.style.top = `${node.y}px`;
+  });
+
+  drawVEWires();
+}
+
+window.deleteVENode = function(id) {
+  veState.nodes = veState.nodes.filter(n => n.id !== id);
+  veState.wires = veState.wires.filter(w => w.fromNodeId !== id && w.toNodeId !== id);
+  updateVEDOM();
+};
+
+function getPortCoordinates(nodeId, portIdx, isOutput) {
+  const el = document.querySelector(`.ve-socket.${isOutput ? 'output' : 'input'}[data-node-id="${nodeId}"][data-port-idx="${portIdx}"]`);
+  if (!el) return null;
+  const rect = el.getBoundingClientRect();
+  const wrapperRect = document.getElementById("veCanvasWrapper").getBoundingClientRect();
+  return {
+    x: rect.left + rect.width/2 - wrapperRect.left - veState.pan.x,
+    y: rect.top + rect.height/2 - wrapperRect.top - veState.pan.y
+  };
+}
+
+function drawVEWires() {
+  const svg = document.getElementById("veSvg");
+  if (!svg) return;
+  let html = "";
+
+  // Draw permanent wires
+  veState.wires.forEach((wire, i) => {
+    const start = getPortCoordinates(wire.fromNodeId, wire.fromPortIdx, true);
+    const end = getPortCoordinates(wire.toNodeId, wire.toPortIdx, false);
+    if (start && end) {
+      const curl = Math.max(Math.abs(end.x - start.x) * 0.5, 50);
+      html += `<path class="ve-wire ve-wire-hover" d="M ${start.x} ${start.y} C ${start.x + curl} ${start.y}, ${end.x - curl} ${end.y}, ${end.x} ${end.y}" onclick="deleteWire(${i})" />`;
+    }
+  });
+
+  // Draw temp wire
+  if (veState.wiringStartPort) {
+    const start = getPortCoordinates(veState.wiringStartPort.nodeId, veState.wiringStartPort.portIdx, veState.wiringStartPort.isOutput);
+    const end = veState.tempWireEnd;
+    if (start && end) {
+      const curl = Math.max(Math.abs(end.x - start.x) * 0.5, 50);
+      const outputFirst = veState.wiringStartPort.isOutput;
+      const x1 = outputFirst ? start.x : end.x;
+      const y1 = outputFirst ? start.y : end.y;
+      const x2 = outputFirst ? end.x : start.x;
+      const y2 = outputFirst ? end.y : start.y;
+      html += `<path class="ve-wire" style="stroke-dasharray:5,5; opacity:0.6;" d="M ${x1} ${y1} C ${x1 + curl} ${y1}, ${x2 - curl} ${y2}, ${x2} ${y2}" />`;
+    }
+  }
+
+  svg.innerHTML = html;
+}
+
+window.deleteWire = function(idx) {
+  veState.wires.splice(idx, 1);
+  drawVEWires();
+};
+
+function compileVELayout() {
+  if (veState.nodes.length === 0) {
+    alert("Canvas is empty. Add nodes to compile.");
+    return;
+  }
+  
+  const platforms = veState.nodes.filter(n => n.type === "Platform");
+  const loops = veState.nodes.filter(n => n.type === "LoopLine");
+
+  let newRows = [];
+  
+  loops.forEach((lp, i) => {
+    newRows.push({
+      station: `Station-${i+1}`,
+      lineType: "Loop",
+      lineName: `Loop-${i+1}`,
+      side: lp.inputs["Side (L/R)"] || "L",
+      loopStartCh: lp.inputs["Takeoff Ch"],
+      loopEndCh: parseFloat(lp.inputs["Takeoff Ch"] || 0) + parseFloat(lp.inputs["Length (m)"] || 0),
+      tc: 5.3,
+    });
+  });
+
+  platforms.forEach((pf, i) => {
+    newRows.push({
+      station: `Station-PF${i+1}`,
+      lineType: "Platform",
+      lineName: `PF-${i+1}`,
+      side: pf.inputs["Side"] || "R",
+      pfStartCh: "",
+      pfEndCh: "",
+      pfWidth: pf.inputs["Width (m)"] || 10,
+    });
+  });
+
+  if (newRows.length > 0) {
+    state.loopPlatformRows = [...newRows];
+    alert(`Topology compiled! ${loops.length} tracks and ${platforms.length} platforms added to Loop/Platform table. \n\nCheck the "Loops & Stations" tab to see the generated data!`);
+    renderLoopInputs();
+    recalculate();
+  } else {
+    alert("Layout compiled successfully. (No platforms or loops were detected to inject into the DB.)");
+  }
+}
+
+// Attach event listener initialization
+document.addEventListener("DOMContentLoaded", () => {
+    processVisualEditorLogic();
+});
+
+// =================================================================
+
 init();
 
 window._isPdfExportCancelled = false;

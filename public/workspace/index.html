@@ -152,6 +152,16 @@
           </svg>
           <span class="nav-text">Land Acquisition</span>
         </button>
+        <button class="work-nav-btn" data-work-page-btn="visual-editor" type="button">
+          <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="2" y="4" width="6" height="4" rx="1" />
+            <rect x="12" y="12" width="6" height="4" rx="1" />
+            <path d="M8 6h2c1 0 2 1 2 2v4c0 1 1 2 2 2h0" />
+            <circle cx="2" cy="6" r="1.5" fill="currentColor" opacity="0.3" />
+            <circle cx="18" cy="14" r="1.5" fill="currentColor" opacity="0.3" />
+          </svg>
+          <span class="nav-text">Visual Editor</span>
+        </button>
         <button class="work-nav-btn" data-work-page-btn="alignment-map" type="button">
           <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M3 7l5-3 4 3 5-3v12l-5 3-4-3-5 3V7z" />
@@ -1065,6 +1075,55 @@
                 </tr>
               </tfoot>
             </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== VISUAL EDITOR (P-WAY & PLATFORMS) ==================== -->
+      <section class="work-page" data-work-page="visual-editor">
+        <header class="page-header" style="border-bottom: 1px solid var(--stroke); padding-bottom: 16px;">
+          <div>
+            <h2>Visual P-Way Editor <span class="badge badge-warning" style="margin-left:8px;font-size:10px;">BETA</span></h2>
+            <p class="text-secondary">Drag and drop nodes to build parametric station layouts, tracks, and platforms.</p>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button id="veClearBtn" class="btn btn-secondary" type="button"><i class="ri-delete-bin-line"></i> Clear</button>
+            <button id="veCompileBtn" class="btn btn-primary" type="button"><i class="ri-play-fill"></i> Compile Layout</button>
+          </div>
+        </header>
+
+        <div class="ve-layout">
+          <!-- Node Library Sidebar -->
+          <div class="ve-sidebar">
+            <h4 style="margin-bottom: 12px; color: var(--text);">Node Library</h4>
+            
+            <div class="ve-category">Tracks</div>
+            <div class="ve-node-drag" draggable="true" data-type="MainLine"><i class="ri-arrow-right-line"></i> Main Line</div>
+            <div class="ve-node-drag" draggable="true" data-type="LoopLine"><i class="ri-git-branch-line"></i> Loop / Siding</div>
+            
+            <div class="ve-category">Turnouts</div>
+            <div class="ve-node-drag" draggable="true" data-type="Crossover"><i class="ri-shuffle-line"></i> Crossover</div>
+            <div class="ve-node-drag" draggable="true" data-type="DS"><i class="ri-share-forward-line"></i> Derailing Switch</div>
+
+            <div class="ve-category">Terminators</div>
+            <div class="ve-node-drag" draggable="true" data-type="DeadEnd"><i class="ri-stop-circle-line"></i> Dead End</div>
+            <div class="ve-node-drag" draggable="true" data-type="OverRun"><i class="ri-arrow-right-up-fill"></i> Over Run Line</div>
+
+            <div class="ve-category">Infrastructure</div>
+            <div class="ve-node-drag" draggable="true" data-type="Platform"><i class="ri-layout-bottom-line"></i> Platform</div>
+            
+            <div class="ve-category">Superstructure</div>
+            <div class="ve-node-drag" draggable="true" data-type="Rails"><i class="ri-skip-forward-line"></i> Rails</div>
+            <div class="ve-node-drag" draggable="true" data-type="Sleepers"><i class="ri-menu-line"></i> Sleepers</div>
+          </div>
+
+          <!-- Infinite Canvas Area -->
+          <div class="ve-canvas-wrapper" id="veCanvasWrapper">
+            <div class="ve-canvas" id="veCanvas">
+              <!-- SVG layer for drawing procedural wires -->
+              <svg id="veSvg" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"></svg>
+              <!-- HTML nodes will map inside the canvas -->
+            </div>
           </div>
         </div>
       </section>
