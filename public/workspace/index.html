@@ -1088,9 +1088,12 @@
           </div>
           <div style="display:flex;gap:8px;align-items:center;">
             <button id="veSampleBtn" class="btn btn-secondary" type="button"><i class="ri-lightbulb-flash-line"></i> Sample Layout</button>
+            <button id="veExportBtn" class="btn btn-secondary" type="button"><i class="ri-download-line"></i> Export .node</button>
+            <button id="veImportBtn" class="btn btn-secondary" type="button"><i class="ri-upload-line"></i> Import .node</button>
             <button id="veClearBtn" class="btn btn-secondary" type="button"><i class="ri-delete-bin-line"></i> Clear</button>
             <button id="veFullScreenBtn" class="btn btn-secondary" type="button"><i class="ri-fullscreen-line"></i> Full Screen</button>
             <button id="veCompileBtn" class="btn btn-primary" type="button"><i class="ri-play-fill"></i> Compile Layout</button>
+            <input type="file" id="veImportFile" style="display:none;" accept=".node" />
           </div>
         </header>
 
@@ -1101,18 +1104,23 @@
             
             <div class="ve-category">Tracks</div>
             <div class="ve-node-drag" draggable="true" data-type="MainLine"><i class="ri-arrow-right-line"></i> Main Line</div>
+            <div class="ve-node-drag" draggable="true" data-type="DoubleLine"><i class="ri-pause-line"></i> Double Main Line</div>
             <div class="ve-node-drag" draggable="true" data-type="LoopLine"><i class="ri-git-branch-line"></i> Loop / Siding</div>
             
             <div class="ve-category">Turnouts</div>
+            <div class="ve-node-drag" draggable="true" data-type="Turnout"><i class="ri-share-box-line"></i> Turnout (SRJ)</div>
             <div class="ve-node-drag" draggable="true" data-type="Crossover"><i class="ri-shuffle-line"></i> Crossover</div>
             <div class="ve-node-drag" draggable="true" data-type="DS"><i class="ri-share-forward-line"></i> Derailing Switch</div>
+            <div class="ve-node-drag" draggable="true" data-type="FoulingMark"><i class="ri-mark-pen-line"></i> Fouling Mark (FM)</div>
 
             <div class="ve-category">Terminators</div>
-            <div class="ve-node-drag" draggable="true" data-type="DeadEnd"><i class="ri-stop-circle-line"></i> Dead End</div>
+            <div class="ve-node-drag" draggable="true" data-type="DeadEnd"><i class="ri-stop-circle-line"></i> Dead End / Buffer</div>
             <div class="ve-node-drag" draggable="true" data-type="OverRun"><i class="ri-arrow-right-up-fill"></i> Over Run Line</div>
 
             <div class="ve-category">Infrastructure</div>
             <div class="ve-node-drag" draggable="true" data-type="Platform"><i class="ri-layout-bottom-line"></i> Platform</div>
+            <div class="ve-node-drag" draggable="true" data-type="LevelCrossing"><i class="ri-route-line"></i> Level Crossing</div>
+            <div class="ve-node-drag" draggable="true" data-type="MinorBridge"><i class="ri-wubi-input"></i> Minor Bridge</div>
             
             <div class="ve-category">Superstructure</div>
             <div class="ve-node-drag" draggable="true" data-type="Rails"><i class="ri-skip-forward-line"></i> Rails</div>

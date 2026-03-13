@@ -92,6 +92,7 @@ const state = {
     user: "",
   },
   supabaseProjectId: null,
+  veState: { nodes: [], wires: [], pan: { x: 0, y: 0 }, nodeIdCounter: 1 },
 };
 
 const els = {
@@ -3442,6 +3443,7 @@ function collectProjectPayload() {
     importMappings: state.importMappings,
     kmlData: state.kmlData,
     stationPlans: state.stationPlans,
+    veState: state.veState,
   };
 }
 
@@ -3510,6 +3512,9 @@ function loadProjectFromPayload(data, options = {}) {
   state.importMappings = data?.importMappings && typeof data.importMappings === "object"
     ? data.importMappings
     : { client: "", templates: {} };
+  state.veState = data?.veState && typeof data.veState === "object" 
+    ? data.veState 
+    : { nodes: [], wires: [], pan: { x: 0, y: 0 }, nodeIdCounter: 1 };
   state.projectFileHandle = fileHandle;
   renderBridgeInputs();
   renderCurveInputs();
@@ -3517,6 +3522,10 @@ function loadProjectFromPayload(data, options = {}) {
   recalculate();
   updateWizardUI();
   applyProjectGate();
+  if (typeof updateVEDOM === "function") {
+    updateVECanvasTransform();
+    updateVEDOM();
+  }
   if (!silent) alert(`Loaded project: ${state.project.name}`);
 }
 
@@ -9928,27 +9937,53 @@ async function init() {
 }
 
 // ==================== VISUAL P-WAY EDITOR MODULE ====================
-const veState = {
-  nodes: [],
-  wires: [],
+// Volatile UI state (not saved)
+const veVolatile = {
   draggingNode: null,
   offset: { x: 0, y: 0 },
-  pan: { x: 0, y: 0 },
   isPanning: false,
   panStart: { x: 0, y: 0 },
   wiringStartPort: null,
-  tempWireEnd: { x: 0, y: 0 },
-  nodeIdCounter: 1,
+  tempWireEnd: { x: 0, y: 0 }
 };
+
+// Persistent reference to global state
+const veState = state.veState;
+
+function saveVEStateLocally() {
+  try {
+    localStorage.setItem("earthsoft_ve_last_autosave", JSON.stringify(state.veState));
+  } catch(e) {}
+}
+
+function restoreVEStateLocally() {
+  try {
+    const saved = localStorage.getItem("earthsoft_ve_last_autosave");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && Array.isArray(parsed.nodes)) {
+        state.veState.nodes = parsed.nodes;
+        state.veState.wires = parsed.wires || [];
+        state.veState.pan = parsed.pan || { x: 0, y: 0 };
+        state.veState.nodeIdCounter = parsed.nodeIdCounter || 1;
+      }
+    }
+  } catch(e) {}
+}
 
 const VE_NODE_DEFS = {
   MainLine: { title: "Main Line", in: ["Start Ch (m)", "End Ch (m)"], out: ["Track Out"] },
+  DoubleLine: { title: "Double Main Line", in: ["Start Ch (m)", "End Ch (m)", "Track Center"], out: ["UP Track", "DN Track"] },
   LoopLine: { title: "Loop / Siding", in: ["Track In", "Takeoff Ch", "Length (m)", "Side (L/R)"], out: ["Track Out"] },
-  Crossover: { title: "Crossover", in: ["Track A", "Track B", "Chainage"], out: [] },
+  Turnout: { title: "Turnout (SRJ)", in: ["Track In", "Chainage", "Direction (L/R)"], out: ["Main Out", "Branch Out"] },
+  Crossover: { title: "Crossover", in: ["Track A", "Track B", "Chainage", "Length"], out: [] },
   DS: { title: "Derailing Switch", in: ["Track", "Chainage", "Side"], out: [] },
-  DeadEnd: { title: "Dead End", in: ["Track", "Chainage"], out: [] },
+  FoulingMark: { title: "Fouling Mark (FM)", in: ["Track A", "Track B", "Chainage"], out: [] },
+  DeadEnd: { title: "Dead End / Buffer", in: ["Track", "Chainage"], out: [] },
   OverRun: { title: "Over Run Line", in: ["Track In", "Takeoff Ch", "Length"], out: [] },
   Platform: { title: "Platform", in: ["Track", "Side", "Width (m)", "Length (m)"], out: ["PF Out"] },
+  LevelCrossing: { title: "Level Crossing", in: ["Track", "Chainage", "Width"], out: [] },
+  MinorBridge: { title: "Minor Bridge", in: ["Track", "Chainage", "Span"], out: [] },
   Rails: { title: "Rails Form", in: ["Type (52kg/60kg)"], out: ["Material"] },
   Sleepers: { title: "Sleepers Form", in: ["Type", "Density (/km)"], out: ["Material"] },
 };
@@ -9958,6 +9993,10 @@ function processVisualEditorLogic() {
   const svg = document.getElementById("veSvg");
   const wrapper = document.getElementById("veCanvasWrapper");
   if (!canvas || !svg || !wrapper) return;
+
+  restoreVEStateLocally();
+  updateVECanvasTransform();
+  updateVEDOM();
 
   // Add Drag and Drop listeners to sidebar items
   document.querySelectorAll(".ve-node-drag").forEach(el => {
@@ -9975,31 +10014,32 @@ function processVisualEditorLogic() {
     const x = e.clientX - rect.left - veState.pan.x;
     const y = e.clientY - rect.top - veState.pan.y;
     createVENode(data.type, x, y);
+    saveVEStateLocally();
   });
 
   // Panning Support
   wrapper.addEventListener("mousedown", (e) => {
     if (e.target === wrapper || e.target === canvas || e.target === svg) {
-      veState.isPanning = true;
-      veState.panStart = { x: e.clientX - veState.pan.x, y: e.clientY - veState.pan.y };
+      veVolatile.isPanning = true;
+      veVolatile.panStart = { x: e.clientX - veState.pan.x, y: e.clientY - veState.pan.y };
     }
   });
 
   window.addEventListener("mousemove", (e) => {
-    if (veState.isPanning) {
-      veState.pan.x = e.clientX - veState.panStart.x;
-      veState.pan.y = e.clientY - veState.panStart.y;
+    if (veVolatile.isPanning) {
+      veState.pan.x = e.clientX - veVolatile.panStart.x;
+      veState.pan.y = e.clientY - veVolatile.panStart.y;
       updateVECanvasTransform();
     }
-    if (veState.draggingNode) {
-      const wrapperRect = document.getElementById("veCanvasWrapper").getBoundingClientRect();
-      veState.draggingNode.x = e.clientX - wrapperRect.left - veState.offset.x - veState.pan.x;
-      veState.draggingNode.y = e.clientY - wrapperRect.top - veState.offset.y - veState.pan.y;
+    if (veVolatile.draggingNode) {
+      const rect = wrapper.getBoundingClientRect();
+      veVolatile.draggingNode.x = e.clientX - rect.left - veVolatile.offset.x - veState.pan.x;
+      veVolatile.draggingNode.y = e.clientY - rect.top - veVolatile.offset.y - veState.pan.y;
       updateVEDOM();
     }
-    if (veState.wiringStartPort) {
+    if (veVolatile.wiringStartPort) {
       const rect = wrapper.getBoundingClientRect();
-      veState.tempWireEnd = {
+      veVolatile.tempWireEnd = {
         x: e.clientX - rect.left - veState.pan.x,
         y: e.clientY - rect.top - veState.pan.y
       };
@@ -10008,30 +10048,36 @@ function processVisualEditorLogic() {
   });
 
   window.addEventListener("mouseup", (e) => {
-    veState.isPanning = false;
-    veState.draggingNode = null;
-    if (veState.wiringStartPort) {
+    if (veVolatile.isPanning || veVolatile.draggingNode) {
+        saveVEStateLocally();
+    }
+    veVolatile.isPanning = false;
+    veVolatile.draggingNode = null;
+    if (veVolatile.wiringStartPort) {
       const portEl = e.target.closest(".ve-socket");
       if (portEl) {
         const endNodeId = portEl.dataset.nodeId;
         const endPortIdx = portEl.dataset.portIdx;
         const isInput = portEl.classList.contains("input");
-        if (veState.wiringStartPort.isOutput && isInput && veState.wiringStartPort.nodeId !== endNodeId) {
+        if (veVolatile.wiringStartPort.isOutput && isInput && veVolatile.wiringStartPort.nodeId !== endNodeId) {
           veState.wires.push({
-            fromNodeId: veState.wiringStartPort.nodeId,
-            fromPortIdx: veState.wiringStartPort.portIdx,
+            fromNodeId: veVolatile.wiringStartPort.nodeId,
+            fromPortIdx: veVolatile.wiringStartPort.portIdx,
             toNodeId: endNodeId,
             toPortIdx: endPortIdx
           });
+          saveVEStateLocally();
         }
       }
-      veState.wiringStartPort = null;
+      veVolatile.wiringStartPort = null;
       drawVEWires();
     }
   });
 
   document.getElementById("veClearBtn")?.addEventListener("click", () => {
-    veState.nodes = []; veState.wires = []; veState.nodeIdCounter = 1; updateVEDOM();
+    veState.nodes = []; veState.wires = []; veState.nodeIdCounter = 1; 
+    saveVEStateLocally();
+    updateVEDOM();
   });
 
   document.getElementById("veFullScreenBtn")?.addEventListener("click", () => {
@@ -10069,12 +10115,55 @@ function processVisualEditorLogic() {
 
     // Reset pan
     veState.pan = { x: 0, y: 0 };
+    saveVEStateLocally();
     updateVECanvasTransform();
     updateVEDOM();
   });
 
   document.getElementById("veCompileBtn")?.addEventListener("click", () => {
     compileVELayout();
+  });
+
+  document.getElementById("veExportBtn")?.addEventListener("click", () => {
+    const dataStr = JSON.stringify(state.veState, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `workflow_${new Date().getTime()}.node`;
+    link.click();
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById("veImportBtn")?.addEventListener("click", () => {
+    document.getElementById("veImportFile")?.click();
+  });
+
+  document.getElementById("veImportFile")?.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target.result);
+        if (parsed && Array.isArray(parsed.nodes)) {
+          state.veState.nodes = parsed.nodes;
+          state.veState.wires = parsed.wires || [];
+          state.veState.pan = parsed.pan || { x: 0, y: 0 };
+          state.veState.nodeIdCounter = parsed.nodeIdCounter || 1;
+          saveVEStateLocally();
+          updateVECanvasTransform();
+          updateVEDOM();
+          alert("Workflow imported successfully!");
+        } else {
+          alert("Invalid .node file format.");
+        }
+      } catch (err) {
+        alert("Error parsing .node file.");
+      }
+      e.target.value = ""; // reset for next time
+    };
+    reader.readAsText(file);
   });
 }
 
@@ -10130,9 +10219,9 @@ function updateVEDOM() {
       // Node Dragging
       el.querySelector(".ve-node-header").addEventListener("mousedown", (e) => {
         if(e.target.tagName !== 'I') {
-            veState.draggingNode = node;
+            veVolatile.draggingNode = node;
             const rect = el.getBoundingClientRect();
-            veState.offset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+            veVolatile.offset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
             document.querySelectorAll(".ve-node").forEach(n => n.classList.remove("selected"));
             el.classList.add("selected");
         }
@@ -10142,14 +10231,14 @@ function updateVEDOM() {
       el.querySelectorAll(".ve-socket").forEach(socket => {
         socket.addEventListener("mousedown", (e) => {
           e.stopPropagation();
-          veState.wiringStartPort = {
+          veVolatile.wiringStartPort = {
             nodeId: socket.dataset.nodeId,
             portIdx: socket.dataset.portIdx,
             isOutput: socket.classList.contains("output")
           };
           const rect = socket.getBoundingClientRect();
           const wrapperRect = document.getElementById("veCanvasWrapper").getBoundingClientRect();
-          veState.tempWireEnd = {
+          veVolatile.tempWireEnd = {
             x: rect.left + rect.width/2 - wrapperRect.left - veState.pan.x,
             y: rect.top + rect.height/2 - wrapperRect.top - veState.pan.y
           };
@@ -10161,6 +10250,7 @@ function updateVEDOM() {
         input.addEventListener("input", (e) => {
           const n = veState.nodes.find(nx => nx.id === e.target.dataset.nodeId);
           if (n) n.inputs[e.target.dataset.portLabel] = e.target.value;
+          saveVEStateLocally();
         });
       });
     }
@@ -10173,8 +10263,9 @@ function updateVEDOM() {
 }
 
 window.deleteVENode = function(id) {
-  veState.nodes = veState.nodes.filter(n => n.id !== id);
-  veState.wires = veState.wires.filter(w => w.fromNodeId !== id && w.toNodeId !== id);
+  state.veState.nodes = state.veState.nodes.filter(n => n.id !== id);
+  state.veState.wires = state.veState.wires.filter(w => w.fromNodeId !== id && w.toNodeId !== id);
+  saveVEStateLocally();
   updateVEDOM();
 };
 
@@ -10205,12 +10296,12 @@ function drawVEWires() {
   });
 
   // Draw temp wire
-  if (veState.wiringStartPort) {
-    const start = getPortCoordinates(veState.wiringStartPort.nodeId, veState.wiringStartPort.portIdx, veState.wiringStartPort.isOutput);
-    const end = veState.tempWireEnd;
+  if (veVolatile.wiringStartPort) {
+    const start = getPortCoordinates(veVolatile.wiringStartPort.nodeId, veVolatile.wiringStartPort.portIdx, veVolatile.wiringStartPort.isOutput);
+    const end = veVolatile.tempWireEnd;
     if (start && end) {
       const curl = Math.max(Math.abs(end.x - start.x) * 0.5, 50);
-      const outputFirst = veState.wiringStartPort.isOutput;
+      const outputFirst = veVolatile.wiringStartPort.isOutput;
       const x1 = outputFirst ? start.x : end.x;
       const y1 = outputFirst ? start.y : end.y;
       const x2 = outputFirst ? end.x : start.x;
@@ -10224,6 +10315,7 @@ function drawVEWires() {
 
 window.deleteWire = function(idx) {
   veState.wires.splice(idx, 1);
+  saveVEStateLocally();
   drawVEWires();
 };
 
