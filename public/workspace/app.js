@@ -10033,6 +10033,45 @@ function processVisualEditorLogic() {
     veState.nodes = []; veState.wires = []; veState.nodeIdCounter = 1; updateVEDOM();
   });
 
+  document.getElementById("veFullScreenBtn")?.addEventListener("click", () => {
+    const layout = document.querySelector(".ve-layout");
+    if (!document.fullscreenElement) {
+      layout.requestFullscreen().catch(err => {
+        alert(`Error attempting to enable fullscreen mode: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  });
+
+  document.getElementById("veSampleBtn")?.addEventListener("click", () => {
+    veState.nodes = []; veState.wires = []; veState.nodeIdCounter = 1;
+    
+    // Main Line
+    const mainNode = { id: "node_" + (veState.nodeIdCounter++), type: "MainLine", x: 60, y: 100, inputs: {}, def: VE_NODE_DEFS.MainLine };
+    mainNode.inputs["Start Ch (m)"] = "0"; mainNode.inputs["End Ch (m)"] = "2000";
+    
+    // Loop
+    const loopNode = { id: "node_" + (veState.nodeIdCounter++), type: "LoopLine", x: 400, y: 50, inputs: {}, def: VE_NODE_DEFS.LoopLine };
+    loopNode.inputs["Takeoff Ch"] = "500"; loopNode.inputs["Length (m)"] = "750"; loopNode.inputs["Side (L/R)"] = "L";
+
+    // Platform
+    const pfNode = { id: "node_" + (veState.nodeIdCounter++), type: "Platform", x: 400, y: 350, inputs: {}, def: VE_NODE_DEFS.Platform };
+    pfNode.inputs["Side"] = "R"; pfNode.inputs["Width (m)"] = "12"; pfNode.inputs["Length (m)"] = "400";
+
+    veState.nodes = [mainNode, loopNode, pfNode];
+    
+    // Wire Main -> Loop
+    veState.wires.push({ fromNodeId: mainNode.id, fromPortIdx: "0", toNodeId: loopNode.id, toPortIdx: "0" });
+    // Wire Main -> PF
+    veState.wires.push({ fromNodeId: mainNode.id, fromPortIdx: "0", toNodeId: pfNode.id, toPortIdx: "0" });
+
+    // Reset pan
+    veState.pan = { x: 0, y: 0 };
+    updateVECanvasTransform();
+    updateVEDOM();
+  });
+
   document.getElementById("veCompileBtn")?.addEventListener("click", () => {
     compileVELayout();
   });
