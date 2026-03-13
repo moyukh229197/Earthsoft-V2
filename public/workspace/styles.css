@@ -4411,12 +4411,11 @@ td:first-child {
 /* ==================== VISUAL EDITOR STYLES ==================== */
 .ve-layout {
   display: flex;
-  height: calc(100vh - 140px);
+  height: calc(100vh - 120px);
   margin: -24px;
-  margin-top: 16px;
+  margin-top: 0px;
   background: var(--bg);
   overflow: hidden;
-  border-top: 1px solid var(--stroke);
   position: relative;
 }
 .ve-sidebar {
