@@ -3359,6 +3359,11 @@ function setWorkPage(pageName) {
   if (selected === "graphs" && state.calcRows.length) {
     requestAnimationFrame(() => renderCharts());
   }
+  if (selected === "visual-editor") {
+    requestAnimationFrame(() => {
+      if (typeof updateVEDOM === "function") updateVEDOM();
+    });
+  }
   if (selected === "bridges") {
     renderBridgeInputs();
   }
@@ -10273,6 +10278,7 @@ function getPortCoordinates(nodeId, portIdx, isOutput) {
   const el = document.querySelector(`.ve-socket.${isOutput ? 'output' : 'input'}[data-node-id="${nodeId}"][data-port-idx="${portIdx}"]`);
   if (!el) return null;
   const rect = el.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) return null; // Element is hidden or has no size
   const wrapperRect = document.getElementById("veCanvasWrapper").getBoundingClientRect();
   return {
     x: rect.left + rect.width/2 - wrapperRect.left - veState.pan.x,
