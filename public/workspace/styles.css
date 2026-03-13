@@ -4418,6 +4418,20 @@ td:first-child {
   overflow: hidden;
   position: relative;
 }
+
+#veFullScreenWrapper:fullscreen {
+  padding: 16px;
+  background: var(--bg) !important;
+  overflow-y: auto;
+}
+
+#veFullScreenWrapper:fullscreen .ve-layout {
+  height: calc(100vh - 100px);
+  margin: 0;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+}
+
 .ve-sidebar {
   width: 260px;
   background: var(--panel-bg);

@@ -10086,7 +10086,7 @@ function processVisualEditorLogic() {
   });
 
   document.getElementById("veFullScreenBtn")?.addEventListener("click", () => {
-    const layout = document.querySelector(".ve-layout");
+    const layout = document.getElementById("veFullScreenWrapper");
     if (!document.fullscreenElement) {
       layout.requestFullscreen().catch(err => {
         alert(`Error attempting to enable fullscreen mode: ${err.message}`);
@@ -10094,6 +10094,10 @@ function processVisualEditorLogic() {
     } else {
       document.exitFullscreen();
     }
+  });
+
+  document.addEventListener("fullscreenchange", () => {
+    updateVEDOM();
   });
 
   document.getElementById("veSampleBtn")?.addEventListener("click", () => {
