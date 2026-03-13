@@ -4430,19 +4430,19 @@ td:first-child {
   gap: 8px;
 }
 .ve-category {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   color: var(--muted);
-  margin-top: 12px;
-  margin-bottom: 4px;
+  margin-top: 8px;
+  margin-bottom: 2px;
   letter-spacing: 0.05em;
 }
 .ve-node-drag {
   background: rgba(0, 0, 0, 0.2);
   border: 1px solid var(--stroke);
   border-radius: 6px;
-  padding: 8px 12px;
+  padding: 6px 10px;
   font-size: 0.85rem;
   color: var(--text);
   cursor: grab;
