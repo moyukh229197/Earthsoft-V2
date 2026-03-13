@@ -1260,6 +1260,16 @@
                   <li><strong>Interactive Navigation:</strong> Click on any red error bar to immediately jump to the Calculation Table and auto-scroll to the exact chainage causing the problem, highlighting the specific row for manual investigation.</li>
                 </ul>
               </div>
+              <div>
+                <h3 style="color: var(--blue); margin-bottom: 8px;">6. Visual P-Way Editor (BETA)</h3>
+                <p class="muted" style="line-height: 1.6;">The Visual Editor allows you to parametrically design track layouts (Loops, Platforms, Sidings, etc.) visually with node-based logic.</p>
+                <ul style="margin-top: 8px; padding-left: 20px; line-height: 1.6;" class="muted">
+                  <li><strong>Nodes & Canvas:</strong> Drag components (Tracks, Turnouts, Platforms) from the left sidebar onto the infinite grid canvas. Pan the canvas by clicking and dragging on the background.</li>
+                  <li><strong>Configuring Components:</strong> Each component asks for specific inputs. For example, a <code>Loop / Siding</code> node needs a Takeoff Chainage and Length, and a <code>Platform</code> needs a built Width and Location.</li>
+                  <li><strong>Wiring:</strong> To map logic, click and drag from the green/blue output dot (right side of a node) to the input dot (left side) of an adjacent node. This wires the topological flow.</li>
+                  <li><strong>Compiling layout:</strong> Once built, hit the <strong>Compile Layout</strong> button. The engine parses the visual nodes and auto-injects the generated chainage boundaries directly into your project's <em>Loops & Stations</em> tab, auto-calculating earthwork across your new yard.</li>
+                </ul>
+              </div>
             </div>
           </article>
 
