@@ -9949,16 +9949,76 @@ const veVolatile = {
   isPanning: false,
   panStart: { x: 0, y: 0 },
   wiringStartPort: null,
-  tempWireEnd: { x: 0, y: 0 }
+  tempWireEnd: { x: 0, y: 0 },
+  history: [],
+  historyIndex: -1,
+  maxHistory: 30
 };
 
 // Persistent reference to global state
 const veState = state.veState;
 
-function saveVEStateLocally() {
+function saveVEStateLocally(isUndoRedo = false) {
   try {
-    localStorage.setItem("earthsoft_ve_last_autosave", JSON.stringify(state.veState));
+    const currentState = JSON.stringify(state.veState);
+    localStorage.setItem("earthsoft_ve_last_autosave", currentState);
+
+    if (!isUndoRedo) {
+      // If we're not performing an undo/redo, we add the new state to history
+      // and remove any "forward" history we might have had
+      if (veVolatile.historyIndex < veVolatile.history.length - 1) {
+        veVolatile.history = veVolatile.history.slice(0, veVolatile.historyIndex + 1);
+      }
+      
+      veVolatile.history.push(currentState);
+      
+      if (veVolatile.history.length > veVolatile.maxHistory) {
+        veVolatile.history.shift();
+      }
+      
+      veVolatile.historyIndex = veVolatile.history.length - 1;
+      updateUndoRedoButtons();
+    }
   } catch(e) {}
+}
+
+function updateUndoRedoButtons() {
+    const undoBtn = document.getElementById("veUndoBtn");
+    const redoBtn = document.getElementById("veRedoBtn");
+    if(undoBtn) undoBtn.disabled = veVolatile.historyIndex <= 0;
+    if(redoBtn) redoBtn.disabled = veVolatile.historyIndex >= veVolatile.history.length - 1;
+}
+
+function veUndo() {
+    if (veVolatile.historyIndex > 0) {
+        veVolatile.historyIndex--;
+        const snapshot = JSON.parse(veVolatile.history[veVolatile.historyIndex]);
+        state.veState.nodes = snapshot.nodes;
+        state.veState.wires = snapshot.wires;
+        state.veState.pan = snapshot.pan;
+        state.veState.nodeIdCounter = snapshot.nodeIdCounter;
+        
+        saveVEStateLocally(true);
+        updateVECanvasTransform();
+        updateVEDOM();
+        updateUndoRedoButtons();
+    }
+}
+
+function veRedo() {
+    if (veVolatile.historyIndex < veVolatile.history.length - 1) {
+        veVolatile.historyIndex++;
+        const snapshot = JSON.parse(veVolatile.history[veVolatile.historyIndex]);
+        state.veState.nodes = snapshot.nodes;
+        state.veState.wires = snapshot.wires;
+        state.veState.pan = snapshot.pan;
+        state.veState.nodeIdCounter = snapshot.nodeIdCounter;
+
+        saveVEStateLocally(true);
+        updateVECanvasTransform();
+        updateVEDOM();
+        updateUndoRedoButtons();
+    }
 }
 
 function restoreVEStateLocally() {
@@ -10000,8 +10060,14 @@ function processVisualEditorLogic() {
   if (!canvas || !svg || !wrapper) return;
 
   restoreVEStateLocally();
+  
+  // Initial history snapshot
+  veVolatile.history = [JSON.stringify(state.veState)];
+  veVolatile.historyIndex = 0;
+  
   updateVECanvasTransform();
   updateVEDOM();
+  updateUndoRedoButtons();
 
   // Add Drag and Drop listeners to sidebar items
   document.querySelectorAll(".ve-node-drag").forEach(el => {
@@ -10098,6 +10164,33 @@ function processVisualEditorLogic() {
 
   document.addEventListener("fullscreenchange", () => {
     updateVEDOM();
+  });
+
+  document.getElementById("veUndoBtn")?.addEventListener("click", () => {
+    veUndo();
+  });
+
+  document.getElementById("veRedoBtn")?.addEventListener("click", () => {
+    veRedo();
+  });
+
+  // Keyboard Shortcuts (Ctrl/Cmd + Z, Ctrl/Cmd + Y / Ctrl/Cmd + Shift + Z)
+  window.addEventListener("keydown", (e) => {
+    if (state.activeWorkPage !== "visual-editor") return;
+    
+    const isZ = e.key.toLowerCase() === 'z';
+    const isY = e.key.toLowerCase() === 'y';
+    const ctrlOrCmd = e.ctrlKey || e.metaKey;
+    const shift = e.shiftKey;
+
+    if (ctrlOrCmd && isZ) {
+        if (shift) veRedo();
+        else veUndo();
+        e.preventDefault();
+    } else if (ctrlOrCmd && isY) {
+        veRedo();
+        e.preventDefault();
+    }
   });
 
   document.getElementById("veSampleBtn")?.addEventListener("click", () => {

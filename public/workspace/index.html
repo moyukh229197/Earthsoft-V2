@@ -1087,7 +1087,10 @@
               <h2 style="margin:0; line-height:1.2;">Visual P-Way Editor <span class="badge badge-warning" style="margin-left:8px;font-size:10px;">BETA</span></h2>
               <p class="text-secondary" style="margin:0; font-size: 0.85rem; opacity: 0.8;">Drag and drop nodes to build parametric station layouts, tracks, and platforms.</p>
             </div>
-            <div style="display:flex;gap:8px;align-items:center;">
+            <div style="display:flex;gap:4px;align-items:center;">
+              <button id="veUndoBtn" class="btn btn-secondary btn-sm" type="button" title="Undo (Ctrl+Z)"><i class="ri-arrow-go-back-line"></i></button>
+              <button id="veRedoBtn" class="btn btn-secondary btn-sm" type="button" title="Redo (Ctrl+Y)" style="margin-right:8px;"><i class="ri-arrow-go-forward-line"></i></button>
+              
               <button id="veSampleBtn" class="btn btn-secondary" type="button"><i class="ri-lightbulb-flash-line"></i> Sample Layout</button>
               <button id="veExportBtn" class="btn btn-secondary" type="button"><i class="ri-download-line"></i> Export .node</button>
               <button id="veImportBtn" class="btn btn-secondary" type="button"><i class="ri-upload-line"></i> Import .node</button>
