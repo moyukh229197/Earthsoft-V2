@@ -9985,8 +9985,16 @@ function saveVEStateLocally(isUndoRedo = false) {
 function updateUndoRedoButtons() {
     const undoBtn = document.getElementById("veUndoBtn");
     const redoBtn = document.getElementById("veRedoBtn");
-    if(undoBtn) undoBtn.disabled = veVolatile.historyIndex <= 0;
-    if(redoBtn) redoBtn.disabled = veVolatile.historyIndex >= veVolatile.history.length - 1;
+    const gUndoBtn = document.getElementById("globalUndoBtn");
+    const gRedoBtn = document.getElementById("globalRedoBtn");
+    
+    const canUndo = veVolatile.historyIndex <= 0;
+    const canRedo = veVolatile.historyIndex >= veVolatile.history.length - 1;
+
+    if(undoBtn) undoBtn.disabled = canUndo;
+    if(redoBtn) redoBtn.disabled = canRedo;
+    if(gUndoBtn) gUndoBtn.disabled = canUndo;
+    if(gRedoBtn) gRedoBtn.disabled = canRedo;
 }
 
 function veUndo() {
@@ -10166,13 +10174,10 @@ function processVisualEditorLogic() {
     updateVEDOM();
   });
 
-  document.getElementById("veUndoBtn")?.addEventListener("click", () => {
-    veUndo();
-  });
-
-  document.getElementById("veRedoBtn")?.addEventListener("click", () => {
-    veRedo();
-  });
+  document.getElementById("veUndoBtn")?.addEventListener("click", () => veUndo());
+  document.getElementById("veRedoBtn")?.addEventListener("click", () => veRedo());
+  document.getElementById("globalUndoBtn")?.addEventListener("click", () => veUndo());
+  document.getElementById("globalRedoBtn")?.addEventListener("click", () => veRedo());
 
   // Keyboard Shortcuts (Ctrl/Cmd + Z, Ctrl/Cmd + Y / Ctrl/Cmd + Shift + Z)
   window.addEventListener("keydown", (e) => {

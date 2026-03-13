@@ -208,6 +208,10 @@
           <span class="pro-badge">Pro</span>
         </div>
         <div class="toolbar">
+          <div style="display:flex; gap:2px; align-items:center; margin-right:8px; padding-right:8px; border-right:1px solid var(--stroke);">
+            <button id="globalUndoBtn" class="btn btn-secondary topbar-btn" style="min-width:36px; padding:0 8px;" title="Undo (Ctrl+Z)"><i class="ri-arrow-go-back-line"></i></button>
+            <button id="globalRedoBtn" class="btn btn-secondary topbar-btn" style="min-width:36px; padding:0 8px;" title="Redo (Ctrl+Y)"><i class="ri-arrow-go-forward-line"></i></button>
+          </div>
           <button id="createProjectBtn" class="btn btn-primary topbar-btn" title="Create Project"><i class="ri-folder-add-line"></i><span>Create Project</span></button>
           <button id="importProjectBtn" class="btn btn-secondary topbar-btn" title="Open Project File"><i class="ri-folder-open-line"></i><span>Open File</span></button>
           <button id="openCloudProjectsBtn" class="btn btn-secondary topbar-btn" title="Open Cloud Project"><i class="ri-cloud-line"></i><span>Cloud Projects</span></button>
