@@ -4508,6 +4508,56 @@ td:first-child {
   pointer-events: stroke;
 }
 
+/* Node Clusters / Groups */
+.ve-group {
+  position: absolute;
+  border-radius: 16px;
+  background: rgba(59, 130, 246, 0.04);
+  border: 2px solid rgba(59, 130, 246, 0.15);
+  z-index: 1;
+  pointer-events: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+.ve-group:hover {
+  border-color: rgba(59, 130, 246, 0.3);
+  background: rgba(59, 130, 246, 0.06);
+}
+.ve-group-header {
+  position: absolute;
+  top: -30px;
+  left: 0;
+  padding: 4px 12px;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 6px;
+  color: var(--blue);
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  pointer-events: auto;
+  cursor: move;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ve-group-header input {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  width: auto;
+  min-width: 50px;
+}
+.ve-group-header .ve-group-delete {
+  cursor: pointer;
+  opacity: 0.6;
+}
+.ve-group-header .ve-group-delete:hover {
+  opacity: 1;
+  color: var(--red);
+}
+
 /* HTML Nodes on Canvas */
 .ve-node {
   position: absolute;
@@ -4591,3 +4641,121 @@ td:first-child {
 .ve-socket.input { left: -6px; }
 .ve-socket.output { right: -6px; }
 
+/* Estimates Module */
+.estimates-module {
+  font-family: 'Outfit', sans-serif;
+}
+
+.estimates-sidebar {
+  background: transparent;
+}
+
+.estimate-nav-btn {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid transparent;
+  width: 100%;
+  text-align: left;
+  font-weight: 500;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.estimate-nav-btn:hover {
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+}
+
+.estimate-nav-btn.active {
+  background: hsla(233, 100%, 57%, 0.15);
+  color: var(--blue);
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.est-data-grid th {
+  background: rgba(0,0,0,0.3);
+  padding: 10px 12px;
+  font-weight: 600;
+  border-bottom: 2px solid var(--stroke);
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.est-data-grid td {
+  padding: 12px;
+  border-bottom: 1px solid hsla(0,0%,100%,0.05);
+  vertical-align: middle;
+}
+
+.est-data-grid tr:hover {
+  background: rgba(255,255,255,0.02);
+}
+
+.est-data-grid input {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text);
+  padding: 6px;
+  border-radius: 4px;
+  width: 100%;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.est-data-grid input:focus, .est-data-grid input:hover {
+  background: rgba(0,0,0,0.2);
+  border-color: var(--blue);
+  outline: none;
+}
+
+.est-autocomplete {
+  position: relative;
+}
+
+.est-autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 350px;
+  max-height: 250px;
+  overflow-y: auto;
+  background: var(--bg-1);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  z-index: 100;
+  display: none;
+}
+
+.est-autocomplete-dropdown.active {
+  display: flex;
+  flex-direction: column;
+}
+
+.est-autocomplete-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--stroke);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.est-autocomplete-item:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+.est-autocomplete-desc {
+  font-size: 0.8rem;
+  color: var(--muted);
+  display: block;
+  margin-top: 4px;
+  line-height: 1.3;
+}

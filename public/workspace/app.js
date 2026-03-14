@@ -92,7 +92,7 @@ const state = {
     user: "",
   },
   supabaseProjectId: null,
-  veState: { nodes: [], wires: [], pan: { x: 0, y: 0 }, nodeIdCounter: 1 },
+  veState: { nodes: [], wires: [], groups: [], pan: { x: 0, y: 0 }, zoom: 1, nodeIdCounter: 1 },
 };
 
 const els = {
@@ -9952,8 +9952,13 @@ const veVolatile = {
   tempWireEnd: { x: 0, y: 0 },
   history: [],
   historyIndex: -1,
-  maxHistory: 30
+  maxHistory: 30,
+  selectedNodeIds: [],
+  draggingGroup: null
 };
+
+
+
 
 // Persistent reference to global state
 const veState = state.veState;
@@ -10003,7 +10008,9 @@ function veUndo() {
         const snapshot = JSON.parse(veVolatile.history[veVolatile.historyIndex]);
         state.veState.nodes = snapshot.nodes;
         state.veState.wires = snapshot.wires;
+        state.veState.groups = snapshot.groups || [];
         state.veState.pan = snapshot.pan;
+        state.veState.zoom = snapshot.zoom || 1;
         state.veState.nodeIdCounter = snapshot.nodeIdCounter;
         
         saveVEStateLocally(true);
@@ -10019,7 +10026,9 @@ function veRedo() {
         const snapshot = JSON.parse(veVolatile.history[veVolatile.historyIndex]);
         state.veState.nodes = snapshot.nodes;
         state.veState.wires = snapshot.wires;
+        state.veState.groups = snapshot.groups || [];
         state.veState.pan = snapshot.pan;
+        state.veState.zoom = snapshot.zoom || 1;
         state.veState.nodeIdCounter = snapshot.nodeIdCounter;
 
         saveVEStateLocally(true);
@@ -10037,7 +10046,9 @@ function restoreVEStateLocally() {
       if (parsed && Array.isArray(parsed.nodes)) {
         state.veState.nodes = parsed.nodes;
         state.veState.wires = parsed.wires || [];
+        state.veState.groups = parsed.groups || [];
         state.veState.pan = parsed.pan || { x: 0, y: 0 };
+        state.veState.zoom = parsed.zoom || 1;
         state.veState.nodeIdCounter = parsed.nodeIdCounter || 1;
       }
     }
@@ -10090,17 +10101,80 @@ function processVisualEditorLogic() {
     const data = JSON.parse(e.dataTransfer.getData("application/json") || "null");
     if (!data) return;
     const rect = wrapper.getBoundingClientRect();
-    const x = e.clientX - rect.left - veState.pan.x;
-    const y = e.clientY - rect.top - veState.pan.y;
+    const x = (e.clientX - rect.left - veState.pan.x) / veState.zoom;
+    const y = (e.clientY - rect.top - veState.pan.y) / veState.zoom;
     createVENode(data.type, x, y);
     saveVEStateLocally();
   });
 
-  // Panning Support
+  // Panning & Zoom Support
+  wrapper.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const zoomSpeed = 0.001;
+    const delta = -e.deltaY * zoomSpeed;
+    const newZoom = Math.max(0.1, Math.min(veState.zoom + delta, 3));
+    
+    if (newZoom !== veState.zoom) {
+      const rect = wrapper.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      // Center zoom on mouse
+      veState.pan.x = mouseX - (mouseX - veState.pan.x) * (newZoom / veState.zoom);
+      veState.pan.y = mouseY - (mouseY - veState.pan.y) * (newZoom / veState.zoom);
+      veState.zoom = newZoom;
+      
+      updateVECanvasTransform();
+      updateVEDOM(); // Update socket positions if needed, though they shouldn't change relative to nodes
+    }
+  }, { passive: false });
   wrapper.addEventListener("mousedown", (e) => {
-    if (e.target === wrapper || e.target === canvas || e.target === svg) {
+    const isBackground = e.target === wrapper || e.target === canvas || e.target === svg;
+    
+    if (isBackground) {
       veVolatile.isPanning = true;
       veVolatile.panStart = { x: e.clientX - veState.pan.x, y: e.clientY - veState.pan.y };
+      veVolatile.selectedNodeIds = [];
+      updateVEDOM();
+      return;
+    }
+
+    const nodeEl = e.target.closest(".ve-node");
+    const isInteractive = e.target.closest(".ve-socket") || e.target.tagName === 'INPUT' || e.target.tagName === 'I';
+    
+    if (nodeEl && !isInteractive) {
+        const nodeId = nodeEl.dataset.nodeId;
+        const node = veState.nodes.find(n => n.id === nodeId);
+        if (node) {
+            if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                if (veVolatile.selectedNodeIds.includes(nodeId)) {
+                    veVolatile.selectedNodeIds = veVolatile.selectedNodeIds.filter(id => id !== nodeId);
+                } else {
+                    veVolatile.selectedNodeIds.push(nodeId);
+                }
+            } else {
+                if (!veVolatile.selectedNodeIds.includes(nodeId)) {
+                    veVolatile.selectedNodeIds = [nodeId];
+                }
+            }
+            veVolatile.draggingNode = node;
+            const rect = nodeEl.getBoundingClientRect();
+            veVolatile.offset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+            updateVEDOM();
+        }
+        return;
+    }
+
+    const groupHeader = e.target.closest(".ve-group-header");
+    if (groupHeader && !isInteractive) {
+        const groupEl = groupHeader.closest(".ve-group");
+        const groupId = groupEl.dataset.groupId;
+        const group = veState.groups.find(g => g.id === groupId);
+        if (group) {
+            veVolatile.draggingGroup = group;
+            veVolatile.offset = { x: e.clientX, y: e.clientY };
+        }
+        return;
     }
   });
 
@@ -10112,26 +10186,54 @@ function processVisualEditorLogic() {
     }
     if (veVolatile.draggingNode) {
       const rect = wrapper.getBoundingClientRect();
-      veVolatile.draggingNode.x = e.clientX - rect.left - veVolatile.offset.x - veState.pan.x;
-      veVolatile.draggingNode.y = e.clientY - rect.top - veVolatile.offset.y - veState.pan.y;
+      const newX = (e.clientX - rect.left - veVolatile.offset.x - veState.pan.x) / veState.zoom;
+      const newY = (e.clientY - rect.top - veVolatile.offset.y - veState.pan.y) / veState.zoom;
+      const dx = newX - veVolatile.draggingNode.x;
+      const dy = newY - veVolatile.draggingNode.y;
+
+      veVolatile.selectedNodeIds.forEach(id => {
+        const n = veState.nodes.find(nx => nx.id === id);
+        if (n) {
+          n.x += dx;
+          n.y += dy;
+        }
+      });
+      if (!veVolatile.selectedNodeIds.includes(veVolatile.draggingNode.id)) {
+        veVolatile.draggingNode.x = newX;
+        veVolatile.draggingNode.y = newY;
+      }
+      updateVEDOM();
+    }
+    if (veVolatile.draggingGroup) {
+      const dx = (e.clientX - veVolatile.offset.x) / veState.zoom;
+      const dy = (e.clientY - veVolatile.offset.y) / veState.zoom;
+      veVolatile.draggingGroup.nodeIds.forEach(id => {
+        const n = veState.nodes.find(nx => nx.id === id);
+        if (n) {
+          n.x += dx;
+          n.y += dy;
+        }
+      });
+      veVolatile.offset = { x: e.clientX, y: e.clientY };
       updateVEDOM();
     }
     if (veVolatile.wiringStartPort) {
       const rect = wrapper.getBoundingClientRect();
       veVolatile.tempWireEnd = {
-        x: e.clientX - rect.left - veState.pan.x,
-        y: e.clientY - rect.top - veState.pan.y
+        x: (e.clientX - rect.left - veState.pan.x) / veState.zoom,
+        y: (e.clientY - rect.top - veState.pan.y) / veState.zoom
       };
       drawVEWires();
     }
   });
 
   window.addEventListener("mouseup", (e) => {
-    if (veVolatile.isPanning || veVolatile.draggingNode) {
+    if (veVolatile.isPanning || veVolatile.draggingNode || veVolatile.draggingGroup) {
         saveVEStateLocally();
     }
     veVolatile.isPanning = false;
     veVolatile.draggingNode = null;
+    veVolatile.draggingGroup = null;
     if (veVolatile.wiringStartPort) {
       const portEl = e.target.closest(".ve-socket");
       if (portEl) {
@@ -10178,6 +10280,20 @@ function processVisualEditorLogic() {
   document.getElementById("veRedoBtn")?.addEventListener("click", () => veRedo());
   document.getElementById("globalUndoBtn")?.addEventListener("click", () => veUndo());
   document.getElementById("globalRedoBtn")?.addEventListener("click", () => veRedo());
+  document.getElementById("veGroupBtn")?.addEventListener("click", () => veGroupSelectedNodes());
+
+  document.getElementById("veZoomInBtn")?.addEventListener("click", () => {
+    veState.zoom = Math.min(veState.zoom + 0.1, 3);
+    updateVECanvasTransform();
+  });
+  document.getElementById("veZoomOutBtn")?.addEventListener("click", () => {
+    veState.zoom = Math.max(veState.zoom - 0.1, 0.1);
+    updateVECanvasTransform();
+  });
+  document.getElementById("veZoomResetBtn")?.addEventListener("click", () => {
+    veState.zoom = 1;
+    updateVECanvasTransform();
+  });
 
   // Keyboard Shortcuts (Ctrl/Cmd + Z, Ctrl/Cmd + Y / Ctrl/Cmd + Shift + Z)
   window.addEventListener("keydown", (e) => {
@@ -10195,6 +10311,10 @@ function processVisualEditorLogic() {
     } else if (ctrlOrCmd && isY) {
         veRedo();
         e.preventDefault();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') {
+      e.preventDefault();
+      veGroupSelectedNodes();
     }
   });
 
@@ -10275,7 +10395,9 @@ function processVisualEditorLogic() {
 }
 
 function updateVECanvasTransform() {
-  document.getElementById("veCanvas").style.transform = `translate(${veState.pan.x}px, ${veState.pan.y}px)`;
+  document.getElementById("veCanvas").style.transform = `translate(${veState.pan.x}px, ${veState.pan.y}px) scale(${veState.zoom})`;
+  const resetBtn = document.getElementById("veZoomResetBtn");
+  if (resetBtn) resetBtn.innerText = Math.round(veState.zoom * 100) + "%";
 }
 
 function createVENode(type, x, y) {
@@ -10287,8 +10409,93 @@ function createVENode(type, x, y) {
   updateVEDOM();
 }
 
+window.deleteVENode = function(id) {
+  state.veState.nodes = state.veState.nodes.filter(n => n.id !== id);
+  state.veState.wires = state.veState.wires.filter(w => w.fromNodeId !== id && w.toNodeId !== id);
+  // Also remove from any groups
+  state.veState.groups.forEach(g => {
+    g.nodeIds = g.nodeIds.filter(nid => nid !== id);
+  });
+  // Clean up empty groups
+  state.veState.groups = state.veState.groups.filter(g => g.nodeIds.length > 0);
+  
+  saveVEStateLocally();
+  updateVEDOM();
+}
+
+function veGroupSelectedNodes() {
+  const selectedIds = veVolatile.selectedNodeIds;
+  if (selectedIds.length === 0) return;
+  
+  const id = "group_" + Date.now();
+  const group = {
+    id,
+    name: "New Group",
+    nodeIds: [...selectedIds],
+    color: "#3b82f6"
+  };
+  
+  veState.groups.push(group);
+  veVolatile.selectedNodeIds = []; // Clear selection after grouping? Or keep it?
+  saveVEStateLocally();
+  updateVEDOM();
+}
+
+window.deleteVEGroup = function(id) {
+  state.veState.groups = state.veState.groups.filter(g => g.id !== id);
+  saveVEStateLocally();
+  updateVEDOM();
+}
+
+window.updateVEGroupName = function(id, name) {
+  const g = state.veState.groups.find(gx => gx.id === id);
+  if (g) g.name = name;
+  saveVEStateLocally();
+};
+
 function updateVEDOM() {
   const canvas = document.getElementById("veCanvas");
+  if (!canvas) return;
+
+  // Remove groups no longer in state
+  Array.from(canvas.querySelectorAll(".ve-group")).forEach(el => {
+    if (!veState.groups.find(g => g.id === el.dataset.groupId)) el.remove();
+  });
+
+  veState.groups.forEach(group => {
+    let groupEl = canvas.querySelector(`.ve-group[data-group-id="${group.id}"]`);
+    if (!groupEl) {
+      groupEl = document.createElement("div");
+      groupEl.className = "ve-group";
+      groupEl.dataset.groupId = group.id;
+      canvas.prepend(groupEl);
+    }
+    
+    const memberNodes = veState.nodes.filter(n => group.nodeIds.includes(n.id));
+    if (memberNodes.length === 0) {
+      groupEl.remove();
+      return;
+    }
+    
+    const minX = Math.min(...memberNodes.map(n => n.x)) - 30;
+    const minY = Math.min(...memberNodes.map(n => n.y)) - 50;
+    const maxX = Math.max(...memberNodes.map(n => n.x + 200)) + 30;
+    const maxY = Math.max(...memberNodes.map(n => n.y + 120)) + 30;
+    
+    groupEl.style.left = `${minX}px`;
+    groupEl.style.top = `${minY}px`;
+    groupEl.style.width = `${maxX - minX}px`;
+    groupEl.style.height = `${maxY - minY}px`;
+    groupEl.style.borderColor = group.color + "66";
+    groupEl.style.background = group.color + "11";
+
+    groupEl.innerHTML = `
+      <div class="ve-group-header" style="background:${group.color}22; border-color:${group.color}44;">
+        <input type="text" value="${group.name}" onchange="updateVEGroupName('${group.id}', this.value)" />
+        <i class="ri-delete-bin-line ve-group-delete" onclick="deleteVEGroup('${group.id}')"></i>
+      </div>
+    `;
+  });
   // Remove nodes that are no longer in state
   Array.from(canvas.querySelectorAll(".ve-node")).forEach(el => {
     if (!veState.nodes.find(n => n.id === el.dataset.nodeId)) el.remove();
@@ -10323,17 +10530,6 @@ function updateVEDOM() {
       el.innerHTML = html;
       canvas.appendChild(el);
 
-      // Node Dragging
-      el.querySelector(".ve-node-header").addEventListener("mousedown", (e) => {
-        if(e.target.tagName !== 'I') {
-            veVolatile.draggingNode = node;
-            const rect = el.getBoundingClientRect();
-            veVolatile.offset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-            document.querySelectorAll(".ve-node").forEach(n => n.classList.remove("selected"));
-            el.classList.add("selected");
-        }
-      });
-
       // Socket Wiring
       el.querySelectorAll(".ve-socket").forEach(socket => {
         socket.addEventListener("mousedown", (e) => {
@@ -10346,8 +10542,8 @@ function updateVEDOM() {
           const rect = socket.getBoundingClientRect();
           const wrapperRect = document.getElementById("veCanvasWrapper").getBoundingClientRect();
           veVolatile.tempWireEnd = {
-            x: rect.left + rect.width/2 - wrapperRect.left - veState.pan.x,
-            y: rect.top + rect.height/2 - wrapperRect.top - veState.pan.y
+            x: (rect.left + rect.width / 2 - wrapperRect.left - veState.pan.x) / veState.zoom,
+            y: (rect.top + rect.height / 2 - wrapperRect.top - veState.pan.y) / veState.zoom
           };
         });
       });
@@ -10361,6 +10557,14 @@ function updateVEDOM() {
         });
       });
     }
+
+    // Update state-based styles (for both new and existing nodes)
+    if (veVolatile.selectedNodeIds.includes(node.id)) {
+      el.classList.add("selected");
+    } else {
+      el.classList.remove("selected");
+    }
+
 
     el.style.left = `${node.x}px`;
     el.style.top = `${node.y}px`;
@@ -10380,11 +10584,11 @@ function getPortCoordinates(nodeId, portIdx, isOutput) {
   const el = document.querySelector(`.ve-socket.${isOutput ? 'output' : 'input'}[data-node-id="${nodeId}"][data-port-idx="${portIdx}"]`);
   if (!el) return null;
   const rect = el.getBoundingClientRect();
-  if (rect.width === 0 || rect.height === 0) return null; // Element is hidden or has no size
+  if (rect.width === 0 || rect.height === 0) return null;
   const wrapperRect = document.getElementById("veCanvasWrapper").getBoundingClientRect();
   return {
-    x: rect.left + rect.width/2 - wrapperRect.left - veState.pan.x,
-    y: rect.top + rect.height/2 - wrapperRect.top - veState.pan.y
+    x: (rect.left + rect.width / 2 - wrapperRect.left - veState.pan.x) / veState.zoom,
+    y: (rect.top + rect.height / 2 - wrapperRect.top - veState.pan.y) / veState.zoom
   };
 }
 
@@ -11305,3 +11509,463 @@ async function generateProjectReport(options) {
     if (loading) loading.classList.add("hidden");
   }
 }
+
+// ==== NEW ESTIMATION MODULE LOGIC (SUPABASE BACKED) ====
+document.addEventListener('DOMContentLoaded', () => {
+  const supabase = window.supabaseClient;
+  if (!supabase) {
+    console.error('Supabase client not found. Estimation module may not work correctly.');
+  }
+
+  // ── State ─────────────────────────────────────────────────────────────
+  let sorSources = []; // { id, source_key, display_name }
+  let activeSourceId = null;
+  let currentPlanHead = '1130';
+
+  const estData = {
+    '1110': [], '1120': [], '1130': [], '1140': [],
+    '1150': [], '1160': [], '1170': [], '1180': []
+  };
+
+  const PLAN_HEAD_MAP = {
+    '1110': '1110 - Preliminary Expenses',
+    '1120': '1120 - Land',
+    '1130': '1130 - Earthwork & Drains',
+    '1140': '1140 - P-Way & Crossings',
+    '1150': '1150 - Structures',
+    '1160': '1160 - Buildings',
+    '1170': '1170 - Plant & Machinery',
+    '1180': '1180 - General Charges'
+  };
+
+  // ── Database Sync ─────────────────────────────────────────────────────
+  async function loadSorSources() {
+    try {
+      const { data, error } = await supabase.from('sor_sources').select('*').order('uploaded_at', { ascending: false });
+      if (error) throw error;
+      sorSources = data || [];
+      refreshSorSourceDropdowns();
+      if (sorSources.length > 0 && !activeSourceId) {
+        activeSourceId = sorSources[0].id;
+        const sel = document.getElementById('sorSourceSelect');
+        if (sel) sel.value = activeSourceId;
+        renderSorTable();
+      }
+    } catch (e) { console.error('Error loading SOR sources:', e); }
+  }
+
+  function refreshSorSourceDropdowns() {
+    const sel = document.getElementById('sorSourceSelect');
+    if (sel) {
+      sel.innerHTML = sorSources.map(s => `<option value="${s.id}">${s.display_name}</option>`).join('');
+      if (activeSourceId) sel.value = activeSourceId;
+    }
+    // Update all existing grid row dropdowns
+    document.querySelectorAll('.est-sor-select').forEach(rowSel => {
+      const currentVal = rowSel.value;
+      rowSel.innerHTML = buildSorOptionsHTML();
+      if (currentVal) rowSel.value = currentVal;
+    });
+  }
+
+  function buildSorOptionsHTML() {
+    return '<option value="">-- Select SOR --</option>' + 
+           sorSources.map(s => `<option value="${s.id}">${s.display_name}</option>`).join('');
+  }
+
+  // Initial load
+  loadSorSources();
+
+  // ── SOR Search (Supabase) ─────────────────────────────────────────────
+  async function renderSorTable(filter = '') {
+    const sorBody = document.getElementById('sorResultsBody');
+    const count = document.getElementById('sorResultCount');
+    if (!sorBody) return;
+
+    if (!activeSourceId) {
+      sorBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px;">No SOR uploaded. Click "Upload New SOR" to begin.</td></tr>';
+      return;
+    }
+
+    const query = filter.trim();
+    let supabaseQuery = supabase.from('sor_items')
+      .select('*, sor_sources(display_name)')
+      .eq('source_id', activeSourceId)
+      .limit(100);
+
+    if (query) {
+      // Basic text search or ilike
+      supabaseQuery = supabaseQuery.or(`item_code.ilike.%${query}%,description.ilike.%${query}%`);
+    }
+
+    try {
+      const { data, error, count: totalCount } = await supabaseQuery;
+      if (error) throw error;
+
+      sorBody.innerHTML = '';
+      if (!data || data.length === 0) {
+        sorBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px;">No items found matching "' + filter + '".</td></tr>';
+        if (count) count.textContent = '';
+        return;
+      }
+
+      data.forEach(item => {
+        const tr = document.createElement('tr');
+        const descShort = (item.description || '').substring(0, 200) + ((item.description || '').length > 200 ? '...' : '');
+        tr.innerHTML = `<td style="font-weight:600;">${item.item_code}</td>` +
+          `<td>${descShort}</td>` +
+          `<td style="text-align:center;">${item.unit}</td>` +
+          `<td style="text-align:right;">₹${Number(item.rate).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>` +
+          `<td style="text-align:right;"><button class="btn btn-secondary add-to-est-btn" style="font-size:0.8rem;padding:4px 8px;">Add to Est</button></td>`;
+        
+        tr.querySelector('.add-to-est-btn').addEventListener('click', () => {
+          addEstRow(item.source_id, item.item_code, item.description, item.unit, item.rate);
+          const btn = document.querySelector(`.estimate-nav-btn[data-est-tab="${currentPlanHead}"]`);
+          if (btn) btn.click();
+        });
+        sorBody.appendChild(tr);
+      });
+
+      if (count) {
+        count.textContent = `Showing top ${data.length} results.`;
+      }
+    } catch (e) { console.error('Search error:', e); }
+  }
+
+  // Event Listeners for Search
+  const sorSourceSelect = document.getElementById('sorSourceSelect');
+  if (sorSourceSelect) {
+    sorSourceSelect.addEventListener('change', () => {
+      activeSourceId = sorSourceSelect.value;
+      renderSorTable(document.getElementById('sorSearchInput')?.value || '');
+    });
+  }
+
+  const sorSearchInput = document.getElementById('sorSearchInput');
+  if (sorSearchInput) {
+    let st;
+    sorSearchInput.addEventListener('input', (e) => {
+      clearTimeout(st);
+      st = setTimeout(() => renderSorTable(e.target.value), 300);
+    });
+  }
+
+  // ── SOR Upload Engine (PDF & JSON) ────────────────────────────────────
+  const sorFileInput = document.getElementById('sorFileInput');
+  const uploadStatus = document.getElementById('sorUploadStatus');
+
+  if (sorFileInput) {
+    sorFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const isPdf = file.name.toLowerCase().endsWith('.pdf');
+      const isJson = file.name.toLowerCase().endsWith('.json');
+
+      if (!isPdf && !isJson) {
+        alert('Please upload a PDF or JSON file.');
+        return;
+      }
+
+      const displayName = prompt('Enter a display name for this SOR:', file.name.replace(/\.[^/.]+$/, "").toUpperCase()) || file.name;
+      const sourceKey = displayName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+
+      if (uploadStatus) uploadStatus.textContent = 'Processing...';
+
+      try {
+        let items = [];
+        if (isJson) {
+          const text = await file.text();
+          items = JSON.parse(text);
+        } else {
+          items = await parseSORPdfInBrowser(file);
+        }
+
+        if (!items || items.length === 0) {
+          throw new Error('No items extracted from file.');
+        }
+
+        if (uploadStatus) uploadStatus.textContent = `Uploading ${items.length} items to Supabase...`;
+        
+        // 1. Create source
+        const { data: source, error: sErr } = await supabase.from('sor_sources')
+          .upsert({ source_key: sourceKey, display_name: displayName, item_count: items.length }, { onConflict: 'source_key' })
+          .select().single();
+        if (sErr) throw sErr;
+
+        // 2. Clear old items if any
+        await supabase.from('sor_items').delete().eq('source_id', source.id);
+
+        // 3. Batch upload
+        const batchSize = 100;
+        for (let i = 0; i < items.length; i += batchSize) {
+          const batch = items.slice(i, i + batchSize).map(item => ({
+            source_id: source.id,
+            item_code: String(item.code || item.item_code).trim(),
+            description: item.description || item.desc,
+            unit: item.unit,
+            rate: parseFloat(item.rate) || 0
+          }));
+          const { error: iErr } = await supabase.from('sor_items').insert(batch);
+          if (iErr) throw iErr;
+          if (uploadStatus) uploadStatus.textContent = `Uploaded ${Math.min(i + batchSize, items.length)} / ${items.length}...`;
+        }
+
+        if (uploadStatus) uploadStatus.textContent = 'Success!';
+        await loadSorSources();
+        activeSourceId = source.id;
+        renderSorTable();
+        alert(`Successfully uploaded "${displayName}" with ${items.length} items!`);
+      } catch (err) {
+        console.error('Upload error:', err);
+        alert('Upload failed: ' + err.message);
+        if (uploadStatus) uploadStatus.textContent = 'Error.';
+      }
+      e.target.value = '';
+    });
+  }
+
+  // Browser-side PDF Parsing Engine using pdf.js
+  async function parseSORPdfInBrowser(file) {
+    if (typeof pdfjsLib === 'undefined') {
+      // Load PDF.js from CDN dynamically
+      await new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js';
+        script.onload = resolve;
+        document.head.appendChild(script);
+      });
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+    const items = [];
+    
+    // Pattern: Code Description Unit Rate
+    // e.g. "011010  Preparation of foundation... 100 Sqm  537.37"
+    const itemPattern = /(\d{4,6}[a-zA-Z]?)\s+(.*?)\s+(Cum|Sqm|100\sSqm|Km|RM|Rm|Tonne|Ea|Kg|Pair|Rkm|Tkm|Sqcm|10\sCum|100\sCum|1000\sCum|Litre|Day|Month|L\.S\.|Quintal|Sq\.m\.|Cu\.m\.|KM|Set|No\.?|Each|Per\sKm|MT)\s+([0-9,]+\.\d{2})/i;
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const lines = [];
+      let currentLine = "";
+      let lastY = -1;
+
+      textContent.items.forEach(item => {
+        if (lastY !== -1 && Math.abs(item.transform[5] - lastY) > 5) {
+          lines.push(currentLine);
+          currentLine = "";
+        }
+        currentLine += item.str + " ";
+        lastY = item.transform[5];
+      });
+      lines.push(currentLine);
+
+      let currentItem = null;
+      for (let line of lines) {
+        const match = line.match(itemPattern);
+        if (match) {
+          if (currentItem) items.push(currentItem);
+          currentItem = {
+            code: match[1].trim(),
+            description: match[2].trim(),
+            unit: match[3].trim(),
+            rate: parseFloat(match[4].replace(/,/g, ''))
+          };
+        } else if (currentItem && line.trim() && !/^\d/.test(line.trim())) {
+          // Multiline description
+          currentItem.description += " " + line.trim();
+        }
+      }
+      if (currentItem) items.push(currentItem);
+      if (uploadStatus) uploadStatus.textContent = `Parsing PDF: Page ${i} / ${pdf.numPages}...`;
+    }
+    return items;
+  }
+
+  // ── Tab Switching ─────────────────────────────────────────────────────
+  const estNavBtns = document.querySelectorAll('.estimate-nav-btn');
+  const estTabPanes = document.querySelectorAll('.est-tab-pane');
+  const planHeadTitle = document.getElementById('currentEstPlanHeadTitle');
+
+  if (estNavBtns.length > 0) {
+    estNavBtns.forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const tabId = e.currentTarget.getAttribute('data-est-tab');
+        estNavBtns.forEach(b => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+        estTabPanes.forEach(pane => { pane.style.display = 'none'; });
+        
+        if (tabId === 'abstract') {
+          document.getElementById('estTabAbstract').style.display = 'flex';
+          renderAbstract();
+        } else if (tabId === 'sor') {
+          document.getElementById('estTabSOR').style.display = 'flex';
+          await loadSorSources();
+          renderSorTable(document.getElementById('sorSearchInput')?.value || '');
+        } else {
+          currentPlanHead = tabId;
+          document.getElementById('estTabDataGrid').style.display = 'flex';
+          if (planHeadTitle) planHeadTitle.textContent = PLAN_HEAD_MAP[tabId] || tabId;
+          renderEstGrid();
+        }
+      });
+    });
+  }
+
+  // ── Estimate Grid ─────────────────────────────────────────────────────
+  function renderEstGrid() {
+    const gridBody = document.getElementById('estGridBody');
+    if (!gridBody) return;
+    const rows = estData[currentPlanHead] || [];
+    gridBody.innerHTML = '';
+    
+    if (rows.length === 0) {
+      gridBody.innerHTML = `<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:32px;">No items added to ${PLAN_HEAD_MAP[currentPlanHead] || currentPlanHead} yet. Click 'Add Item Row' to begin.</td></tr>`;
+      updatePlanHeadTotals(0, 0);
+      return;
+    }
+    rows.forEach((row, idx) => { gridBody.appendChild(createEstTR(row, idx)); });
+    recalcPlanHead();
+  }
+
+  function createEstTR(row, idx) {
+    const tr = document.createElement('tr');
+    const cash = (row.qty || 0) * (row.rate || 0);
+    tr.innerHTML = `<td>${idx + 1}.0</td>` +
+      `<td><select class="est-sor-select" style="padding:4px;border-radius:4px;border:1px solid var(--stroke);background:rgba(0,0,0,0.2);color:var(--text);font-size:0.85rem;width:100%;">${buildSorOptionsHTML()}</select></td>` +
+      `<td><input type="text" class="est-code-input" value="${row.code || ''}" placeholder="011..." style="width:100%;" /></td>` +
+      `<td><input type="text" class="est-desc-input" value="${(row.desc || '').replace(/"/g, '&quot;')}" placeholder="Description..." style="width:100%;" /></td>` +
+      `<td style="text-align:right;"><input type="number" class="est-qty-input est-calc-trigger" style="text-align:right;width:100%;" value="${row.qty || 0}" /></td>` +
+      `<td style="text-align:center;"><input type="text" class="est-unit-input" value="${row.unit || ''}" style="text-align:center;width:100%;" /></td>` +
+      `<td style="text-align:right;"><input type="number" class="est-rate-input est-calc-trigger" style="text-align:right;width:100%;" value="${row.rate || 0}" step="0.01" /></td>` +
+      `<td style="text-align:right;" class="est-cash-cell">${cash.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>` +
+      `<td style="text-align:right;" class="est-stores-cell">0.00</td>` +
+      `<td style="text-align:right;" class="est-total-cell">${cash.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>` +
+      `<td><button class="btn btn-secondary icon-btn-sm est-delete-btn" style="color:var(--red);"><i class="ri-delete-bin-line"></i></button></td>`;
+
+    const sorSel = tr.querySelector('.est-sor-select');
+    if (row.sor) sorSel.value = row.sor;
+    sorSel.addEventListener('change', () => { row.sor = sorSel.value; });
+
+    // Item Code: press Enter to auto-fill from Supabase
+    const codeInput = tr.querySelector('.est-code-input');
+    codeInput.addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const code = codeInput.value.trim();
+        const sid = sorSel.value;
+        if (!code) return;
+
+        let query = supabase.from('sor_items').select('*').eq('item_code', code);
+        if (sid) query = query.eq('source_id', sid);
+        
+        const { data, error } = await query.limit(1);
+        if (data && data.length > 0) {
+          const found = data[0];
+          row.code = found.item_code;
+          row.desc = found.description;
+          row.unit = found.unit;
+          row.rate = parseFloat(found.rate);
+          row.sor = found.source_id;
+          
+          tr.querySelector('.est-sor-select').value = row.sor;
+          tr.querySelector('.est-desc-input').value = row.desc;
+          tr.querySelector('.est-unit-input').value = row.unit;
+          tr.querySelector('.est-rate-input').value = row.rate;
+          recalcPlanHead();
+          tr.querySelector('.est-qty-input').focus();
+        } else {
+          console.warn(`Item ${code} not found in database.`);
+        }
+      }
+    });
+
+    codeInput.addEventListener('input', () => { row.code = codeInput.value; });
+    tr.querySelector('.est-desc-input').addEventListener('input', (e) => { row.desc = e.target.value; });
+    tr.querySelector('.est-unit-input').addEventListener('input', (e) => { row.unit = e.target.value; });
+    tr.querySelector('.est-rate-input').addEventListener('input', (e) => { row.rate = parseFloat(e.target.value) || 0; recalcPlanHead(); });
+    tr.querySelector('.est-qty-input').addEventListener('input', (e) => { row.qty = parseFloat(e.target.value) || 0; recalcPlanHead(); });
+    
+    tr.querySelector('.est-delete-btn').addEventListener('click', () => {
+      const arr = estData[currentPlanHead];
+      const i = arr.indexOf(row);
+      if (i >= 0) arr.splice(i, 1);
+      renderEstGrid();
+    });
+    return tr;
+  }
+
+  // ── Calculations ──────────────────────────────────────────────────────
+  function recalcPlanHead() {
+    const gridBody = document.getElementById('estGridBody');
+    if (!gridBody) return;
+    const rows = estData[currentPlanHead] || [];
+    let totalCash = 0;
+    
+    Array.from(gridBody.querySelectorAll('tr')).forEach((tr, idx) => {
+      if (idx >= rows.length) return;
+      const row = rows[idx];
+      const cash = (row.qty || 0) * (row.rate || 0);
+      if (tr.children[0]) tr.children[0].textContent = (idx + 1) + '.0';
+      const cc = tr.querySelector('.est-cash-cell');
+      const tc = tr.querySelector('.est-total-cell');
+      if (cc) cc.textContent = cash.toLocaleString('en-IN', {minimumFractionDigits: 2});
+      if (tc) tc.textContent = cash.toLocaleString('en-IN', {minimumFractionDigits: 2});
+      totalCash += cash;
+    });
+    updatePlanHeadTotals(totalCash, 0);
+  }
+
+  function updatePlanHeadTotals(cash, stores) {
+    const fmt = (v) => '\u20b9' + v.toLocaleString('en-IN', {minimumFractionDigits: 2});
+    const phC = document.getElementById('phTotalCash');
+    const phS = document.getElementById('phTotalStores');
+    const phA = document.getElementById('phTotalAmount');
+    if (phC) phC.textContent = fmt(cash);
+    if (phS) phS.textContent = fmt(stores);
+    if (phA) phA.textContent = fmt(cash + stores);
+  }
+
+  function addEstRow(sor, code, desc, unit, rate) {
+    const row = { sor: sor || '', code: code || '', desc: desc || '', qty: 0, unit: unit || '', rate: Number(rate) || 0 };
+    estData[currentPlanHead].push(row);
+    renderEstGrid();
+    const gridBody = document.getElementById('estGridBody');
+    if (gridBody && gridBody.lastElementChild) {
+      gridBody.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      const ci = gridBody.lastElementChild.querySelector('.est-code-input');
+      if (ci) setTimeout(() => ci.focus(), 100);
+    }
+  }
+
+  const estAddRowBtn = document.getElementById('estAddRowBtn');
+  if (estAddRowBtn) { estAddRowBtn.addEventListener('click', () => addEstRow()); }
+
+  function renderAbstract() {
+    const body = document.getElementById('estAbstractBody');
+    if (!body) return;
+    body.innerHTML = '';
+    let grandCash = 0;
+    Object.keys(PLAN_HEAD_MAP).forEach(ph => {
+      const rows = estData[ph] || [];
+      let cash = rows.reduce((acc, r) => acc + ((r.qty || 0) * (r.rate || 0)), 0);
+      grandCash += cash;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td style="font-weight:600;">${ph}</td>` +
+        `<td>${PLAN_HEAD_MAP[ph]}</td>` +
+        `<td style="text-align:right;">₹${cash.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>` +
+        `<td style="text-align:right;">₹0.00</td>` +
+        `<td style="text-align:right;font-weight:600;">₹${cash.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>`;
+      body.appendChild(tr);
+    });
+    const fmt = (v) => '\u20b9' + v.toLocaleString('en-IN', {minimumFractionDigits: 2});
+    if (document.getElementById('absTotalCash')) document.getElementById('absTotalCash').textContent = fmt(grandCash);
+    if (document.getElementById('absGrandTotal')) document.getElementById('absGrandTotal').textContent = fmt(grandCash);
+  }
+
+  window.recalcPlanHead = recalcPlanHead;
+  window.addEstRow = addEstRow;
+});

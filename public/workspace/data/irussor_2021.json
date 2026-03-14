@@ -1,0 +1,1871 @@
+[
+  {
+    "code": "011010",
+    "description": "Preparation of foundation for Embankment by clearing, grubbing, stripping top soil (average 150 mm) and stacking beyond foundation area, thereafter ploughing and pulverizing 150 - 200 mm of top of soil with tractor trolley, mixing water to achieve OMC with water sprinkler or left for natural drying, as required, and compaction with vibratory roller of suitable capacity to achieve 98% MDD for laying first layer of soil for embankment construction.",
+    "unit": "100 Sqm",
+    "rate": 537.37,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "011020",
+    "description": "Benching of existing embankment manually in steps of 30 cm height for doubling/tripling works in running line to provide proper amalgamation between the old and new embankments as per RDSO latest Specifications and guidelines RDSO/2020//GE: IRS-0004 to the entire satisfaction of Engineer in-charge. The item includes uprooting and disposing of all the vegetation, all lift, descends, ascends and additional earthwork required for filling due to removal of earth in benching in existing bank.Note:(1)Thebenching Work shall bedone fora maximum height of 0.90m atanytimebased onthe progressof earthwork starting from toe of the embankment.(2) Benching work shall be certified and recorded before starting the earthwork. (3)Unit for payment shall be km per metre height of the Bank. Height here means representative average height of the bank in the specified km taken from cross sectional measurements for earthwork.(4) Since the rate includes earthwork in steps, payment under this item shall be madeaftercompletionof earthwork to thatlevel.(5)Cutsoil frombank shall not be used in embankment construction and disposed off away from bank as per the direction of Engineer-in-charge. abutments, bridge gaps, trolley refuges, platforms etc. with contractor's own earth conforming to Soil Quality Class SQ1/SQ2/SQ3, after preparation of foundations as applicable, benchinginexistingbankswhereverrequired,spreadinginlayerswith motor grader, bringing the moisture content to OMC, mechanical compaction to specified density and dressing of bank to final profile as per RDSO Specifications: RDSO/2020/GE: IRS-0004 with latest correction slips. Note:1) Foundation preparation, Benching including additional earthwork on account of this, wherever required, shall be paid extra under relevant schedule item for benching. 2) Payment for Earthwork under this item shall be made based on the cross section measurements calculated (i) with original ground profile of existing bank based on initial ground levels before doing benching and (ii) final profile of the bank worked out with final levels as per prevailing guidelines.",
+    "unit": "Km",
+    "rate": 122817.77,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "011031",
+    "description": "Using Soil Class SQ1",
+    "unit": "Cum",
+    "rate": 233.55,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "011032",
+    "description": "Using Soil Class SQ2",
+    "unit": "Cum",
+    "rate": 270.68,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "011033",
+    "description": "Using Soil Class SQ3 crossing approaches, platforms, catch water drains, diversion of nallah & finishing to required dimension and slopes to obtain a neat appearance to standard profile inclusive of all labour, materials, plant & machinery, leading all cut spoils either to make spoil dumps or for filling in embankmentwith leads within 2 km on either side of edge of the cutting(s) including all lifts, ascent, descent, loading, unloading, bailing&pumpingoutwater,ifrequired,clearanceof siteand allother works incidental thereto for completing the work as per RDSO Specification No. RDSO/2020/GE: IRS-0004 with latest updated correction slips and to the satisfaction of the Engineer-in-Charge. Note:(i) All usable earth arising from cut spoils shall be led into bank formation and Unusable spoils shall be dumped / stacked away from toeofembankment.(ii)All hardrock/andbouldersnotfitforfillingwill be stacked by the contractor and will be property of the Railways.(iii)Cut trees shall be property of Railways and to be deposited in the railway godown unless specified otherwise in the Conditions of Contract.",
+    "unit": "Cum",
+    "rate": 306.16,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "012011",
+    "description": "In all conditions and classifications of soil except rock",
+    "unit": "Cum",
+    "rate": 98.7,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "012012",
+    "description": "Soft rock not requiring blasting",
+    "unit": "Cum",
+    "rate": 238.57,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "012013",
+    "description": "In hard rock requiring blasting",
+    "unit": "Cum",
+    "rate": 359.06,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "012014",
+    "description": "In hard rock with hammer / chisel / pavement breaker etc. where blasting is not permitted due to special circumstances and if specificallyordered in writing including drilling andall incidental works thereto.",
+    "unit": "Cum",
+    "rate": 952.04,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "012015",
+    "description": "Extra for leading of Cut spoil every one km beyond original lead of 2 km over item nos. 012011 to 012014",
+    "unit": "Cum",
+    "rate": 4.91,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "012020",
+    "description": "Foundationpreparationincutting-ploughingandpulverizing15 cmof top of soil with tractor trolley, mixing water to achieveOMC with water sprinkler or allowing for natural drying, as required, and compaction with vibratory roller of suitable capacity to achieve 98% MDD for laying blanketing layer.",
+    "unit": "100 Sqm",
+    "rate": 327.38,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "012030",
+    "description": "Mechanical manufacturing of blanketing material by using only hard and durable stone crushed in mechanical crusher to different gradations, wet mixing of the same in designed proportion in Pug mill or wet mix plant to have uniform gradation including all incidental transportation, laying over finished formation in uniform layer(s) with motor grader, compaction with suitable vibratory roller to specified density and finishing to correct profile, complete as per RDSO Specification No. RDSO/2020/GE: IRS-0004 with latest correction slips. Note: This item shall be used only when entire constituent of blanketing material is mechanically manufactured by crushing of hard and durable stone into desired gradation of designed proportion.",
+    "unit": "Cum",
+    "rate": 1842.52,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "012040",
+    "description": "Manufacturing of blanketing material by wet mixing of naturally available suitable soil including additional blending with naturally available or manufactured material as required to achieve specified gradation, in designed proportion in Pug mill or wet mix plant to have uniform gradation including all incidental transportation, laying over finished formation in uniform layer(s) with motor grader, compaction with suitable vibratory roller to specified density and finishing to correct profile, complete as per RDSO Specification No. RDSO/2020/GE: IRS-0004 with latest correction slips.",
+    "unit": "Cum",
+    "rate": 859.69,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "012050",
+    "description": "Mechanical manufacturing and supply of blanketing material by using only hard and durable stone crushed in mechanical crusher to different gradations, wet mixing of the same in designed proportion in Pug mill or wet mix plant to have uniform gradation as per RDSO Specification No. RDSO/2020/GE: IRS-0004 with latest correction slips including transportation to nominated place and stacking. Note: material is mechanically manufactured by crushing of hard and durable stoneinto desired gradation(s)indesignedproportion to meet prescribed Specification.2. Measurement shall be done as per Stack measurement.",
+    "unit": "Cum",
+    "rate": 1353.81,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "012060",
+    "description": "Manufacturing and supply of blanketing material by wet mixing of different types of naturally available suitable soil including additional blendingwithnaturallyavailable ormanufacturedmaterialasrequired to achieve specified gradation, in designed proportion in Pug mill or wet mix plant to have uniform gradation as per RDSO Specification No. RDSO/2020/GE: IRS-0004 with latest correction slips including all incidental transportation and stacking at site in Stacks. Note: Measurement shall be done in as per Stack measurement. level) including leading and stacking of material within 100m. Note : doubled for trees cut and grubbed 2. Payment for grubbing shall only be made where specially ordered. 3. Grubbing shall be ordered only where it is essential to remove the stumps, including the roots, as per specification. 4. Grubbing shall include removal of roots of trees and saplings to a depth of 60cm below ground level or 30 cm below formation level or 15 cm below sub grade level, whichever is lower. properlyrooted with. Note: Initially payment of only 40% will be made. Balance 60% will be paid after 3 months of maintenance period, only if the turfing is properly rooted on entire turfed area.",
+    "unit": "Cum",
+    "rate": 607.61,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "013021",
+    "description": "Turfing with sods, 10cm thick and 20cm square closely laid.",
+    "unit": "100 Sqm",
+    "rate": 6179.93,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "013022",
+    "description": "Turfing with planted doob grass.",
+    "unit": "100 Sqm",
+    "rate": 6315.07,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "013023",
+    "description": "Planting Sarkanda / sarpat or any other suitable species approved by the engineer.",
+    "unit": "100 Sqm",
+    "rate": 7109.8,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "013030",
+    "description": "Cleaning out silt from bed of reservoir/canals including 50m lead and lift up to 1.5m. done in close vicinity of track, maintaining during execution of work and removing after completion of the work as per direction of the Engineer. Fencing shall consist of self supporting steel angles of size embedded in CC 1:2:4 block of size0.23m x 0.23m x 0.23m placedat c/c distance of 2m along track. 12mm dia rods in three horizontal layersshall betack weldedwith angleposts.Note: Releasedmaterial will be property of the contractor after completion of work. Cost of cement required for CC blocks shall be paid separately. direction, duly secured/tight with vertical posts. paints / strips of 30cm each with a gap of 30 cm. post of 100mm dia. planted at every 2m interval, projecting at least ground and including painting verticals & horizontals with red luminous paints / strips at alternative bay on barricade. Barricades shall be maintained through out the execution of the work and shall be removed in workman like manner on completion of the work only after instruction of Engineer in-Charge. Note:(1) 60% payment shall be made on provision of barricading at work-site and balance 40% payment after removal of barricades.(2) The released bamboos / ballies shall be the property of the Contractor.",
+    "unit": "Cum",
+    "rate": 216.48,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "013051",
+    "description": "With 3 horizontal bamboo / balli members of minimum 50mm dia. spaced equally",
+    "unit": "RM",
+    "rate": 144.87,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "013052",
+    "description": "Joining with strong nylon rope in one cross and one horizontal pattern of minimum 5mm dia. to 7m long without joint, 125mm average dia. for protection of bank slope including twocoats ofcoal tarpaintcomplete,as directed.Note: Payment will be made as per actual driven length of pile. slope/toe of embankment including making of nose with contractor’s own arrangement complete in all respectNote: Payment will be made as per actual driven length of rail which will be supplied free by Railways at the site of work.",
+    "unit": "RM",
+    "rate": 86.66,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "013080",
+    "description": "Shoring with 'Z' section MS sheet piles side by side in all kinds of soil mechanically or manually as per approved drawing with contractor’s own arrangement complete in all respects and removal of sheet piles after completion of the work as directed by engineer in-chargeNote: Payment will be made as per actual driven length of pile. Thermally bonded type Geotextile for use as Separator/Filtration for Railway formation as per RDSO Specification No. RDSO/2018/GE:IRS-0004 - Part I made of Polypropylene / Polyethylene / Polyamide or combination there of having apparent opening size of less than or equal to 85 microns and elongation at failure more than 50% in both directions including transportation labour, lead & lift complete as directed by Engineer in-charge.",
+    "unit": "Sqm",
+    "rate": 844.45,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "013091",
+    "description": "On top of subgrade or prepared subgrade before laying blanketing layer with minimum strengths in Grab test, Trapezoidal Tear test and Puncture test of 700N, 250 N and 1800 N respectively.",
+    "unit": "Sqm",
+    "rate": 154.96,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "013092",
+    "description": "Below the ballast and above blanket layer with minimum strengths in Grab test, Trapezoidal Tear test and Puncture test of 1750N, 800 N and 5800 N respectively.",
+    "unit": "Sqm",
+    "rate": 236.56,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "013100",
+    "description": "Supplying & laying of drainage composite for use behind abutments, wing walls, return walls and Retaining walls Geocomposite drain (Vertical) as per RDSO Specification No. RDSO/2018/GE:IRS-0006 latest version with all material, labour, equipment, tools and plants, lead, lift etc. complete in all respects as per the direction of Engineer- in-Charge.",
+    "unit": "Sqm",
+    "rate": 684.78,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "021040",
+    "description": "Erection of temporary working platform to drill bore hole through flowing/standing water through river bed up to water depth of 1.5m, and dismantlingaftercompletingworkandremovingfromthesitetoclearthe water way. collection of rock core samples from boreholes and preserving in boxes.",
+    "unit": "Cum",
+    "rate": 2463.49,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022011",
+    "description": "All kinds of soils",
+    "unit": "Cum",
+    "rate": 199.78,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022012",
+    "description": "Soft rock (not requiring blasting)",
+    "unit": "Cum",
+    "rate": 420.29,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022013",
+    "description": "Hard rock (requiring blasting)",
+    "unit": "Cum",
+    "rate": 588.0,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022014",
+    "description": "Hard rock (blasting prohibited )",
+    "unit": "Cum",
+    "rate": 636.0,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022020",
+    "description": "Extra over item nos. 022011 to 022014 for executing the work under water and/or liquid mud to compensate all additional arrangements includingpumpingoutwaterasrequired.Note: Theextrapercentagerate is applicable only for the quantity of work executed under water. Nominal Mix for miscellaneous works like side drains, foundation for OHE masts and other miscellaneous structures excluding the cost of Cement, centering and shuttering - All work up to plinth level :",
+    "unit": "Cum",
+    "rate": 0.2,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022031",
+    "description": "1:1½:3(1Cement:1½coarsesand(zone-III):3gradedstoneaggregate",
+    "unit": "Cum",
+    "rate": 2586.1,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022032",
+    "description": "1:2:4(1cement: 2coarsesand(zone-III):4 gradedstoneaggregate20 mm nominal size)",
+    "unit": "Cum",
+    "rate": 2667.2,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022033",
+    "description": "1:2:4(1Cement:2coarsesand(zone-III):4gradedstoneaggregate40 mm nominal size)",
+    "unit": "Cum",
+    "rate": 2635.39,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022034",
+    "description": "1:3:6(1Cement:3coarsesand(zone-III):6gradedstoneaggregate20 mm nominal size)",
+    "unit": "Cum",
+    "rate": 2737.62,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022035",
+    "description": "1:3:6 (1Cement : 3coarsesand (zone-III): 6gradedstoneaggregate40 mm nominal size).",
+    "unit": "Cum",
+    "rate": 2667.6,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022036",
+    "description": "1:4:8 (1 Cement : 4coarse sand (zone-III): 8 graded stone aggregate 40 mm nominal size).",
+    "unit": "Cum",
+    "rate": 2696.73,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022040",
+    "description": "Providing and laying in position machine batched, machine mixed and machine vibrated Cement Concrete of specified grade as per approved Design Mix (mixed in Mobile Concrete Batching/Mixing Plant at site or RMC from approved plants) using 20mm graded crushed stone aggregate andcoarsesandof approved qualityin RCCraft foundation& Pile cap including finishing, using Plasticiser in approved proportions (as per IS:9103), to modify workability without impairing strength and durabilitycompleteasper specificationsanddirectionofthe Engineerin charge. Note: 1. Payment for cement, reinforcement and shuttering shall be made extra under relevant item.2. Plasticiser shall invariablybe used in approved proportion to increase workability with minimum possible quantity of cement for all grade of Design Mix Concrete unless it is specifically approved citing reasons for not using plasticiser at the stage of Mix Design and in that case deduction shall be made as per relevant item. machine vibrated Cement Concrete of specified grade as per approved Design Mix (mixed in Mobile Concrete Batching/Mixing Plant at site or RMC from approved plants) using 20mm graded crushed stone aggregate and coarse sand of approved quality for the following Reinforced cement concrete structural elements up to height of 9.0 m from foundation top level, including finishing, using Plasticiser in approved proportions (as per IS:9103), to modify workability without impairing strength and durability complete as per specifications and direction of the Engineer in charge. Note: 1. Payment for cement, reinforcement and shuttering shall be made extra under relevant item.2. Plasticiser shall invariably be used in approved proportion to increase workability with minimum possible quantity of cement for all grade of Design Mix Concrete unless it is specifically approved citing reasons for not using plasticiser at the stage of Mix Design and in that case deduction shall be made as per relevant item.",
+    "unit": "Cum",
+    "rate": 2536.39,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022051",
+    "description": "Abutment & Pier",
+    "unit": "Cum",
+    "rate": 2600.49,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022052",
+    "description": "Wing wall and Return wall",
+    "unit": "Cum",
+    "rate": 2600.49,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022053",
+    "description": "Abutment cap, Pier Cap, Inspection Platform & Pedestal over Pier cap, Fender wall, Diaphragm wall etc.",
+    "unit": "Cum",
+    "rate": 2632.55,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022054",
+    "description": "Approach slab at formation level, Dirt wall/ ballast wall at formation level",
+    "unit": "Cum",
+    "rate": 2568.45,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022055",
+    "description": "Extra for every increase of 1m or part thereof in the height above 9.0 m",
+    "unit": "Cum",
+    "rate": 64.1,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "022060",
+    "description": "Providing and laying Plain Cement Concrete 1:3:6 with graded stone aggregate of 40mm nominal size, in foundation and floors, retaining walls of bridges including mechanical mixing, vibrating, pumping and bailing out water where ever required with all materials and labour complete but excluding the cost of cement and shuttering as per drawings and technical specifications as directed by Engineer.",
+    "unit": "Cum",
+    "rate": 2693.74,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023011",
+    "description": "In all types of soils",
+    "unit": "Cum",
+    "rate": 299.67,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023012",
+    "description": "In Ordinary rock",
+    "unit": "Cum",
+    "rate": 462.32,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023013",
+    "description": "Hard rock (blasting prohibited ) construction of well foundations of dia. up to 10m (longest dimension) , including bailing and pumping out of water, provision of sand bags, wooden ballies, sheet piling, earth, sand or any other suitable material, as required with all labour and material complete job. up to water depth of 4.00m.",
+    "unit": "Cum",
+    "rate": 1292.88,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023023",
+    "description": "Providing and constructing 10m wide service road to reach island location from one pier location to another pier location.",
+    "unit": "RM",
+    "rate": 3928.16,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023041",
+    "description": "From initial level of cutting edge & up to 3m depth",
+    "unit": "Cum",
+    "rate": 203.78,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023042",
+    "description": "Above 3m to 10m depth",
+    "unit": "Cum",
+    "rate": 263.92,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023043",
+    "description": "Above 10m to 15m depth",
+    "unit": "Cum",
+    "rate": 306.25,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023044",
+    "description": "Above 15m to 20m depth",
+    "unit": "Cum",
+    "rate": 390.86,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023045",
+    "description": "Above 20m to 25m depth",
+    "unit": "Cum",
+    "rate": 644.23,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023046",
+    "description": "Above 25m to 30m depth",
+    "unit": "Cum",
+    "rate": 924.88,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023047",
+    "description": "Above 30m to 35m depth",
+    "unit": "Cum",
+    "rate": 1428.06,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023048",
+    "description": "Above 35m to 40m depth",
+    "unit": "Cum",
+    "rate": 2299.91,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023049",
+    "description": "Above 40m to 45m depth",
+    "unit": "Cum",
+    "rate": 3704.03,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023050",
+    "description": "Above 45 m depth all types of strata except hard rock requiring ballasting, including bailing and pumping out water, removal of excavated soil, with all labour and materialrequiredforsinkingasperdrawinganddirectionoftheEngineer in charge including disposal of surplus soil in the adjoining bank/embankment (compaction to be paid separately under the relevant item).",
+    "unit": "Cum",
+    "rate": 4441.99,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023061",
+    "description": "From initial level of cutting edge & up to 3m depth",
+    "unit": "Cum",
+    "rate": 296.7,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023062",
+    "description": "Above 3m to 10m depth",
+    "unit": "Cum",
+    "rate": 328.47,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023063",
+    "description": "Above 10m to 15m depth",
+    "unit": "Cum",
+    "rate": 381.15,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023064",
+    "description": "Above 15m to 20m depth",
+    "unit": "Cum",
+    "rate": 486.46,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023065",
+    "description": "Above 20m to 25m depth",
+    "unit": "Cum",
+    "rate": 801.8,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023066",
+    "description": "Above 25m to 30m depth",
+    "unit": "Cum",
+    "rate": 1151.09,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023067",
+    "description": "Above 30m to 35m depth",
+    "unit": "Cum",
+    "rate": 1777.35,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023068",
+    "description": "Above 35m to 40m depth",
+    "unit": "Cum",
+    "rate": 2862.44,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023069",
+    "description": "Above 40m to 45m depth",
+    "unit": "Cum",
+    "rate": 4609.98,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023070",
+    "description": "Above 45 m depth",
+    "unit": "Cum",
+    "rate": 5527.74,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023080",
+    "description": "Extra for sinking of wells in hard rock requiring controlled blasting including cost of explosive, detonators, chiselling including all other ancillary works",
+    "unit": "Cum",
+    "rate": 775.72,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023091",
+    "description": "In well Curb",
+    "unit": "Cum",
+    "rate": 2790.03,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023092",
+    "description": "In Steining of wells",
+    "unit": "Cum",
+    "rate": 2790.03,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023093",
+    "description": "In Bottom plug for wells including arrangements for placing concrete under water with tremie or bottom opening skips.",
+    "unit": "Cum",
+    "rate": 2790.03,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023094",
+    "description": "In Intermediate/top plug without shuttering",
+    "unit": "Cum",
+    "rate": 2663.21,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023095",
+    "description": "In Intermediate/Top plug with internal shuttering",
+    "unit": "Cum",
+    "rate": 2663.21,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023096",
+    "description": "In Well cap and corbel, if provided in wells including all lead lift handling, re-handling, as a complete job as per specification and guidelines.",
+    "unit": "Cum",
+    "rate": 2663.21,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023101",
+    "description": "Using Sand from River Bed if suitable for filling",
+    "unit": "Cum",
+    "rate": 299.67,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "023102",
+    "description": "Using sand from other than River bed (This item is to be operated if suitable sand is not available in River Bed for filling",
+    "unit": "Cum",
+    "rate": 1828.88,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "024010",
+    "description": "Providing and casting machine batched, machine mixed and machine vibrated Cement Concrete of specified grade as per approved Design Mix,mixedinMobileConcreteBatching/MixingPlantatsiteorRMCfrom approved plants, (Cast in-Situ/Pre-cast) in bottom/top slab, side walls, toe wall and sumps haunch filling head walls, thrust bed or any other component using 20mm graded crushed stone aggregate and coarse sand of approved quality of RCC box of any size including finishing, Plasticiserinapprovedproportions(asperIS:9103),tomodifyworkability without impairing strength and durability, complete as per drawings and technical specifications as directed by Engineer in charge. Note: 1. Payment for cement, reinforcement and shuttering shall be made extra under relevant item.2. Plasticiser shall invariably be used in approved proportion to increase workability with minimum possible quantity of cement for all grade of Design Mix Concrete unless it is specifically approved citing reasons at the stage of Mix Design and in that case deduction shall be made as per relevant item.",
+    "unit": "Cum",
+    "rate": 2303.0,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "024020",
+    "description": "Providing and laying in position machine batched, machine mixed and machine vibrated Design Mix Cement Concrete, mixed in Mobile Concrete Batching/Mixing Plant at site or RMC from approved plants, of specified grade (cast in-situ) using 20mm graded crushed stone aggregate and coarse sand of approved quality in Drop and curtain wall and alike structures below bed level, complete in all respect as per drawings and technical specifications to the satisfaction of Engineer-in- Charge. Note: Payment for cement, reinforcement and shuttering shall be made extra. for single/double line as per approved drawings to the correct alignment and position in electrified / non-electrified sections safeguarding all utilities ( S&T cable, power cable, OHE, pipelines etc.) including transportation of box segments from casting yard to site of launching, dismantling of the existing track, removing & stacking of ballast, removing surcharge, dismantling of existing bridge built with stone masonry / cement concrete, placing of Box segments in position either on base slab or prepared foundation, backfilling after launching of precast box segment and compaction of earth in surcharge, ballasting & re-laying of track to correct alignment and geometry, packing and further maintenance till allowing non-stop 20 KMPH over the re-laid track, complete in all respect as per approved drawing to the satisfaction of Engineer-in-charge. The rate is all inclusive except the cost of RCC Box Segments, Base Slabs (if required) and backfill material which shall either besuppliedbyrailwayor paidextra under relevant item.Note: Unit of 'Each'heremeansbridgeof span(s) withatotallinear waterwayupto mounted Hydraulic excavator of min 200 HP and bucket capacity 2.5 cum -3numbers(ii) Cranesminimum150 Tcapacity-3nos., (iii)Stone Breaker-1no.,(iv)RoadTrailerof20MTcapacity-1no., (v)Tippers-2 nos.and(vi)Tractors-2nos.(vii)SlopeVibratorycompactor-1no.and other required machineries etc. in good working condition at site of work. mounted Hydraulic excavator of min 200 HP and bucket capacity 2.5 cum -3numbers(ii) Cranesminimum200 Tcapacity-3nos., (iii)Stone Breaker-1no.,(iv)RoadTrailerof20MTcapacity-1no., (v)Tippers-2 nos. and (vi) Tractors - 2 nos. (vii) Slope Vibratory compactor - 2 nos. and other required machineries etc. in good working condition at site of work. grade as per approved mix design or use of 40mm graded stone aggregate in place of 20mm graded stone aggregate in any grade of concrete. Note: Deduction to be made for quantity of concrete.",
+    "unit": "Cum",
+    "rate": 2070.0,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "025020",
+    "description": "Providing and applying two coats of coal tar or bitumen confirming to IS:3117– latest version on the top and sides of RCC box/slabs @ 1.70 kg/sqm after cleaning the surface with all labour and materials complete job as directed by the Engineer. form for :",
+    "unit": "Sqm",
+    "rate": 157.51,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "025031",
+    "description": "All types of bridge sub-structures, e.g. pier, abutment, wing wall, retaining wall, RCC box type foundations, Abutment cap, Pier Cap, Inspection Platform & Pedestal over Pier cap, Fender wall, Diaphragm wall etc. up to 5m above ground level",
+    "unit": "Sqm",
+    "rate": 329.0,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "025032",
+    "description": "All types of bridge super-structures, e.g. slabs, I-girders, T-girders, Box girders etc. up to 5m above ground level.",
+    "unit": "Sqm",
+    "rate": 427.7,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "025033",
+    "description": "Extra for additional height over item no. 025031 & 025032 wherever required with adequate bracing, propping etc. over initial height of 5 metres for every additional height of 1 metre or part thereof.",
+    "unit": "Sqm",
+    "rate": 56.75,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "025040",
+    "description": "Providing and laying in position machine batched, machine mixed and machine vibrated Cement Concrete of specified grade as per approved DesignMix(mixedinMobileConcreteBatching/MixingPlantatsiteusing qualityin jacketing of piers and abutments from bottom of foundation up to a height of 10m including finishing for designed thickness of jacketing including finishing, using Plasticiser in approved proportions (as per IS:9103), to modify workability without impairing strength and durability complete as per specifications and direction of the Engineer in charge. Note: 1. Payment for cement, reinforcement and shuttering shall be paid extra under relevant item.2. Plasticizer shall invariably be used in approved proportion to increase workability with minimum possible quantity of cement for all grade of Design Mix Concrete unless it is specificallyapprovedcitingreasonsfornotusingplasticisersatthestage of Mix Design and in that case deduction shall be made as per relevant item. case of Jacketing '025051 Extra for drilling 32mm dia. holes for jacketing / anchoring Metre 79.14 extra)",
+    "unit": "Cum",
+    "rate": 2711.15,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "025060",
+    "description": "Supplying, spreading and compacting well graded hard stone of 63mm average size (maximum up to 80mm size) in the bottom of foundation of box culverts, bridges etc. including all lead, lift, ascent, descent etc. complete job as per directions of Engineer In-charge.",
+    "unit": "Cum",
+    "rate": 1357.12,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "025081",
+    "description": "Mild steel bars",
+    "unit": "Kg",
+    "rate": 75.94,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "025082",
+    "description": "Thermo-Mechanically Treated bars of grade Fe-500D or more of approved brands/makes.",
+    "unit": "Kg",
+    "rate": 88.9,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "031011",
+    "description": "With Soffit level up to 9m above Bed level",
+    "unit": "Cum",
+    "rate": 2632.55,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "031012",
+    "description": "With Soffit level From 9m above Bed Level to12m above Bed Level",
+    "unit": "Cum",
+    "rate": 2728.7,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "031013",
+    "description": "With Soffit level From 12m above Bed Level to 15m above Bed Level",
+    "unit": "Cum",
+    "rate": 2921.0,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "031014",
+    "description": "Extra over USSOR Item no. 031013 for Soffit level beyond 15m above Bed Level for every 1m or part thereof",
+    "unit": "Cum",
+    "rate": 64.1,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "031020",
+    "description": "Providing and launching in position machine batched, machine mixed and machine vibrated Cement Concrete of specified grade as per approvedDesignMix(mixedinMobileConcreteBatching/MixingPlantat site or RMC from approved plants) using 20mm graded crushed stone aggregate and coarse sand of approved quality for the Precast Prestressed (Post-tensioned) Concrete Girder/Box Girders/Slabs in contactor’s casting yard in the vicinity of worksite, including finishing, using Plasticiser in approved proportions (as per IS:9103), to modify workability without impairing strength and durability, complete as per drawings, specifications and direction of the Engineer. Note:1. Payment for Shuttering, Cement, Reinforcement, HTS cables, Sheathing, Anchorage Cones, stressing of cables, grouting of the ducts and launching of girder/slab in position shall be made extra under relevant items. However, deduction shall be made in case of slabas perrelevant item.2. For pre-cast item, loading in transport vehicle in casting yard is includedandshallnotbepaidextra.3.Plasticisershallinvariablybeused in approved proportion to increase workability with minimum possible quantity of cement for all grade of Design Mix Concrete unless it is specifically approved citing reasons at the stage of Mix Design and in that case deduction shall be made as per relevant item.",
+    "unit": "Cum",
+    "rate": 2536.39,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "031030",
+    "description": "Providing and launching in position machine batched, machine mixed and machine vibrated Cement Concrete of specified grade as per approvedDesignMix(mixedinMobileConcreteBatching/MixingPlantat site or RMC from approved plants) using 20mm graded crushed stone aggregate and coarse sand of approved quality for the Precast Prestressed (Pre-tensioned) concrete girder/slab in contractor’s casting yard,includingfinishing,usingPlasticiserinapprovedproportions(asper IS:9103), to modify workability without impairing strength and durability, complete as per specifications and direction of the Engineer. Note:1. Payment for Shuttering, Cement, Reinforcement, HTS cables including stressing and launching of girder/slab in position shall be made extra under relevant items. However, deduction shall be made in case of slab as per relevant item.2. For pre-cast item, loading in transport vehicle in casting yard is included and shall not be paid extra.3. Plasticiser shall invariably be used in approved proportion to increase workability with minimum possible quantity of cement for all grade of Design Mix Concrete unless it is specifically approved citing reasons for not using plasticiseratthestageofMixDesignand inthatcasedeductionshallbe made as per relevant item. cablesofallclassificationmadefromLowRelaxationstrandsconforming to IS:14268– latest version in Prestressed (Post-tensioned) Concrete girders/slabs etc. including supplying, cutting, making into cables with necessary spacers, colour coding, protecting with water soluble oil at all time, anchoring of cables, supplying and placing spiral corrugated type galvanized metal steel ducts sheathing made up of Cold Rolled Cold Annealed (CRCA) mild steel conforming to IS:513 of required diameter/ thickness, vent pipe, placing, bending, routing, fixing, stressing & grouting of cable ducts with cement grout, Anchorage sets in required numberwithprovision for futureprestressing if anyincludingall leadand lift with contractor’s own materials, labour, equipments etc. complete as per drawings & specifications. Rate also includes covering anchorage pads with epoxy mortar of approved quality to avoid corrosion. Cement for grouting to be paid separately. Payment shall be made in terms of weight of HTS cables as per drawing. cablesofallclassificationmadefromLowRelaxationstrandsconforming to IS:14268– latest version in Pretensioned Prestressed Concrete girders/slabs etc. including supplying, cutting, making into cables with necessary spacers, colour coding, protecting with water soluble oil at all time, placing, bending, routing, fixing, stressing including all lead and lift with contractor’s own materials, labour, equipments etc. complete as per drawings&specifications. Paymentshallbemadeintermsofweight of HTS cables as per drawing.",
+    "unit": "Cum",
+    "rate": 2536.39,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "031070",
+    "description": "Makingsuitabledesignedstagingforcastin-situPSCgirders/slabs upto materials, machinery, tools and plants, transportation complete in all respects required for casting and removal of the same after completing thework andrestoring thesiteto original.Note: Thepayment forstaging shall be made on the cubical quantity of concrete of main Girders/slabs.",
+    "unit": "Cum",
+    "rate": 2401.22,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "031080",
+    "description": "Supplying and laying in position specified grade precast prestressed cement concrete ballast retainers of size, as directed by Engineer In- charge. Payment for Shuttering, Cement, reinforcement, HTS cables, anchorage cones, stressing of cables and grouting of the ducts will be done extra. bearing true to line and level conforming to IS:3400, IS:226, BS-5400 underprestressedconcretegirders/SteelGirders,forPre-castaswellas cast-in-situ girders as per approved drawing. The rate shall include cost of loadtest of oneno. bearingfromRailwayapprovedfirmsandallfixing materials, equipments, machineries, labour, taxes, loading, unloading, leading, liftingetc. complete. Ratesincludegettingthedrawingapproved from Railway and cost of inspection during manufacturing from railway approved organization.Note : 1. The rate is for finished item complete and paid only after fixing in position below the girder. 2. The volume shallbegiveninthedrawingandnodeductionshallbemadeforinserted steel plates etc. type or strip seal elastomeric type expansion joints for Railway bridge or Road Over Bridges as per approved drawings and latest MORTH/IRC specifications complete in all respect as directed by Engineer in-charge. as per approved load test procedure following relevant IS/IRC/Railway codeswithcontractor’slabour, deflectionmeasuringinstruments,loading materials, recoding and analyzing the load testing results including all lead & lift, etc. complete as required. The rates are all inclusive and will be paid after load test is finished and girder is cleared of the kentledges/loading material etc. The load shall be 1.25 times the stipulated design load. design load capacity up to 800 MT",
+    "unit": "Cum",
+    "rate": 2536.39,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "031120",
+    "description": "Castingandinstallationofsingle/twinRCCboxofallsizeswithorwithout common web section including design of pushing scheme, thrust bed, casting of all RCC components, with specified grade of controlled concrete, pushing it in correct position and alignment below Railway track/Road following all measures of track safety by “Box pushing technique\" as per approved drawings/scheme, with or without surcharge in all types of soils with disposal of surplus earth awayfrom vent up to1 Km, fixing arrangement for all services& utilities including parapet walls on both sides, wearing course, foot paths, plaques, drainage arrangements etc. and all other incidental works to complete the ROB/RUB/Canal crossing in all respect as per specifications to the satisfactionofEngineer-in-Charge.Note:1.Therateincludesallitemsof work/supplies forcompletejobinallrespects except \"cost ofReinforced cement concrete, cement, reinforcement & shuttering\" of (i) main RCC Box; (ii) Thrust Bed; (iii) Footpath (iv) Parapet wall and (v) wearing Courseonly,whichshallbepaidextraunderrelevantitemsofUSSOR.2. In case Drag Sheet and/or Rail Cluster are to be used as per approved scheme and design, the same shall be paid extra under relevant item.3. The payment forthisitem shallbemadefor theclear innercrosssection area of the parent RCC Box/Boxes and barrel length i.e. clear inner volume of parent RCC Box/Boxes.",
+    "unit": "Cum",
+    "rate": 6731.01,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "031121",
+    "description": "Extra for using GI Drag Sheet, 1.50 mm thick, for protection of track from subsidence while pushing the box as per design over item no. cross section area of the parent RCC Box/Boxes and barrel length i.e. clear inner volume of parent RCC Box/Boxes.",
+    "unit": "Cum",
+    "rate": 889.37,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "031130",
+    "description": "Castingandinstallationofsingle/twinRCCboxofallsizeswithorwithout common web section after supporting the track on temporary girders including design of pushing scheme, thrust bed, casting of all RCC components, with specified grade of controlled concrete, pushing it in correct position and alignment below Railway track/Road following all measures of track safety by “Air pushing technique\" as per approved drawings/scheme,inalltypesofsoilswithdisposalofsurplusearthaway from vent up to 1 Km, fixing arrangement for all services & utilities including parapet walls on both sides, wearing course, foot paths, plaques, drainage arrangements etc. and all other incidental works to complete the ROB/RUB/Canal crossing in all respect as per specifications to the satisfaction of Engineer-in-Charge. Note: (1) The rate includes all items of work/supplies for complete job in all respects except \"cost of Reinforced cement concrete, cement, reinforcement & shuttering\" of (i) main RCC Box; (ii) Thrust Bed; (iii) Footpath (iv) Parapet wall and (v) wearing Course only, which shall be paid extra under relevant items of USSOR.(2) The CC Cribs as required and Temporary Girder shall be supplied by Railways at available location.(3) TransportationofTemporaryGirdertositeshallbepaidseparatelyunder relevant item..(4) The payment for this item shall be made for the clear inner cross section area of the parent RCC Box/Boxes and barrel length i.e. clear inner volume of parent RCC Box/Boxes. to ensure safety of track during box pushing in correct position and alignment with Railway rails and contractors MS flats, wooden blocks, and 12 mm dia bolts etc., as per approved drawing including removing and filling back of ballast below track under traffic conditions of Electrified/Non-Electrified section with all contractors, labour, tools, tackles, consumables plants, and 50MT capacity crane and any other materialrequiredforexecutionof work inallrespect with allleadandlift, transportation and as directed by Engineer in-charge. Payment quantity shall be as per the weight of rail in rail cluster used at site or as per approved drawing, whichever is minimum.",
+    "unit": "Cum",
+    "rate": 5853.05,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "031175",
+    "description": "Above 200 km MT",
+    "unit": "KM",
+    "rate": 4.41,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "031180",
+    "description": "Providing Flood Level Gauges on abutments and piers, made by 20mm thick 1:4 cement plaster for a width of not less than 300mm, duly engraving markings & figures in metres, divided into 10 parts commencing from under-side of girders towards bed, painting markings & figures with black enamel paint in three coats on white background including painting HFL Mark in white by side of gauge with year of occurrence with all Contractor's materials, labour, tools, scaffolding and supports, lead & lifts, curing etc. complete as per approved drawing and as directed by the Engineer in- charge excluding cost of cement which shall be paid extra. with Grating in RCC slab and filling bitumen along kerb as shown in drawingwithcontractor'spipes, bitumen, tools, equipment, lead, liftsetc. complete as per specifications and as directed by Engineer in-charge.",
+    "unit": "Sqm",
+    "rate": 572.55,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "031200",
+    "description": "Applying Epoxy Poly-sulphate Paint three coats on existing bottom surface of deck slab including cleaning surface of dirt, dust & other foreign matter, sand papering, wire brushing as required with all contractor’s materials tools, machinery, scaffolding, lead, lifts etc. complete as per specifications and as directed by Engineer in-charge pressure of 2.5 kg/sqm in footpath of ROB for laying cable with all contractor’s materials labour, tools, plant, machinery, vehicles, consumables, lead, lift etc. complete as per specifications and as directed by Engineer in-charge. place of Girder for any height",
+    "unit": "Sqm",
+    "rate": 282.5,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041020",
+    "description": "Supplying and fixing HSFG bolts of any dia and anylength with suitable nuts includingDTIwashersconformingtoIRS-B1-2001 for bridgesand steel structureswithcontractorslabour,toolsandplantsandleadandlift etc., complete. with crane/derrick / any other approved means at site on sub structure with labour, equipment, T&P including site bolting with all temporary arrangements, scaffolding etc. with contractors design and scheme for longitudinal launching/side slewing (not requiring traffic block) approved byRailway.Rateincludesdrifts,servicebolts,Holdingdownboltsetc.as per drawings.Note: Payment for HSFG bolts used if any will be made separately under relevant item. span",
+    "unit": "Kg",
+    "rate": 177.73,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041041",
+    "description": "On new girder during fabrication",
+    "unit": "Sqm",
+    "rate": 626.63,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041042",
+    "description": "For maintenance work under running traffic",
+    "unit": "Sqm",
+    "rate": 783.29,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041050",
+    "description": "Providing and fixing railing used in rows for footpathor anti-crashbarrier railingwithBclassG.I.pipe65/50mmnominaldiaincludingcostofM.S. angle and channels in vertical posts, welding / bolting, priming painting withonecoatreadymixZincChromateconformingtoIS:104withDFTof to IS:2074 with DFT of 25 Microns with all material, labour, T&P as a complete job.Note: Cost of painting shall be paid extra under relevant item.",
+    "unit": "Kg",
+    "rate": 95.72,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041060",
+    "description": "Supplying and fixing M.S. Angles 65mmx 65mmx 8mm or anyother size conforming to IS:2062 in the nosing of steps of stair cases of Foot Over Bridges including provision of 10mm dia, anchor bar 600mm c/c and fixing with main girder with M.S. flat, making anti-slip arrangements over the top of nosing as per approved scheme given byEngineer in charge with all material, labour, T&P as a complete job. relevant Codes/Specification in concrete column or in other structures withpropernuts, bolts, washers/plates, grouting of holeswithcementor epoxy concrete with all material, labour, T&P as a complete job.",
+    "unit": "Kg",
+    "rate": 95.93,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041071",
+    "description": "With Cement Grout. Cost of cement shall be paid extra.",
+    "unit": "Kg",
+    "rate": 118.8,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041072",
+    "description": "With epoxy concrete grouting. Trolley refuges etc., on bridges with structural steel conforming to IS:2062 including welding / bolting, priming painting with one coat of readymixed paint of Zinc Chromate (IS:104) with DFT of 25-30 microns followedbyonecoatofZincChromeRedOxide(IS:2074)withDFTof25 microns with all material, labour, T&P as a complete job.Note: Painting shall be paid separately under relevant item. rocker/roller bearing of different load bearing capacity conforming to IS :7666, IS:9565, IS:1030, IS:919, IS:3073 and IRS Bridge Code including all accessories as per drawing and Technical Specifications with all material, labour, T&P as a complete job. The payment shall be made for the load bearing capacity in Metric Tonne as per approved drawing.",
+    "unit": "Kg",
+    "rate": 126.54,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041190",
+    "description": "Supply & applying two coats of bitumen emulsion of Grade RS-1, conforming to IS:8887 on the top surface of concrete deck slab (New bridges) @ 1.70 kg/sqm after cleaning surface with all materials, labour, tools and plants, equipment etc. complete. revolving type for material handling, assembly & erection of girders/slab/RCC Box etc.",
+    "unit": "Sqm",
+    "rate": 115.42,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041201",
+    "description": "12 MT capacity",
+    "unit": "Day",
+    "rate": 8681.88,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041202",
+    "description": "20 MT capacity",
+    "unit": "Day",
+    "rate": 11400.45,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041203",
+    "description": "50 MT capacity",
+    "unit": "Day",
+    "rate": 28563.75,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041204",
+    "description": "80 MT capacity",
+    "unit": "Day",
+    "rate": 50111.85,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041205",
+    "description": "100 MT capacity",
+    "unit": "Day",
+    "rate": 62639.81,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041206",
+    "description": "150 MT capacity",
+    "unit": "Day",
+    "rate": 125279.62,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041207",
+    "description": "200 MT capacity",
+    "unit": "Day",
+    "rate": 244295.26,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041208",
+    "description": "250 MT capacity",
+    "unit": "Day",
+    "rate": 313199.05,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041209",
+    "description": "300 MT capacity",
+    "unit": "Day",
+    "rate": 372706.87,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041210",
+    "description": "Extra for increase in road crane capacity over Item 041209 for every additional 1 MT capacity or part there of cleaningwithscrappersand/or wirebrushestoremoveallrust andloose orperishedpainttoprepareperfectlyclean&drybaremetalsurfacefree from all dirt/foreign material & ready for initial coat of paint for new or existing steel girders. Rate includes cost of labour, consumables, brushes, tools& plants,ladders, scaffoldings,jhoola, hangingscaffolding staging etc.",
+    "unit": "Day",
+    "rate": 1319.69,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041221",
+    "description": "Existing girders with old paints",
+    "unit": "Sqm",
+    "rate": 53.07,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041222",
+    "description": "New girders during fabrication cleaningwithscrappersand/or wirebrushestoremoveallrust andloose orperishedpainttoprepareperfectlyclean&drybaremetalsurfacefree fromalldirt/foreignmaterial&readyforinitialcoatofpaint.Rateincludes cost of labour, consumables, brushes, misc. tools and plants, ladders, scaffoldings, jhoola, hanging scaffolding, staging etc.",
+    "unit": "Sqm",
+    "rate": 42.46,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041231",
+    "description": "Existing girders with old paints",
+    "unit": "Sqm",
+    "rate": 79.61,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041232",
+    "description": "New girders during fabrication",
+    "unit": "Sqm",
+    "rate": 63.68,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041240",
+    "description": "Surface preparation for painting of bridge plate/composite girders and other steel structures where the finishing coat shows signs of deterioration; but primer coat of paint issufficientlyingoodconditionand there are no signs of rusting etc. Surface shall be cleaned free from oil grease, scaling and other foreign matters without disturbing the primer coat {Rate includes cost of labour, consumables, tools & plants, scaffolding, jhoola, ladder etc.}",
+    "unit": "Sqm",
+    "rate": 26.02,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041250",
+    "description": "Surface preparation for painting of bridge Triangulated girders wherethe finishing coat shows signs of deterioration; but primer coat of paint is sufficiently in good condition and there are no signs of rusting etc. Surface shall be cleaned free from oil grease, scaling and other foreign matters without disturbing the primer coat. along with provision of Jhoola / hanging scaffolding ladders etc. where required.",
+    "unit": "Sqm",
+    "rate": 39.03,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041261",
+    "description": "With one coat ready mix Zinc Chromate conforming to IS:104 with DFT of 25-30 Microns followed by one coat of Zinc Chromate red oxide conforming to IS:2074 DFT of 25 Microns",
+    "unit": "Sqm",
+    "rate": 83.53,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041262",
+    "description": "With two cover coats of ready-mixed paint conforming to IS:13607 with colour/shades, as decided byEngineer-in chargeNote: DFT of each coat shall be 20-25 microns",
+    "unit": "Sqm",
+    "rate": 106.21,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041263",
+    "description": "With two coats Aluminium paints in dual containers conforming to IS:2339 with DFT of 15 - 20 Microns for each coat.",
+    "unit": "Sqm",
+    "rate": 87.26,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041264",
+    "description": "Withtwocoatsofepoxypaintconforming toRDSO specM&C/PCN/123-",
+    "unit": "Sqm",
+    "rate": 142.96,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041265",
+    "description": "With one coat Aluminium paint in dual containers conforming to IS:2339 with DFT of 15 - 20 Microns . along with provision of Jhoola / hanging scaffolding ladder where required.",
+    "unit": "Sqm",
+    "rate": 50.54,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041271",
+    "description": "With one coat ready mix Zinc Chromate conforming to IS:104 with DFT of 25-30 Microns followed by one coat of Zinc Chrome red oxide conforming to IS:2074 with DFT of 25 Microns.",
+    "unit": "Sqm",
+    "rate": 102.72,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041272",
+    "description": "With two cover coats of ready-mixed paint conforming to IS:13607 with colour/shades,asdecidedbyEngineer-incharge.Note:DFTofeachcoat shall be 20-25 microns.",
+    "unit": "Sqm",
+    "rate": 125.4,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041273",
+    "description": "Withtwocoats Aluminiumpaint indualcontainersconforming toIS:2339 with DFT of 15 - 20 Microns for each coat.",
+    "unit": "Sqm",
+    "rate": 106.45,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041274",
+    "description": "Withtwocoatsofepoxypaintconforming toRDSO specM&C/PCN/123-",
+    "unit": "Sqm",
+    "rate": 162.15,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041280",
+    "description": "Extra for working under traffic conditions over items 041220 to 041274 fabrication and erection of new bed plate of approved sizes in exact position over bed block on pier/abutments by giving full and even bearing, setting them on the layer of free flow non-shrinkable grouting compound, scrapping or chipping of bed block, if required, fabrication and fixing of holding down HTS bolts of suitable sizes along with nuts, washers etc., drilling holes of required size, grouting of holes by epoxy mortarafterfixingholdingdownbolts.Totalworktobedoneduringtraffic block. Cost of holdingdown HTSboltsshallbepaidextra under relevant item for supply of HTS holding down bolts.",
+    "unit": "Sqm",
+    "rate": 0.1,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041291",
+    "description": "Up to 12.2m clear span",
+    "unit": "Kg",
+    "rate": 232.69,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041292",
+    "description": "More than 12.2m and up to 18.3m clear span",
+    "unit": "Kg",
+    "rate": 244.33,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041293",
+    "description": "More than 18.3m and up to 30.5m clear span",
+    "unit": "Kg",
+    "rate": 255.96,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "041294",
+    "description": "Supply of HTS holding down bolts with nuts, washer etc. beams, girders, othermembersof FOBs and sheds; including leadingall structural elements within 1 Km lead, bolting, riveting or welding as per approved drawing or as directed by Engineer In-charge. Rate shall include cost of labour, materials, tools & plants and only pre-fabricated structural elements shall be given byRailway. (Work not requiring traffic or power block). power block. bearings with Grease Graphite, Kerosene oil and other materials as per Para 222 of Indian RailwayBridge Manual 1998 with painting of Bearing as per requirement complete as directed by engineer in-charge.Note: One unit shall consists of all bearing of one girder. Girders, precast PSC girders/slabs, casted at casting bed developed at site, tocorrect alignment andlevel over the bedblock / pedestal withall required arrangements, complete in all respect.",
+    "unit": "Kg",
+    "rate": 101.2,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "051010",
+    "description": "Providing and laying boulders apron on river bed for protection against scourwith stone boulders weighing not less than 35 kg each with voids filled with spalls complete as per drawing and Technical Specification.",
+    "unit": "Cum",
+    "rate": 1560.85,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "051020",
+    "description": "Laying of boulder apron laid in wire crates of approved size including overlapsatjoints,laidwithstoneboulders,alllooseendstobetiedwith done extra.",
+    "unit": "Cum",
+    "rate": 481.19,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "051030",
+    "description": "Supplying of stone boulders weighing not less than 35 kg each at specified bridge locations.",
+    "unit": "Cum",
+    "rate": 853.24,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "051040",
+    "description": "Manufacture and supplying Galvanized Wire Net Trungers made from strength of 300 Mpa conforming to IS:280 and galvanizing coating conforming to IS:4826, woven into mesh with double twist, mesh size not exceeding 100mm x 100mm.",
+    "unit": "Sqm",
+    "rate": 409.78,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "051050",
+    "description": "Providing and laying of Apron with cement concrete blocks cast in-situ and made withnominal mixof 1:2:4 with allmaterial ,labour,toolsand plants.Note:(1)Paymenttobemade forconcrete only;(2) Cementand shuttering to be paid extra.",
+    "unit": "Cum",
+    "rate": 2597.64,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "051060",
+    "description": "Providing and laying Pitching with Stone Boulders, weighing not less than35kgeachwithvoidsfilledwithspallsonslopes,laidoverprepared filter media including boulder apron laid dry in front of toe of embankment complete as per drawing and Technical Specifications (filter media to be paid separately under the relevant item).",
+    "unit": "Cum",
+    "rate": 1442.84,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "051070",
+    "description": "Providing and laying Pitching with Stone Boulders, weighing not less than 35kg each with voids filled with cement sand mortar 1:4 on slopes laidoverpreparedfiltermediaincludingboulderapronlaiddryinfrontof toe of embankment complete as per drawing and Technical Specifications (filter media to be paid separately under the relevant item). Rate is excluding cost of cement which shall be paid extra under relevant item.",
+    "unit": "Cum",
+    "rate": 2508.64,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "051080",
+    "description": "Providing and laying Filter Material as per RDSO Specifications underneath pitching in slopes complete as per drawing and Technical Specification.",
+    "unit": "Cum",
+    "rate": 2463.29,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "051090",
+    "description": "Laying Boulder Apron on river bed for protection against scour with stoneboulderssuppliedbyRailwaywithvoidsfilledwithspallscomplete as per drawings and Technical Specifications.",
+    "unit": "Cum",
+    "rate": 154.13,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "051100",
+    "description": "Laying Pitching with Stone Boulders supplied by Railway with voids filled with spalls on slopes, laid over prepared filter media including boulder apron laid dry in front of toe of embankment as per drawings and technical specifications. Note: Filter media to be paid under relevant item.",
+    "unit": "Cum",
+    "rate": 233.23,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "051120",
+    "description": "Cleaning Surface of Abutment and Piers up to bed level under water with brush or any other tools to remove all traces of moss, loose materials, fungus, algae, vegetation growth etc. Cleaning shall be carried out with contractor's trained staff, tools & plants, safety equipments etc. complete job including arranging safe approach.",
+    "unit": "Sqm",
+    "rate": 121.59,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052010",
+    "description": "Providing andlaying flooringwithrubble stone,laid over15cm thickCC with 1:2 Cement Sand mortar as per drawing and Technical specifications. Payment for cement to be done separately. Voids in the rubblestonetobetakenas35%ofthegrossvolumeofthestonelayer. Note: Base concrete shall be paid extra under relevant item.",
+    "unit": "Cum",
+    "rate": 2373.23,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052020",
+    "description": "Providing and laying 300mm thick (average) Dry Stone flooring with bouldersofnotlessthan35kgeachinweight,handpackedwithsurface levelled off to the correct section with hammer dressing as necessary on the ground including filling the gaps with quarry spalls and ordinary sand completeincludingcostofsupplyofallmaterials,labour,lead,lift,tools, plants, crossing of tracks and the like as per drawing and technical specification as directed by Engineer in charge.",
+    "unit": "Cum",
+    "rate": 1890.73,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052030",
+    "description": "Supply and laying of quarry dust including consolidation, supply of all materials, labour, lead, lift, tools, plants, crossing of tracks as per drawing and technical specification as directed by the Engineer in charge in case loose slush is encountered at site of foundation before casting the foundation or laying the filtering media.",
+    "unit": "Cum",
+    "rate": 1156.72,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052040",
+    "description": "Supply and laying of coarse sand including consolidation with all labour, lead, lift, tools, plants, crossing of tracks as per drawing and technical specification as directed by the Engineer in charge in case loose slush is encountered at site of foundation before casting the foundation or laying the filtering media.",
+    "unit": "Cum",
+    "rate": 1995.25,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052050",
+    "description": "Guniting concrete surface with cement mortar of average thickness cleaning surface and spraying complete including curing as per procedure and technical specifications given under Para 209.3 of IRBM. Rate is excluding the cost of cement which shall be paid extra. fixing compound after drilling holes for grouting as per Technical Specifications including subsequent cutting/removal and sealing of the hole as necessary after completion of grouting. cracks, through nipples complete as per Technical Specification and procedure given in IRBM Para No 209 including necessary admixture. Payment shall be as per use of cement by weight in case of neat cement/cement mortar grouting and weight of Epoxy in case of Epoxy Grouting. (Cement will be paid extra).",
+    "unit": "Sqm",
+    "rate": 574.86,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052071",
+    "description": "Neat Cement Grout with 20% anti shrinkage compound w.r.t. cement.",
+    "unit": "Kg",
+    "rate": 127.23,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052072",
+    "description": "Cement Sand Mortar (1:1) Grout with 20% anti-shrinkage compound w.r.t. cement.",
+    "unit": "Kg",
+    "rate": 122.92,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052073",
+    "description": "Epoxy Grout",
+    "unit": "Kg",
+    "rate": 583.07,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052080",
+    "description": "Applying epoxy mortar over leached, honey combed and spalled concrete surface and exposed steel reinforcement complete as per Technical Specification with average thickness of 10mm including priming coat, mortar plaster and seal coat of epoxy.",
+    "unit": "Sqm",
+    "rate": 949.84,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052090",
+    "description": "Applying shotcrete mixture of average thickness 40mm over masonry / concrete including removal of defective concrete, raking the mortar in joints, cleaning the surface thoroughly, fixing 50x50x3mm wire mesh over the surface for application of grout mixture comprising cement, sand, coarse aggregate, water, quick setting compound complete as per procedures and specifications given in IRBM Para No 209(3) including curing. Rate is excluding the cost of cement which shall be paid extra.",
+    "unit": "Sqm",
+    "rate": 635.31,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052100",
+    "description": "Applying pre-packed cement based polymer mortar of strength 45 Mpa (28days)forreplacementofspalledconcretewithaverage thicknessof",
+    "unit": "Sqm",
+    "rate": 360.8,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052110",
+    "description": "Providing & applying epoxywith potlife not less than 60-90 minutes for bondingofnewconcretewitholdconcrete@ 0.80kg/sqm and asper specificationsincludingcleaningthesurfacescompleteasperapproved procedure.",
+    "unit": "Sqm",
+    "rate": 386.41,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052120",
+    "description": "Providing&fixing12mmrabbitwiremeshatthejunctionofRCCwhere specifically ordered or as shown in the drawing Brick Masonry / Plain / Reinforced Concrete abutment, wing wall/return wall with 110 mm dia UPVC pipe (working pressure 4kg/sqcm) extending through the full width of the structure complete and repairing the same with cement mortar 1:2 (1 cement : 2 coarse sand). Rate is excluding the cost of cement which shall be paid extra. marked (Working pressure 4 kg/sqcm) using suitable clamps and adhesive etc., complete.",
+    "unit": "Sqm",
+    "rate": 71.2,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052150",
+    "description": "Providing and laying of filter media consisting of granular materials of GW, GP, SW groups as per IS:1498 (latest) in required profile behind boulder filling of abutments, wing walls / return walls etc. above bed level with all labour and material complete job as per drawing and technical specification of RDSO Guidelines. water jet, drying, replacing worn out reinforcements by welding new reinforcement for making up lost steel section, applying approved anti- corrosive polymer coating over the damaged area to proper profile, providing polymer mortar (up to 20mm thickness) or polymer concrete (more than 20mm thickness) consisting of cement, sand, 6mm down chips where required and polymer as per manufacturers' specification. The rate includes curing for 14 days, all materials, consumables, labours,tools and plants, scaffolding/staging with all lead and lift. Note: Cost of reinforcement, if used, to be paid separately.",
+    "unit": "Cum",
+    "rate": 1270.88,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052161",
+    "description": "20mm thick polymer mortar",
+    "unit": "Sqm",
+    "rate": 999.89,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052162",
+    "description": "20mm - 50mm thick polymer concrete corroded members of built up section made up of MS plate, angles, channels of different thickness and sizes including painting with one coatofreadymixpaintZincChromateprimingtoIS:104followedbyone coatofreadymixpaintred-oxideZincChromeprimingpainttoIS:2074. Structural steel should conform to IS:2062 E250- Grade'B0'. Fabrication and erection to be as per existing design initially by bolts andnutsandfinallybyrivettingduringthesanctionedtrafficblock. Rate includes cutting of new steel work, removal of rivets by drilling, dismantling of any existing members required for inserting fabricated members, fixing of new fabricated built up members with all tools, plants, labour, consumables, machinery and accessories etc. Work will be executed as per IRS:B 1-2001.Note: Painting shall be paid extra under relevant item. sizeatanylocationofthebridgeswithorwithouttrafficblocksincluding all tools, plants, machinery complete in all respects. abutments and piers with ready mixed paint as per standard in two coats over one coat of primer with all materials, labour, tools, scaffolding, all lead and lift etc. including writing complete. cement concrete 1:2:4 mix using 20mm hard stone aggregate embedded in 30mm notch in Bridge parapet coping duly engraving the letter and figures and an arrow indicating the direction of flow and finishing the top exposed surface with cement mortar 1:3, painting letters and figures with two coats of black enamel paint on two coats of white background with all labour,tools, cement,paint etc.with all leads and lifts. aggregate embedded in 30mm deep notch over abutment & piers, engraving the letters & figures with CM 1:3 and finished smooth including painting letters and figures with 2 coats of black enamel and plaque with white enamel with all labour, tools, cement, paint, curing etc. as a complete job. jointing with 1:2 cement and ordinary sand mortar including testing of joints, but excluding earthwork with all labour and material as a complete job. Cement for mortar will be paid separately.(Pipes of",
+    "unit": "Sqm",
+    "rate": 998.96,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052240",
+    "description": "Supplying, spreading and filling coarse sand (no cohesive materials to be used) of approved quality including watering and ramming in foundation, behind the abutment, wing wall, retaining wall in layers not exceeding 150mm thick including its compaction as per direction of Engineer-in-charge. The rate includes all lead, lift, ascent, descent, crossing of Railway line etc. complete with contractor’s labour, materials, tools and plant.",
+    "unit": "Cum",
+    "rate": 1117.07,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052250",
+    "description": "Providing Boulder Backing behind wing wall, return wall, retaining wall withhandpacked boulders&cobbleswith smallersize boulderstoward the back including all lead, lift, labour & other incidental charges as complete work in all respect. Payment for boulder/cobbles will be done extra. to be done for Horse power of pump multiplied by pumping hours.",
+    "unit": "Cum",
+    "rate": 166.97,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052270",
+    "description": "Supplying & fixing Galvanised Steel Wire Rope net, made of 9mm dia. steel wire rope having aperture size of 45cm x 60cm with 6m long hangs for top anchoring and 5m wide along with chain-link mesh-netting of joining of chain-link mesh & steel wire rope net and joining of adjacent nets with galvanised spiral lock springs of steel wire dia 2.2mm; inner dia. of springs 18mm; total length 50mm ± 0.5mm; pitch 4mm & open end length 60mm including cutting of tree/shrub etc. in rope-netting locationandalso,excavation/filling-backoftrenchesinalltypesofsoil afteranchoringropenetwithRCCpre-castbeamofsize15cmx15cmx supply of 200mm x 200mm x 6mm epoxy coated washer plates with bolts/fasteners of 10mm dia. including drilling of holes up to a depth of coated washer plates; applying torque 65 to 70 N/mm for fixing of rope net for intermediate anchoring on the surface of cutting, bottom anchoring up to 1m depth by using 16mm dia. HYSD steel bolts, threaded up to 200mm on top and fixing epoxy coated washer plate, fabrication & fixing of U-pin on top of cutting for top anchoring and joining of adjacent nets with spiral spring and fixing atthe ratio of 1 no. per 0.6m in longitudinal direction of net portion and additional locks for lacing chain link netting with rope net with contractor's materials, machinery, tools & plants, cement, steel, labour, lead, lift, transportation, ascent, descent, taxes, royalty etc. complete as per directions of engineer-in-charge. Note: Concrete will be paid separately under relevant item.",
+    "unit": "Sqm",
+    "rate": 741.05,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052280",
+    "description": "Supplying & placing of MechanicallyWoven Double Twisted Hexagonal ShapedWireMeshGabion Boxesofrequiredsizes,MeshType 10cmx meshes mechanically edged / selvedged with heavy coating of galvanization as per EN 10223-3/ASTM A 975 with partitions at every including transportation and placing atindicated places as per direction of engineer-in-charge including contractor'stools, plants, labour,royalty chargesetc.completeinallrespectandstitchingwithlacingwireofdia. materialbyheadloadfromnearestapproachwithallsafetyprecautions and all leads and lifts.",
+    "unit": "Cum",
+    "rate": 1882.25,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "052290",
+    "description": "Supplying & placing partly or fully underwater of Polypropylene Tarred Rope Gabion, fabricated from 9mm dia. rope, 100mm x 100mm Mesh with partitions at every 1m interval and properly packed with approximately 150mm size boulders including transportation and placing at indicated places as per direction of engineer-in-charge with contractor'stools,plants,labouretc.includingroyaltycharges complete in all respect and stitching with polypropylene lacing rope of minimum dia. 4mm; carrying the material by head load from nearest approach with all safety precautions and all leads and lifts. following items for ROB/RUB/Bridge based on Railway's approved GADs, duly collecting necessary data from Railways and R&B authorities, duly designing members and submission of check plot duly getting proof-checked by Railway approved institutes, submitting for Railway's verification and approval, making corrections duly incorporating suggestions in drawings/designs, further submission of original in transparent film paper and soft copy (CD) for Railways approval etc. with contractor's technical expertise and instruments, labour, consumables, repeatedly attending till final approval etc., complete as directed by Engineer in-charge. approach slab",
+    "unit": "Cum",
+    "rate": 1961.78,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "053020",
+    "description": "Extra for providing and mixing synthetic Polyester triangular synthetic fibre in specified ratio (@ 0.25% of cement by weight), 6 to 18mm in length, designed for melting point 240°C to 260°C and specific gravity of1.33to1.40inalltypesofworkCC/RCC/plaster etc.,This item shall only be used on specific instructions of Engineer-in-Charge.",
+    "unit": "Kg",
+    "rate": 425.71,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "061011",
+    "description": "Up to 40 m long rail panel",
+    "unit": "RM",
+    "rate": 9.51,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "061012",
+    "description": "More than 40 m long rail panel",
+    "unit": "RM",
+    "rate": 15.04,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "061013",
+    "description": "Extra to Item no. 061011 for working on bridge",
+    "unit": "RM",
+    "rate": 4.16,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "061014",
+    "description": "Extra to Item no. 061012 for working on bridge anytype& densityof sleeperbyremovingfishplates,fastenings &fish bolts and other materials including stacking all released materials within an average distance of 500 metres as directed by Engineer in- charge. Note:1.Cutting of rails shall be paid separately. 2.Work to be done under traffic block.",
+    "unit": "RM",
+    "rate": 6.92,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "061022",
+    "description": "For Casual/Scattered Rail Renewal work density of sleeper to the specified gauge under traffic block. Rates iinncclluuddee ffaasstteenniinngg ooff rraaiill wwiitthh sslleeeeppeerrss wwiitthh ssttaannddaarrdd sseett ooff ffaasstteenniinnggss and fixing of fish plates and bolts or, if required, providing gap for welding and stacking of released material without infringement within to be paid separately.",
+    "unit": "RM",
+    "rate": 36.96,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "061032",
+    "description": "For Casual/Scattered Rail Renewal work existing sleepers of any type along with fittings from track, insertion of PSC sleepers lying along the cess / formation / slope / toe within 5 metres height with all fittings to specified spacing, gauge and squareness, one round of through packing to make track fit for 20 kmph speed, dressing of ballast to standard profile, all in accordance with the latest provisions of IRPWM and stacking of all released material neatlyat specified places within an average lead of 100 m as directed by Engineer in-charge. paid separately). screening screening. (deep screening to be paid separately) lying on slope / toe of bank beyond initial height of 5 metres.",
+    "unit": "RM",
+    "rate": 39.13,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "063110",
+    "description": "Lubrication of gauge face of rail on curves, cross overs, points & crossings, turn-in curves and at locations as required with contractor's grease graphite grade \"O\" IS 408 and as directed. Bridges, Curves etc., with greases graphite, including removal of screws carefully without damaging sleepers, cleaning with wire brush etc., both screws and dowel hole, applying grease graphite, refixing the screw and sealing the top and sides of screw with grease graphite to prevent ingress of moisture and corrosion with contractors labour, tools, consumables under traffic condition all lead and lift complete. Railway's fittings for track/Points & Crossings sleepers including leading to required location for the work and the released fittings shall be collected and neatly stacked, as directed by the Engineer In charge.Note: New fittings shall be supplied from and released material shall be deposited at, nearest P.Way Stores. any approved methods, duly drilling holes in broken screw and removing existing screw pieces from the holes along with existing dowels and fixing new contractor's dowels (procured from RDSO approved sources) and grouting around dowel with Epoxymaterials of approved specification and refixing new Railway's rail/Plate screws duly greasing the screw with specified grease with all contractor's materials, consumables, tools & plants, labour with all lead, lift. Note:1.Seized screws shallbe identified and markedbyJE/P.Wayand verified at minimum SSE/P.Way In charge) level.2. Due care shall be taken to avoid any damage to the sleeper 3.A penalty of 50% of the basic cost of new sleeper innearest sleeper factoryshallbe levied on each, if sleeper gets damaged in the process.",
+    "unit": "RM",
+    "rate": 3.31,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "082011",
+    "description": "For average lead up to 50m and lift up to 5m part thereof when total average lead exceeds 50m, but up to under prior order on record. thereof when total average lift exceeds 5m.",
+    "unit": "Cum",
+    "rate": 98.4,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "083040",
+    "description": "Removing, screening and salvaging ballast from track, duly digging / scarifying ballast by beaters / wire brushes or any mechanical means, leveling and dressing formation with specified cross slope after salvaging ballast, separating muck by screening the salvaged ballast with contractor's 20mm size sieve, stacking of screened ballast for measurement, disposing off muck at specifiedlocations withall lead & lifts as directed by Engineer in-charge.Note: Payment shall be made for quantity of ballast stacked after screening of retrieved ballast from track.",
+    "unit": "Cum",
+    "rate": 321.8,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "084010",
+    "description": "LoadingRailway'sballast,collectedatyard/depot intoRailway'sBOB /BKH/anyothertypeofopenwagon,usingMechanicalLoaderorany other method with all lead and lifts, as directed by Engineer in-charge.",
+    "unit": "Cum",
+    "rate": 33.04,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "084020",
+    "description": "Leading and loading Railway's Ballast collected at yard / depot into Railway's covered wagon using any approved method with lead up to",
+    "unit": "Cum",
+    "rate": 111.96,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "084030",
+    "description": "Leading and loading Railway's Sand collected at yard / depot into Railway's covered wagon using any approved method with lead up to distribution as per pre-defined site requirement, clearing infringements/jammed ballast, distributing the unloaded ballast uniformly over the track, profiling and boxing following all prescribed",
+    "unit": "Cum",
+    "rate": 57.7,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "084041",
+    "description": "Under Traffic Block Conditions:",
+    "unit": "Cum",
+    "rate": 54.62,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "084042",
+    "description": "Under Conditions not requiring Traffic Block: wagons by opening the doors of boxes and pulling & pushing down ballast with rake irons / phowrahs and distributing unloaded ballast uniformly over the track as required, clearing infringements/jammed ballast, profiling and boxing following all prescribed safety norms.",
+    "unit": "Cum",
+    "rate": 41.46,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "084051",
+    "description": "Under Traffic Block Conditions:",
+    "unit": "Cum",
+    "rate": 124.41,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "084052",
+    "description": "Under Conditions not requiring Traffic Block:",
+    "unit": "Cum",
+    "rate": 101.66,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "084060",
+    "description": "Unloading of sand / quarry dust during block from Railway's wagons other than Hopper wagons by opening the doors of boxes and pulling & pushing down sand with rake irons / phowrahs taking out jammed sand and distributing unloaded sand uniformly over the track. conforming to RDSO Specification (IRS-GE-1) with latest correction slips at Railway depot or nominated location.Note: Distance of nearest quarry mentioned in each sub-item is only for the purpose of selecting the items for preparation of estimates/tender schedule, based on the minimum distance between nearest quarry and centre of supply points and will not affect the selection of quarry during physical supply in any way till prescribed specification is met fully.",
+    "unit": "Cum",
+    "rate": 116.41,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "085011",
+    "description": "When distance of nearest quarry is up to 10 km",
+    "unit": "Cum",
+    "rate": 831.46,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "085012",
+    "description": "When distance of nearest quarry is more than 10 km and up to 20 km",
+    "unit": "Cum",
+    "rate": 886.99,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "085013",
+    "description": "When distance of nearest quarry is more than 20 km and up to 30 km",
+    "unit": "Cum",
+    "rate": 948.16,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "085014",
+    "description": "When distance of nearest quarry is more than 30 km and up to 40 km",
+    "unit": "Cum",
+    "rate": 977.57,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "085015",
+    "description": "When distance of nearest quarry is more than 40 km and up to 50 km",
+    "unit": "Cum",
+    "rate": 1017.94,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "085016",
+    "description": "When distance of nearest quarry is more than 50 km and up to km",
+    "unit": "100 Cum",
+    "rate": 1131.22,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "085017",
+    "description": "When distance of nearest quarry is more than 100 km and up to 150 km",
+    "unit": "Cum",
+    "rate": 1336.05,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "085018",
+    "description": "When distance of nearest quarry is more than 150 km and up to 200 km",
+    "unit": "Cum",
+    "rate": 1551.14,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "085019",
+    "description": "When distance of nearest quarry is more than 200 km and up to 250 km",
+    "unit": "Cum",
+    "rate": 1766.23,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "111021",
+    "description": "Extra for increase in compacted quantity / decrease in area of Non-woven Needle Punched and Mechanically or Thermally bonded type Geo-textile required as per approved design over net quantity of 4.0 Sqm per TRM considered in above items.",
+    "unit": "Cum",
+    "rate": 1624.57,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "111031",
+    "description": "Extra for increase in area Cutting more than 6 meters height based on soil materials & parameters as per RDSO's latest standards and specifications, duly conducting relevant lab test, e.g. cohesion and angle of internal friction etc. and submitting report for approval dulyshowing the cross- section dimensions for embankment / cutting for each cross section.",
+    "unit": "Sqm",
+    "rate": 236.56,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "113010",
+    "description": "Cess repair/widening work as per RDSO Specifications and guidelines RDSO/2020/GE: IRS-0004 or latest in running line with suitable soil to the designed profile The work shallinclude uprooting and disposing of all the vegetation, benching at every30 Cm vertical height, earthwork in benching portion and compaction using suitable slope vibratory Rollers/Compactors etc. to achieve prescribed MDD. Note:1. Payment of cess repairs shall be based on the quantities worked out from the cross sectional calculations only and worked out from the initial ground levels before doing benching and final levelsas done for new embankment. The earth work in benching portion shall not be paid extra as the same has been included in the rate.2. The earth work shall be started only after Completing of the benching and certified. 3. The benching Work shall be done for a maximum height of 1.50 m at any time based on the progress of earthwork starting from toe of the embankment.",
+    "unit": "Cum",
+    "rate": 318.5,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "113020",
+    "description": "Extra over item 113010 for earth-work for making cess on other side of the track (when no approaches available along track or no road vehicles to work at site) by dumping contractor's own earth, collected along toe of bank of any height on to other side of track & side slope of the existing bank by head load, duly crossing of tracks with all contractor's materials, labour, tools, plant including loading of earth in baskets, lifting, leading to the non-cess side of bank including crossing of tracks & dumping etc. and as directed by the Engineer in- charge.",
+    "unit": "Cum",
+    "rate": 31.85,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "113030",
+    "description": "Excavation for widening of existing formation in cuttings in hard soils which require picks or crow bars for hacking including soils containing stones or boulders of size under 0.03 cum without infringing the nearby track, as directed by engineer-in-charge at site including cutting of earth, loading, leading bycontractor’s vehicles, unloading at site, dumping on spoil bank by head loads and utilising same excavated earth for widening of existing formation in embankment as per standards, duly rolling manually at 2:1 slope and levelling bank to the required profile including watering and compaction with contractor's labour or mechanically operated rollers with all contractor's labour, clearing of jungle, benching etc., tools, plants, vehicles etc. complete with lead up to 1000m and all lifts including crossing of track, wherever necessary.",
+    "unit": "Cum",
+    "rate": 474.4,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "122011",
+    "description": "Rail length up to 13m - Under Traffic Block",
+    "unit": "RM",
+    "rate": 20.72,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "122012",
+    "description": "Rail length up to 13m - Under Conditions not requiring Traffic Block",
+    "unit": "RM",
+    "rate": 16.86,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "122013",
+    "description": "For rails/panels of more than 13m and up to 40m length - Under Traffic Block",
+    "unit": "RM",
+    "rate": 30.66,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "122014",
+    "description": "For rails/panels of more than 13m and up to 40m length - Under Conditions not requiring Traffic Block",
+    "unit": "RM",
+    "rate": 21.88,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "122015",
+    "description": "For rails/panels of more than 40m length - Under Traffic",
+    "unit": "RM",
+    "rate": 44.96,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "122016",
+    "description": "For rails/panels of more than 40m length - Under Conditions not requiring Traffic Block",
+    "unit": "RM",
+    "rate": 31.92,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "122017",
+    "description": "Extra over item No 122011 for crossing each additional line",
+    "unit": "RM",
+    "rate": 2.07,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "122018",
+    "description": "Extra over item No 122013 for crossing each additional line",
+    "unit": "RM",
+    "rate": 3.07,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "122019",
+    "description": "Extra over item No 122015 for crossing each additional line",
+    "unit": "RM",
+    "rate": 4.5,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "123030",
+    "description": "Spreading of ballast, from existing stacks available along formation ontoporat cess, in requireduniform thickness,compaction of ballast layer laid on new formation at all the locations with smooth wheeled power roller of 8-10 tonne capacity to sufficient number of passes to form consolidated ballast bed of approximately 250mm thickness to a widthof 4m symmetricalto centreline of proposed trackin correctline & level with all ascents & descents, as directed by Engineer in- charge.Note: Item is inclusive of (a) providing ramp for taking roller to formation and removing the same & making good formation after completion of work; (b) redistribution & leveling of excessballast while rolling to obtain uniform plane cambered surface.",
+    "unit": "Cum",
+    "rate": 38.64,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "124043",
+    "description": "Completion drawing of land plan bbeeaarriinngg ppllaatteess ssuupppplliieedd bbyy RRaaiillwwaayyss iinn ppiitt lliinneess,, dduullyy bbrreeaakkiinngg // chiselling CC to required depth, so as to fix new bearing plates etc. with allcontractor'slabour, tools, lead, lift, transportation etc. including crossing of tracks complete and as directed by Engineer in-charge (concrete work for fixing will be paid separately)",
+    "unit": "Km",
+    "rate": 4372.02,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "133021",
+    "description": "For Rail panel more than 13m and up to 40m length",
+    "unit": "RM",
+    "rate": 22.41,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "133022",
+    "description": "For Rail panel more than 40m length directed byEngineer in-charge with contractor's labour,tools &plants, as required with general lift up to 25mm including one round of through packing, ballast profiling, loosening/tightening of P.Way fittings, if required and other incidental works. Note: Payment will be made based on average slew calculated in each 50m length of track by averaging absolute values of positive and negative value of slews. up to 100mm and up to 150mm",
+    "unit": "RM",
+    "rate": 26.21,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "136041",
+    "description": "One mobile Gang comprising of 15 physically fit labours plus 1 Gang Mate.Note: (1) In case, contractor provides less no. of Labour/Mate or for non availabilityof vehicle, payment willbe deducted for each such personornon-availabilityof vehicle @20%of theaccepted item rate, separately for each shortfall. (2) The Contractor shall keep one pick up Truck of minimum 1.5T payload capacity with Driver all the time and allexpendituresfor runningat anaverage of 80 kmsper dayshall be born by the Contractor.",
+    "unit": "Day",
+    "rate": 14333.53,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "136042",
+    "description": "One Gang comprising of 20 physically fit labours plus 1 Mate.Note: In Gang case, contractor provides less no. of Labour/Mate, payment will be deducted for each such labour @ 10% of the accepted item rate. including removal of fittings and re-fixing the same after changing of gauge face, cutting of rails, joining the rails with fish plate & drilling holes as directed by engineer in-charge. or insertion of glued joint by cutting existing track under traffic condition by cutting rails, refixing with all rail sleeper fastenings and providing required gaps for carrying out welding as an alternative to drilling holes or joining rails with fish plates duly drilling holes as required including stacking of released material and as directed by engineer in-charge. Note: (1) Drilling holes & rail cutting will be paid separately.(2) Transportation of materials to the site of work from supply points, if more than 250m, shall be paid separately. between track and platform wall. into blocks by sawing to size) fixing the dowels with adhesive of RDSO approved quality for fixing check rails & guard rails, as directed by Engineer in-charge.",
+    "unit": "Day",
+    "rate": 16036.52,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "136090",
+    "description": "Cleaning of side drains along the track including disposing of muck beyond Railwayboundary as per instructions of Engineer in-charge to keep drains clean and clear in cuttings etc. from centre line of track in mid section & station yard, as specified by Engineer in-charge including disposal of branches, bushes outside cess/yard. those obstructing views of Curves/LCs / Signal / Indicator at locations in section & station yard, as specified by Engineer in-charge including disposal of branches, bushes outside cess/yard. Note: Girth of more than 20 cm will only be considered as tree branch.",
+    "unit": "RM",
+    "rate": 33.61,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "136120",
+    "description": "Making kutcha trapezoidal side drain of bottom width as 300mm and depth of 450mm in cutting section by excavation in all types of soil including utilising excavated muck for dressing of cess, slopes etc. in Railway land. weather on track for protecting track as per IRPWM. Note:1.The person deployed for patrolling must have the following items:• Valid certificate of competency issued by Railways.• Fit for A-3 medical category - certificate issued by registered medical practitioner each patrolman and same to be handed over back to Railways in good condition.3.The following equipment to be arranged by contractor for each patrol man:H.S.Flags Green -1 No (Standard size), H.S Flags Red- 2 Nos. (Standard size),Torch light 3 cell -1 no., Staff for flags -1 no., Whistle Thunder - 1no, Protective clothing to withstand climate, Gum boots, Haver sack. whenever required for protection of track as per IRPWM (for a duration of 12 hours).Note:1.The person deployed for patrolling must have the following items:• Valid certificate of competency issued by Railways.• Fit for A-3 medical category - certificate issued by registered medical practitioner.2.The equipment supplied by Railways shall be handed over back to Railways in good condition:",
+    "unit": "RM",
+    "rate": 132.55,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "137011",
+    "description": "For 60 Kg Rails",
+    "unit": "RM",
+    "rate": 47.33,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "137012",
+    "description": "For 52 Kg Rails on web, foot etc. including liner contact area (excluding bottom of foot) and fishing plane asper requirement with two coats of thickness of 100 microns each by bituminous black paint confirms to IS-9862 of reputed make including painting of liners, ERCs and including surface preparation, as a complete job as per procedure prescribed in latest edition of IRPWMNote: 60% of payment shall be made if painting on only gauge face side is done. track for old painted joints in normal corrosive prone area for any rail section with two coats of ready mixed bituminous black paint of reputed make confirming to IS:9862 latest version on welded area up to 10cm on either side including on the underside of rail foot by brush including surface preparation as per Railway's AT Weld Manual including lettering / weld numbering with approved enamel paint as directed Note:1.Before painting, dust, dirt and flaked paint from the welded joint shall be removed thoroughly by scrapping with wire brush. Grease and oil shall be removed byuse of appropriate solvent confirming to latest IS:1745. 2.Use of detergent followed by water washing should also be done to ensure removal of oil and grease apart from the greasing compound.3.The paint should be procured along with the thinner recommended by the manufacturer of the paint.4.No other thinner like kerosene oil should be used.",
+    "unit": "RM",
+    "rate": 42.05,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "137105",
+    "description": "Miscellaneous General Boards, Jurisdiction Boards, Structures etc. separation of PSC Sleeper along whole periphery and puncturing of apron under the sleepers, chiselling as required including removal of foreign materials from the sleeper trench and dewatering duly filling cement concrete with CONBEXTRA-GP2 or similar, the narrow gaps completely including pouring, finishing, curing to match with the existing C.C.apron surface and slopes complete, labour charges in traffic block and as per the direction of Engineer In charge.",
+    "unit": "Sqm",
+    "rate": 110.22,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "141010",
+    "description": "Ultrasonic testing of single rails, required for fabrication of points and crossings by using double crystal normal probe 4.0 MHz frequency with water / oil couplant. The rails shall be tested by probing from the rail head top, rail head side and web with typical oscillogram pattern for various probe positions as per 'Indian Railways Standard Specification for Ultrasonic Testing of Rails and Welds', as applicable to rails for fabrication of points & crossings. The rates are inclusive of contractor’s men, materials & machines complete and as directed. flange testing) including level crossings, lead portion of points and crossings and scabbed rail testing of all types of rails by NBC (Need Based Concept) method under traffic conditions as per provisions of IR’s \"USFD Manual & Specifications for Ultrasonic Testing of Rails and Welds\" with latest correction slips & related instructions, duly marking defects, submission of daily reports and storing back-up data, as specified & directed. Note: The SRT/DRT machine should have minimum of 9 probes (including 370 forward /backward probe for detecting bolt hole cracks. of rails, using 0º (2 MHz) double crystal; 70º (2 MHz) 20mm x 20mm single crystal probe for head & flange testing; 2 nos. 45º (2 MHz) single crystal with tandom rig for testing from rail top to bottom & for half moon testing and 70º (2 MHz) 20mm x 20mm side looking probe byNBC(Need Based Concept) method under trafficconditions asper provisions of IR’s \"Manual & Specifications for Ultrasonic Testing of Rails and Welds\" & related instructions duly marking the defects, submission of daily reports and storing back-up data as specified & directed. The rates are inclusive of contractor’s men, materials & machines complete unless otherwise specified and directed. machine. including related T&P and probes : including related T&P and probes :",
+    "unit": "RM",
+    "rate": 41.7,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "144020",
+    "description": "Providing an assisting gang comprising of 4 men per day with Gang SSE/P.Way/ USFD for carrying out ancillary works viz., lookout, watering, paint marking and handling machine for USFD test with Single Rail Tester (SRT) machine and as directed by Engineer in charge.Note: 1. This item shall be operated only when there is no departmental staff available and only with the prior approval of concerned Sr. DEN/Co-ordination.2. In case, contractor provides less no. of Labour, payment will be deducted for each such person @",
+    "unit": "Day",
+    "rate": 2881.92,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "144030",
+    "description": "Providing an assisting gang comprising of 6 men per day with Gang SSE/P.Way/ USFD for carrying out ancillary works viz., lookout, watering, paint marking and handling machine for USFD test with Double Rail Tester (DRT) machine and as directed by Engineer in charge.Note: 1. This item shall be operated only when there is no departmental staff available and only with the prior approval of concerned Sr. DEN/Co-ordination.2. In case, contractor provides less no. of Labour, payment will be deducted for each such person @1/3 rd of the accepted item rate.",
+    "unit": "Day",
+    "rate": 4316.19,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "151080",
+    "description": "Mechanised loading of all types of rails on BFRs in PQRS Depot with Railway's cranes, as directed by engineer in-charge.",
+    "unit": "RM",
+    "rate": 10.58,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "151090",
+    "description": "Providing group of 2 men for doing various miscellaneous works for Railway's PQRS cranes (one set of 2 portals) for proper upkeep of crew rest van / rest room, as directed by the machine in-charge by : (1) Fuelling the machine, duly bringing diesel / hydraulic oil from the stacked drums;(2) Bringing water to the staff rest van or staff rest room, cleaning rest van / rest room, cooking food for Track Machine staff or bringing food from outside (cost of food shall be borne by the staff concerned). parts, oils, grease etc. of PQRS cranes (one set of 2 portals) during day and night time in a shift of 12 hours each, at all locations wherever necessary, as instructed by the machine in-charge.Note: One shift comprises of 12 hours. cess, fixing railson wooden blocks/ CST-9 pots at 2m interval, true to square, to required alignment & level, fixing with spikes / screws / keys, linking rails with fish plates, bolts & nuts to a gauge of 3400mm (with reference to centre line of existing BG track), levelling both the rails to same plane as that of BG track over stone ballast by way of removing ballast from shoulders of existing track, providing one round of packing. Subsequently, dismantling auxiliarytrack after completion of PQRSwork at site bywayof removing wooden blocks/ CST-9 pots and carrying same to next stretch / location, if required, where auxiliary track has to be laid and spreading the same at required locations and leaving rails there itself for carrying out TRR work later. any density with all types of rails / rail panels lying in auxiliary track or on cess for replacement of service rails including handling of rails by wayof dragging, pairing etc. and leading released service rails to load into BFR / Lorry or to shift to next location including crossing of track with lead & lift and any other incidental works as required.",
+    "unit": "Day",
+    "rate": 1447.65,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "155021",
+    "description": "Level crossing with asphalted surface",
+    "unit": "Sqm",
+    "rate": 391.93,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "155022",
+    "description": "Level crossing with CC block surface",
+    "unit": "Sqm",
+    "rate": 338.15,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "155023",
+    "description": "Level crossing with Moorum/earth surface machine packing with all contractor's men and materials duly removing fittings, leading guard rails to bridge approaches, lifting, dragging, positioning and crossing of track etc, and as directed by Engineer In charge.",
+    "unit": "Sqm",
+    "rate": 266.44,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "172048",
+    "description": "Extra for every Km per MT beyond 150 Km over item no. 172047 MT Glued Joints by road vehicles for different leads.Note: 1. Lead shall be the shortest motorable road length between the points of loading and unloading.2. Loading and unloading shall be paid extra under relevant items.",
+    "unit": "Km",
+    "rate": 2.98,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "172058",
+    "description": "Extra for every Km per MT beyond 150 Km over item no. 172057 MT",
+    "unit": "Km",
+    "rate": 2.98,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "173050",
+    "description": "Un Loading of stone boulders weighing not less than 35 kg each from Railway Wagons and stacking at specified locations with all contractor'stools&plants, machinery, labour, lead andlift, crossingof track wherever necessary etc., complete as directed by the Engineer In charge.",
+    "unit": "Cum",
+    "rate": 185.51,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "181010",
+    "description": "Openingof levelcrossinguptorequiredwidthfrom centreline of track for replacement of sleepers by digging of pucca road surface up to bottom of sleeper, removing of ballast, muck etc., screening of ballast & stacking the same near level crossing and disposing of all debris, replacing the required sleeper dulypacking the sleeper to make fit for normal traffic and closing of LC surface with screened ballast to original level by proper ramming and consolidation to smooth motarable surface as directed by engineer in-charge.",
+    "unit": "Sqm",
+    "rate": 381.94,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "181020",
+    "description": "Dismantling existing check rail of Level Crossing, blocks, bolts & nuts and stacking these in a countable manner near LC, free from any infringements as directed by Engineer in-charge. released material in countable manner, free from any infringements as directed by Engineer in-Charge including removal of cement concrete foundation and making surface clean. other components like boom, fringes, locking arrangements, pedestal, boom rest, locking rods/wires, pulley stakes, turn out wheels, 'A' base and other materials connected with functioning of lifting barrier, removing engineering indicators on track and level crossing road signages without any damage including demolishing concrete base of existing structures, filling, ramming and levelling the ground disturbed during demolition, clearing debris and stacking allreleased materialin a neat and countable manner and clear of infringements, as directed.Note: Barriers on both sides of level crossing constitute one set. assembly, like boom, fringes, locking arrangements, pedestal, boom rest, locking rods/wires, pulley stakes, turn out wheels, 'A' base and other materials connected with functioning of lifting barrier without any damage including demolishing concrete base of existing structures and clearing debris in a neat manner and stacking in a countable manner and clear of infringements, as directed.Note: Barriers on both sides of level crossing constitute one set. foundations posts, meeting post and stopper post etc. without causing any damage to material and stacking the same near LC gate as directed by Engineer in-charge.",
+    "unit": "RM",
+    "rate": 188.47,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "182011",
+    "description": "Level crossings with asphalted road surface",
+    "unit": "Sqm",
+    "rate": 590.37,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "182012",
+    "description": "Level crossings with concrete blocks road surface",
+    "unit": "Sqm",
+    "rate": 536.25,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "182013",
+    "description": "Level crossings with any other type of road surface drawings & specifications and as directed by engineer in- charge. rails of all rail sections over PSC Sleepers as per Railway’s approved drawings & specifications for level crossings / trolley paths/inspection lines in yards duly cutting rail flanges, wherever required to correct alignment and level, drilling of holes with machine in check rails and fixing to Running rail and sleepers with all Railway's fittings, e.g. rail screws / grip expansion bolts, brackets, packing pieces, bolts, washers etc including grinding of brackets if required, fixing of Railway's wooden blocks at flare ends duly cutting and plaining, crossing of tracks and as directed by the engineer in-chargeNote: 1. Drilling of holes in PSC Sleeper and fixing of dowels shall be paid under relevant item.2. Required P.Way materials will be supplied at SSE/P.Way stores.",
+    "unit": "Sqm",
+    "rate": 482.13,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "183030",
+    "description": "Cutting foot of rail by gas or any other approved method for check rails and grinding sharp edges into smooth profile. Payment shall be made for length of cutting of foot. MS packing plates, bolts & nuts, spring washers etc. including",
+    "unit": "RM",
+    "rate": 135.32,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "184010",
+    "description": "Painting of running rails and check rails of any rail section of level crossing with anti-corrosive paint on both sides of web, foot etc. including liner contact area (excluding bottom of foot) and fishing plane with two coats of thickness of 100 microns each by bituminous black paint confirms to IS-9862 of reputed make including painting of liners, ERC surface preparation, i.e. cleaning with wire brush / sand paper as a complete job as per Para No 613 (2)(b)(iii) of Indian Railways Permanent Way Manual, as directed by Engineer in-Charge. the Bituminous/ Concrete surface near approaches to level crossing.",
+    "unit": "RM",
+    "rate": 42.9,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "184021",
+    "description": "With enamel paint (two coats)",
+    "unit": "Sqm",
+    "rate": 113.97,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "184022",
+    "description": "With luminous paint (two coats)",
+    "unit": "Sqm",
+    "rate": 149.75,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "184023",
+    "description": "With Hot melt thermoplastic road marking paint track, duly excavating and levelling the foundation by hand compaction, removing connections and carting the released material up to a lead of 250m by suitable means and stacking the same, as directed by engineer in-charge.Note: The released materials shall be handed over duly stacking the same in measurable fashion. demolishing base concrete and levelling of ground, stacking released materials at the level crossing concerned including clearing of debris, with contractor's labour, tools, vehicles, consumables, all lead and lift etc., complete without damage as directed by the Engineer-in-charge. approved drawings in cement concrete foundation using Railway's railsof allsections including cutting,bending, drillingholes, erectingin position with clamps, bolts & nuts including painting with one coat of enamel paint of specified colour over one coat of primer.Note: excavation and concrete work will be paid separately. of Lifting Barrier assembly, having fragmented boom, boom light boxes with suitable gate lamps, bell, boom supports (stay wires) with adjusters, counter weight, pedestal and lock posts with foundation of ‘A’ type as required, turn-union wheel with brackets, balance and auxiliary weights clamps etc. to approved standard drawing with all fittings and fastenings excluding fringes, complete with contractor's men, equipments and materials, as per specifications and as directed.",
+    "unit": "Sqm",
+    "rate": 124.88,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "186011",
+    "description": "80mm thick blocks of M-35 grade for medium traffic.",
+    "unit": "Sqm",
+    "rate": 1020.61,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "186012",
+    "description": "120mm thick blocks of M-40 grade for heavy traffic.",
+    "unit": "Sqm",
+    "rate": 1488.53,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "186020",
+    "description": "Fixing of Railway’s existing precast concrete slabs of different sizes in position for level crossings / trolleypath and filling gap between check rail / running rail, slabs, approaches etc. with asphaltcomplete and as directed.",
+    "unit": "Sqm",
+    "rate": 73.79,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "186030",
+    "description": "Paving of level crossing road surface with Railway'sprecast RCCslab / blocks as per standards / approved drawings for light and heavy vehicles on bed of sand, moorum or gravel, duly compacted and joints filled with mixture of sand & tar/bitumen in proportion of 1:2 by weight.",
+    "unit": "Sqm",
+    "rate": 214.79,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "186040",
+    "description": "Removalof RCCslabinexistinglevelcrossing portionand inbetween tracks along with stacking them in countable manner, as directed.",
+    "unit": "Sqm",
+    "rate": 54.12,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "186050",
+    "description": "Fixing of speed breaker on approaches of level crossings with pre- cast concrete blocks (M-25) of parabolic shape for entire road width with 125 mm central rise including painting two coats with paint of approved quality and colour in the width of 2 metres.Note: Cost of pre- cast concrete blocks shall be paid separately.",
+    "unit": "RM",
+    "rate": 387.73,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "186060",
+    "description": "Provision of one Asphalt Speed Breaker Rumble Strip on each side of the approaches of manned level crossings as per approved drawing including painting two coats with paint of approved quality and colour.",
+    "unit": "RM",
+    "rate": 535.34,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "186070",
+    "description": "Manufacture & supply of tested GI wire rope of 6mm dia. and 6 plyto suit lifting barrier gates at nearby P.Way Stores / Depot / Level Crossing gate, as directed. (approx. 8mm dia.) with suitable adjuster and other specials, as directed Shafts, mounted over base plate weighing not less than 6 Kg with supporting vertical base, made of MS angle 75mm x 75mm x 10mm as per Railway's approved drawings and specifications complete and as directed. complete, wire rope 6 x 6 x 19 with accessories as per Railway’s approved drawings for operation of lifting barriers complete, as directed.",
+    "unit": "Kg",
+    "rate": 477.4,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "186110",
+    "description": "Fabrication, supply and fixing of Collapsible Fringes to the lifting barriers of various length at level crossing as per approved drawing; made of MS flat of size 30mm x 6mm in 2 rows, 40mm x 6mm in 1 row horizontallyand MS flat of size 30mm x 6mm verticallyat 500mm centre to centre, painting iron works with two coats of synthetic enamel paint of approved quality & colour over one coat of primer of approved quality, as directed. sides from the centre of road at level crossings with all leads & lifts. Payment shall be made for complete work at one Level Crossing.Note: Two pipes make one set. Horizontal Rope Wheel - double wire (2-way) including guides with all contractor's materials, fabrication, labour, T&P, consumables, all leads & lifts etc. complete as per approved drawing and as directed by Engineer in-charge.",
+    "unit": "RM",
+    "rate": 955.83,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "186140",
+    "description": "Supplying galvanized Steel Wire Rope for DW signaling 6 x 19 ply as per IRS No. S.11 amended up to date for lifting barrier at level crossing gates, as directed by Engineer in-charge barriersasper approved drawing, made of 3mm thick plate, using MS clamps, providing 6 nos. of 50mm dia. red retro-reflector on stop board, painting iron works with two coats of synthetic enamel paint overonecoatof primerof approvedquality&colourand writingSTOP mark over the board. drawing including painting with 2 coats of specified enamel colour paint over 1 coat of primer including earthwork in excavation etc. complete, as per specifications and as directed. contractor's labour, tools & plants and as directed. (supplied free by Railways) into blocks by sawing to size clips / washers on PSC sleepers as per specifications for fixing guard rails / check rails / trolley path including drilling of required holes in sleepers with all fittings with contractor's tools & plants, equipment, consumables with all lead, lifts etc. complete, as directed by Engineer in-charge, excluding cost of bolts, nuts, washers, clips etc. including cutting the rail to required length varying from 1.00M to from nearest depot to site of work, erecting therailpostbymakingthe pit size as required and filling with CC 1:3:6 mix with 40mm aggregates and painting the rail post with two coats of synthetic enamel paint of approved colour and make, marking of detonator symbol as per site requirement, with contractor's materials, labour, paint, all lead and lifts, etc., complete as per specifications and as directed by the Engineer-in-charge.Note: Excavation and concrete work for foundation will be paid under relevant item.",
+    "unit": "Kg",
+    "rate": 353.34,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "191030",
+    "description": "Manufacturing and using wooden sleepers/blocks required for matting and bearingasperapproved designfor usebelowandabove CCCrib for insertion of Temporary Girder etc..Note: The item is for one time use and released wooden sleepers/blocks shall be the property of the Contractor. temporary girder on crib / cess away from Railway track as directed by road crane capacity of 50 MT Road crane capacity of 80 MT running track under traffic block for TBTR & stacking the same neatly at specified places with contractor’s tools & labour, as directed by Engineer in-charge.",
+    "unit": "Cum",
+    "rate": 1698.71,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "195041",
+    "description": "MS chequered plates 6 to 8mm thick on new bridge",
+    "unit": "Kg",
+    "rate": 104.04,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "195042",
+    "description": "MS chequered plates 6 to 8mm thick including removal of existing chequered plates on BridgesNote: Payment shallbe madeonlyasper weight of new Chequered Plate fixed.",
+    "unit": "Kg",
+    "rate": 109.46,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "195043",
+    "description": "Anti skid Stainless steel chequered plate of 409 M Grade as per Specification ASTM A240 SS and Pattern conforming to BIS 3502 with average thickness of 3.5 mm with bead height of 0.8 mm min thick - on New Bridges",
+    "unit": "Kg",
+    "rate": 207.29,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "195044",
+    "description": "Fixing Anti skid Stainless steel chequered plate of Grade 409 M and average thickness of 3.5 mm with bead height of 0.8 mm min thick including removal of existing chequered plates on BridgesNote: Payment shall be made only as pert weight of new Chequered Plate fixed. size using steel cribs and/or wooden sleepers as per RDSO’s approved drawing, duly excavating earth in pit and driving rails / sleepers vertically to form shoring and filling gap with sand bags etc. complete, as directed.Note: (1) Steel CC cribs, rails and wooden sleepers will be supplied by Railway.(2) Dismantling and linking of track will be paid separately. shrubs / bushes, removing silt deposit, filling scours, if any up to 10 metre from centre of bridge on either side including disposing waste and silt away from waterway.Note: Rate is for a single line and per metre of bridge span. made from 16 SWG MS Sheet dulywelded or riveted to back support of two 600mm long horizontal angles of size 25mm x 25mm x 3mm & two numbers 2.5 metre long vertical support of MS Angle of size shall have split ends for proper fixing in ground. Vertical supports of board shall be embedded in ground in M 20 Cement Concrete blocks of size 300mm x 300mm x 300mm, complete job including painting & writing of subject matter on bridge board, as directed byEngineer - In charge Note: Excavation & concrete work will be paid separately.",
+    "unit": "Kg",
+    "rate": 212.71,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "195100",
+    "description": "Supplying providing and fixing country kali wood/hard wood (Non teak) sleepers of various thickness and length as per the RDSO re railing ramp Drg No T-8259 for fixing bent rails and MS plates including cutting the wood in saw mills, transporting to site of work with all leads and lifts, labour, tools and plant etc. as directed by Engineer In-charge. No T-8259 on bridge approaches on wooden/PSC sleepers including fixing railways fishplates, bolts, nuts, MS bearing plates, screws, check blocks of re-railing ramp etc, levelling after drilling of holes in rails wherever necessary under block with contractor's labour, tools andplants,machineryalletc,completeandasdirectedbyEngineerin charge at site. rails bolts, guard rail bolts on girder bridges with contractor labour tools, plants etc., including oiling, greasing of fittings complete and as directed by engineer in charge. Note: Before execution of work specific approval of ADEN to be obtained by duly indicating the locations with specific reasons along with date of last tightening done.",
+    "unit": "Cudm",
+    "rate": 46.45,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "201010",
+    "description": "Manufacture and supply of Hook Bolt 28mm dia. & 320mm long as per RDSO Drg. no. BA-1636/I/R2 from RDSO approved sources drg. No. RDSO/T-5199 & RDSO's Spec. no. IRS-T-47-2006 (Prov.) from RDSO approved sources with all contractor's lead, lift, labour, tools, plant and transportation etc. complete asinstructed byEngineer in-charge. Note: One set constitutes two nos. RDSO drawing No. B/1636/I/R2 to suit Insulated steel channel sleepers from RDSO approved sources with all contractor's material, lead, lift, labour, tools, plant and transportation etc. complete and as instructed by Engineer in-charge.Note: One set constitutes two nos. No. B/1636/5 alt 2 to suit Insulated H Beam sleepers from RDSO approved sources with all contractor's material, lead, lift, labour, tools, plant and transportation etc. complete as per approved drawings and as instructed by Engineer in-charge.Note: One Set consists of 2 nos. Elastomeric Pad 25mm/30mm and 4 nos. Grooved Rubber Pad. Steel Channel Sleeper (RDSO Drg. No. T-6150 & T-6151) from RDSO approved sources.Note: One set constitutes two inner & two outer clips. galvanised steel channel sleeper for 60 Kg running rails & 52 Kg Guard Rail as per RDSO drawing no. RDSO/T-5155 to 5164 with up- to-date correction slips and specifications from RDSO approved sources with all contractor's lead, lift, labour, tools, plant, transportation etc. complete and instructions of Engineer in-charge. galvanised steel channel sleeper for 52Kg running rails & 52 Kg/90R Guard Rail as per RDSO drawing no. RDSO/T-5197 to 5200 with up- to-date correction slips and specifications from RDSO approved sources with all contractor's lead, lift, labour, tools, plant, transportation etc. complete and instructions of Engineer in-charge.",
+    "unit": "Kg",
+    "rate": 86.7,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "204040",
+    "description": "Supply of Used Lubricating Oil of approved quality",
+    "unit": "Litre",
+    "rate": 20.47,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "211030",
+    "description": "Fabricating of check rails of 52Kg and 90R sections for providing to curves by cutting web of rail horizontally by gas, grinding for smoothening the cut edge and drilling of parabolic shaped holes to the web of check rails as per drawing and specification and as per directions of engineer in-charge with all contractor’s labour, tools and mmaatteerriiaallss ccoommpplleettee.. NNoottee::11.. RRaaiillss sshhaallll bbee ssuupppplliieedd bbyy RRaaiillwwaayyss22..TThhee both ends of head of check rails are to bent/cut as per drawing.3. The released rail scrap shall be stacked neatly with in a lead of",
+    "unit": "RM",
+    "rate": 168.36,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "211040",
+    "description": "Dismantling Check Rail on curves on track of all rail sections, duly removing fish plates and bolts including removing chairs from sleepers, leading and stacking released materials away from track clear of infringements, complete and as directed.",
+    "unit": "RM",
+    "rate": 65.59,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "211050",
+    "description": "Fixing of check rails on curves on track of all rail sections as per drawing and to correct alignment and level with Railways fastenings including leading of rails and fittings, crossing of tracks, greasing of plate screws with approved grease etc., as per drawing and directions of Engineer in charge with all contractors labour, tools, plants,machinery,consumablesetc.,complete.Note: RequiredP.Way fittings will be supplied at SSE/P.Way stores. as per approved drawing at station yard, duly painting the top surface and slopes with white enamel paint in two coats and inscribed letters with black of Fouling Mark, complete in all respects with all labour, materials including cement, tools and plants etc.",
+    "unit": "RM",
+    "rate": 69.73,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "211070",
+    "description": "Providing and erecting water proof Gypsy Tent of size 3m x 3m for a specific period of time and removal of the same after completion of work or as directed by Engineer in-charge.",
+    "unit": "Day",
+    "rate": 477.91,
+    "source": "irussor_2021"
+  },
+  {
+    "code": "211140",
+    "description": "Supplying and spraying in specified proportion Weedicide Chemical, capable to kill entire weed on track / cess / embankment with all labour, material, tools & plants etc. complete job in all respect. Scientific name of the chemical is Isopropylamine Salt of Glyphosate, inwhichactiveingredient isGlyphosate (41%),colour islight amberto brownish, very low in toxicity and has favourable environmental characteristics. It willbe ensured that no weed growth occursup to six months period, otherwise re-spraying shall be done by the contractor free of cost. break loose torque of 400Nm to 540Nm, as per ISO:10123 norms with shear strength of liquid solutions as 25 to 35 N/mm2, viscosity tightening of nuts & bolts at important locations, such as Bridges, SEJs, Turnouts, Fish Plates, Steel Channel Sleepers etc. Work includes opening of bolts, cleaning of bolts with suitable cleaner and tightening of bolts after applying liquid solution as directed by Engineer in-charge.",
+    "unit": "Sqm",
+    "rate": 0.63,
+    "source": "irussor_2021"
+  }
+]
