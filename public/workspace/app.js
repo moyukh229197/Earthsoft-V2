@@ -51,6 +51,7 @@ const state = {
   seedRows: [],
   seedMeta: null,
   calcRows: [],
+  estimates: {},
   settings: {},
   defaultSettings: {},
   seedDefaultSettings: {},
@@ -9057,6 +9058,7 @@ function saveState() {
     bridgeRows: state.bridgeRows,
     curveRows: state.curveRows,
     loopPlatformRows: state.loopPlatformRows,
+    estimates: state.estimates,
     settings: state.settings,
     snapshots: state.snapshots,
     kmlData: state.kmlData,
@@ -9112,6 +9114,7 @@ async function saveToSupabase() {
       { type: 'bridges', data: state.bridgeRows },
       { type: 'curves', data: state.curveRows },
       { type: 'loops', data: state.loopPlatformRows },
+      { type: 'estimates', data: state.estimates || {} },
       { type: 'snapshots', data: state.snapshots || [] },
       { type: 'kml', data: state.kmlData },
       { type: 'station_plans', data: state.stationPlans || {} }
@@ -11522,10 +11525,16 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeSourceId = null;
   let currentPlanHead = '1130';
 
-  const estData = {
-    '1110': [], '1120': [], '1130': [], '1140': [],
-    '1150': [], '1160': [], '1170': [], '1180': []
-  };
+  // Seed initial estimates if empty
+  if (!state.estimates || Object.keys(state.estimates).length === 0) {
+    state.estimates = {
+      '1110': [], '1120': [], '1130': [], '1140': [],
+      '1150': [], '1160': [], '1170': [], '1180': []
+    };
+  }
+  const estData = state.estimates;
+  if (!state.larReferences) state.larReferences = [];
+  const larReferences = state.larReferences;
 
   const PLAN_HEAD_MAP = {
     '1110': '1110 - Preliminary Expenses',
@@ -11575,6 +11584,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initial load
   loadSorSources();
+  renderEstGrid();
+  renderLarRefs();
+
+  // ── LAR Management ────────────────────────────────────────────────────
+  const larRefSelect = document.getElementById('larRefSelect');
+  const larFileInput = document.getElementById('larFileInput');
+  const uploadLarBtn = document.getElementById('uploadLarBtn');
+  const viewLarBtn = document.getElementById('viewLarBtn');
+
+  if (uploadLarBtn && larFileInput) {
+    uploadLarBtn.addEventListener('click', () => larFileInput.click());
+    larFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (re) => {
+        const lar = {
+          id: 'lar_' + Date.now(),
+          name: file.name,
+          data: re.target.result
+        };
+        larReferences.push(lar);
+        renderLarRefs();
+        larRefSelect.value = lar.id;
+        saveState();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (viewLarBtn) {
+    viewLarBtn.addEventListener('click', () => {
+      const lid = larRefSelect.value;
+      const lar = larReferences.find(l => l.id === lid);
+      if (lar) {
+        const win = window.open();
+        win.document.write(`<iframe src="${lar.data}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+      } else {
+        alert('Please select or upload an LAR reference first.');
+      }
+    });
+  }
+
+  function renderLarRefs() {
+    if (!larRefSelect) return;
+    const currentVal = larRefSelect.value;
+    larRefSelect.innerHTML = '<option value="">No Reference</option>';
+    larReferences.forEach(lar => {
+      const opt = document.createElement('option');
+      opt.value = lar.id;
+      opt.textContent = lar.name;
+      larRefSelect.appendChild(opt);
+    });
+    if (currentVal) larRefSelect.value = currentVal;
+  }
 
   // ── SOR Search (Supabase) ─────────────────────────────────────────────
   async function renderSorTable(filter = '') {
@@ -11867,6 +11932,7 @@ document.addEventListener('DOMContentLoaded', () => {
       `<td><input type="text" class="est-desc-input" value="${(row.desc || '').replace(/"/g, '&quot;')}" placeholder="Description..." style="width:100%;" /></td>` +
       `<td style="text-align:right;"><input type="number" class="est-qty-input est-calc-trigger" style="text-align:right;width:100%;" value="${row.qty || 0}" /></td>` +
       `<td style="text-align:center;"><input type="text" class="est-unit-input" value="${row.unit || ''}" style="text-align:center;width:100%;" /></td>` +
+      `<td style="text-align:right;"><input type="number" class="est-lar-input" style="text-align:right;width:100%; color:var(--blue); font-weight:500;" value="${row.lar || 0}" step="0.01" /></td>` +
       `<td style="text-align:right;"><input type="number" class="est-rate-input est-calc-trigger" style="text-align:right;width:100%;" value="${row.rate || 0}" step="0.01" /></td>` +
       `<td style="text-align:right;" class="est-cash-cell">${cash.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>` +
       `<td style="text-align:right;" class="est-stores-cell">0.00</td>` +
@@ -11903,6 +11969,7 @@ document.addEventListener('DOMContentLoaded', () => {
           tr.querySelector('.est-unit-input').value = row.unit;
           tr.querySelector('.est-rate-input').value = row.rate;
           recalcPlanHead();
+          saveState();
           tr.querySelector('.est-qty-input').focus();
         } else {
           console.warn(`Item ${code} not found in database.`);
@@ -11910,17 +11977,19 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    codeInput.addEventListener('input', () => { row.code = codeInput.value; });
-    tr.querySelector('.est-desc-input').addEventListener('input', (e) => { row.desc = e.target.value; });
-    tr.querySelector('.est-unit-input').addEventListener('input', (e) => { row.unit = e.target.value; });
-    tr.querySelector('.est-rate-input').addEventListener('input', (e) => { row.rate = parseFloat(e.target.value) || 0; recalcPlanHead(); });
-    tr.querySelector('.est-qty-input').addEventListener('input', (e) => { row.qty = parseFloat(e.target.value) || 0; recalcPlanHead(); });
+    codeInput.addEventListener('input', () => { row.code = codeInput.value; saveState(); });
+    tr.querySelector('.est-desc-input').addEventListener('input', (e) => { row.desc = e.target.value; saveState(); });
+    tr.querySelector('.est-unit-input').addEventListener('input', (e) => { row.unit = e.target.value; saveState(); });
+    tr.querySelector('.est-lar-input').addEventListener('input', (e) => { row.lar = parseFloat(e.target.value) || 0; saveState(); });
+    tr.querySelector('.est-rate-input').addEventListener('input', (e) => { row.rate = parseFloat(e.target.value) || 0; recalcPlanHead(); saveState(); });
+    tr.querySelector('.est-qty-input').addEventListener('input', (e) => { row.qty = parseFloat(e.target.value) || 0; recalcPlanHead(); saveState(); });
     
     tr.querySelector('.est-delete-btn').addEventListener('click', () => {
       const arr = estData[currentPlanHead];
       const i = arr.indexOf(row);
       if (i >= 0) arr.splice(i, 1);
       renderEstGrid();
+      saveState();
     });
     return tr;
   }
@@ -11958,8 +12027,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function addEstRow(sor, code, desc, unit, rate) {
     const row = { sor: sor || '', code: code || '', desc: desc || '', qty: 0, unit: unit || '', rate: Number(rate) || 0 };
+    if (!estData[currentPlanHead]) estData[currentPlanHead] = [];
     estData[currentPlanHead].push(row);
     renderEstGrid();
+    saveState();
     const gridBody = document.getElementById('estGridBody');
     if (gridBody && gridBody.lastElementChild) {
       gridBody.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
