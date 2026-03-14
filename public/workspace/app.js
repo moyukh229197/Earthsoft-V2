@@ -11641,6 +11641,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const deleteSorBtn = document.getElementById('deleteSorBtn');
+  if (deleteSorBtn) {
+    deleteSorBtn.addEventListener('click', async () => {
+      if (!activeSourceId) return;
+      
+      const source = sorSources.find(s => s.id === activeSourceId);
+      if (!source) return;
+
+      if (!confirm(`Are you sure you want to delete the SOR "${source.display_name}"? This will permanently remove all its items from the database.`)) {
+        return;
+      }
+
+      try {
+        const { error } = await supabase.from('sor_sources').delete().eq('id', activeSourceId);
+        if (error) throw error;
+
+        alert('SOR deleted successfully.');
+        activeSourceId = null;
+        await loadSorSources();
+        renderSorTable();
+      } catch (err) {
+        console.error('Delete error:', err);
+        alert('Failed to delete SOR: ' + err.message);
+      }
+    });
+  }
+
   const sorSearchInput = document.getElementById('sorSearchInput');
   if (sorSearchInput) {
     let st;

@@ -894,10 +894,12 @@
                  </div>
                  <div class="sor-db-toolbar" style="display: flex; gap: 12px; margin-bottom: 16px; align-items: center; justify-content: space-between;">
                     <div style="display: flex; gap: 12px; align-items: center;">
-                        <select id="sorSourceSelect" style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--stroke); background: rgba(0,0,0,0.2); color: var(--text);">
-                           <option value="irussor_2021">IRUSSOR 2021</option>
-                           <option value="dsr_2023">CPWD DSR 2023</option>
+                        <select id="sorSourceSelect" style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--stroke); background: rgba(0,0,0,0.2); color: var(--text); min-width: 180px;">
+                           <option value="">Loading...</option>
                         </select>
+                        <button id="deleteSorBtn" class="btn btn-secondary icon-btn-sm" title="Delete Current SOR" style="color: var(--red); padding: 8px; border: 1px solid var(--stroke);">
+                            <i class="ri-delete-bin-line"></i>
+                        </button>
                         <span class="muted" style="font-size: 0.85rem;" id="sorResultCount"></span>
                     </div>
                     <div style="display: flex; gap: 8px; align-items: center;">
