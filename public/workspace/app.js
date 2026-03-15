@@ -52,6 +52,7 @@ const state = {
   seedMeta: null,
   calcRows: [],
   estimates: {},
+  larReferences: [],
   settings: {},
   defaultSettings: {},
   seedDefaultSettings: {},
@@ -296,7 +297,11 @@ const els = {
   cloudProjectsModal: document.getElementById("cloudProjectsModal"),
   closeCloudProjectsBtn: document.getElementById("closeCloudProjectsBtn"),
   cloudProjectsList: document.getElementById("cloudProjectsList"),
-  cloudProjectSearch: document.getElementById("cloudProjectSearch")
+  cloudProjectSearch: document.getElementById("cloudProjectSearch"),
+  larRefSelect: document.getElementById('larRefSelect'),
+  larFileInput: document.getElementById('larFileInput'),
+  uploadLarBtn: document.getElementById('uploadLarBtn'),
+  viewLarBtn: document.getElementById('viewLarBtn')
 };
 
 async function loadAuthState() {
@@ -6609,6 +6614,36 @@ function bindEvents() {
     });
   }
 
+  if (els.uploadLarBtn && els.larFileInput) {
+    els.uploadLarBtn.addEventListener('click', () => els.larFileInput.click());
+    els.larFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (re) => {
+        const lar = { id: 'lar_' + Date.now(), name: file.name, data: re.target.result };
+        state.larReferences.push(lar);
+        if (typeof renderLarRefs === 'function') renderLarRefs();
+        if (els.larRefSelect) els.larRefSelect.value = lar.id;
+        saveState();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (els.viewLarBtn) {
+    els.viewLarBtn.addEventListener('click', () => {
+      const lid = els.larRefSelect?.value;
+      const lar = state.larReferences.find(l => l.id === lid);
+      if (lar) {
+        const win = window.open();
+        win.document.write(`<iframe src="${lar.data}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+      } else {
+        alert('Please select or upload an LAR reference first.');
+      }
+    });
+  }
+
   if (els.themeToggleCheckbox) {
     els.themeToggleCheckbox.addEventListener("change", (e) => {
       // Dark is default (unchecked). Checked = light mode.
@@ -9059,6 +9094,7 @@ function saveState() {
     curveRows: state.curveRows,
     loopPlatformRows: state.loopPlatformRows,
     estimates: state.estimates,
+    larReferences: state.larReferences,
     settings: state.settings,
     snapshots: state.snapshots,
     kmlData: state.kmlData,
@@ -9115,6 +9151,7 @@ async function saveToSupabase() {
       { type: 'curves', data: state.curveRows },
       { type: 'loops', data: state.loopPlatformRows },
       { type: 'estimates', data: state.estimates || {} },
+      { type: 'lar_references', data: state.larReferences || [] },
       { type: 'snapshots', data: state.snapshots || [] },
       { type: 'kml', data: state.kmlData },
       { type: 'station_plans', data: state.stationPlans || {} }
@@ -11533,7 +11570,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
   const estData = state.estimates;
-  if (!state.larReferences) state.larReferences = [];
   const larReferences = state.larReferences;
 
   const PLAN_HEAD_MAP = {
@@ -11587,46 +11623,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderEstGrid();
   renderLarRefs();
 
-  // ── LAR Management ────────────────────────────────────────────────────
-  const larRefSelect = document.getElementById('larRefSelect');
-  const larFileInput = document.getElementById('larFileInput');
-  const uploadLarBtn = document.getElementById('uploadLarBtn');
-  const viewLarBtn = document.getElementById('viewLarBtn');
-
-  if (uploadLarBtn && larFileInput) {
-    uploadLarBtn.addEventListener('click', () => larFileInput.click());
-    larFileInput.addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      
-      const reader = new FileReader();
-      reader.onload = (re) => {
-        const lar = {
-          id: 'lar_' + Date.now(),
-          name: file.name,
-          data: re.target.result
-        };
-        larReferences.push(lar);
-        renderLarRefs();
-        larRefSelect.value = lar.id;
-        saveState();
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-
-  if (viewLarBtn) {
-    viewLarBtn.addEventListener('click', () => {
-      const lid = larRefSelect.value;
-      const lar = larReferences.find(l => l.id === lid);
-      if (lar) {
-        const win = window.open();
-        win.document.write(`<iframe src="${lar.data}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-      } else {
-        alert('Please select or upload an LAR reference first.');
-      }
-    });
-  }
+  // Listeners moved to main bindEvents for reliability
 
   function renderLarRefs() {
     if (!larRefSelect) return;
