@@ -302,7 +302,8 @@ const els = {
   larRefSelect: document.getElementById('larRefSelect'),
   larFileInput: document.getElementById('larFileInput'),
   uploadLarBtn: document.getElementById('uploadLarBtn'),
-  viewLarBtn: document.getElementById('viewLarBtn')
+  viewLarBtn: document.getElementById('viewLarBtn'),
+  deleteLarLocalBtn: document.getElementById('deleteLarLocalBtn')
 };
 
 async function loadAuthState() {
@@ -6633,6 +6634,23 @@ function bindEvents() {
         win.document.write(`<iframe src="${lar.data}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
       } else {
         alert('Please select or upload an LAR reference first.');
+      }
+    });
+  }
+
+  if (els.deleteLarLocalBtn) {
+    els.deleteLarLocalBtn.addEventListener('click', () => {
+      const lid = els.larRefSelect?.value;
+      if (!lid) {
+        alert('Please select an LAR reference to delete.');
+        return;
+      }
+      const lar = state.larReferences.find(l => l.id === lid);
+      if (lar && confirm(`Are you sure you want to delete "${lar.name}"?`)) {
+        state.larReferences = state.larReferences.filter(l => l.id !== lid);
+        renderLarRefs();
+        if (els.larRefSelect) els.larRefSelect.value = "";
+        saveState();
       }
     });
   }
