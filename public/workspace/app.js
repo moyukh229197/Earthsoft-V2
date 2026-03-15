@@ -9185,7 +9185,7 @@ async function saveToSupabase() {
     ];
 
     const currentHashes = {};
-    const upsertRows = [];
+    const changedParts = [];
     
     heavyParts.forEach(part => {
        const hasData = part.data && (Array.isArray(part.data) ? part.data.length > 0 : Object.keys(part.data).length > 0);
@@ -9195,23 +9195,34 @@ async function saveToSupabase() {
        currentHashes[part.type] = hash;
        
        if (window._LastSyncHashes[part.type] !== hash) {
-          upsertRows.push({
-            project_id: state.supabaseProjectId,
-            data_type: part.type,
-            data: part.data
-          });
+          changedParts.push(part);
        }
     });
 
-    if (upsertRows.length > 0) {
-      if (syncEl) syncEl.querySelector("span").textContent = `Uploading ${upsertRows.length} changed parts...`;
-      const { error: batchError } = await window.supabaseClient
-        .from('project_data')
-        .upsert(upsertRows, { onConflict: 'project_id, data_type' });
+    if (changedParts.length > 0) {
+      for (let i = 0; i < changedParts.length; i++) {
+        const part = changedParts[i];
+        if (syncEl) syncEl.querySelector("span").textContent = `Syncing ${part.type} (${i+1}/${changedParts.length})...`;
         
-      if (batchError) throw batchError;
+        const { error: partError } = await window.supabaseClient
+          .from('project_data')
+          .upsert({
+            project_id: state.supabaseProjectId,
+            data_type: part.type,
+            data: part.data
+          }, { onConflict: 'project_id, data_type' });
+          
+        if (partError) {
+          console.error(`Error syncing ${part.type}:`, partError);
+          // Special handling for large payloads
+          if (partError.message?.includes("Payload Too Large") || partError.code === "413") {
+            throw new Error(`${part.type} is too large to sync to cloud. Reduce data size.`);
+          }
+          throw partError;
+        }
+      }
       
-      // Update hashes only after success
+      // Update hashes only after all succeeded
       Object.assign(window._LastSyncHashes, currentHashes);
     }
     
