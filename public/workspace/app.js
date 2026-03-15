@@ -9181,11 +9181,12 @@ async function saveToSupabase() {
       syncEl.querySelector("span").textContent = "Synced";
     }
   } catch (err) {
+    const errMsg = err.message || "Sync Error";
     console.error("Supabase Save Error:", err);
     if (syncEl) {
       syncEl.classList.remove("syncing");
       syncEl.classList.add("error");
-      syncEl.querySelector("span").textContent = "Sync Error";
+      syncEl.querySelector("span").textContent = errMsg;
     }
   }
 }
@@ -9250,11 +9251,12 @@ async function loadFromSupabase(projectId) {
       syncEl.querySelector("span").textContent = "Synced";
     }
   } catch (err) {
+    const errMsg = err.message || "Load Error";
     console.error("Supabase Load Error:", err);
     if (syncEl) {
       syncEl.classList.remove("syncing");
       syncEl.classList.add("error");
-      syncEl.querySelector("span").textContent = "Load Error";
+      syncEl.querySelector("span").textContent = errMsg;
     }
   }
 }
