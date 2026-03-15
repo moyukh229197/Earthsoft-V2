@@ -9287,6 +9287,9 @@ async function loadFromSupabase(projectId) {
 
     if (partsError) throw partsError;
 
+    // Clear specific parts before loading to prevent stale local data (ghosts)
+    state.larReferences.length = 0;
+
     parts.forEach(part => {
       if (part.data_type === 'levels') state.rawRows = part.data;
       if (part.data_type === 'bridges') state.bridgeRows = part.data;
@@ -9296,7 +9299,6 @@ async function loadFromSupabase(projectId) {
       if (part.data_type === 'kml') state.kmlData = part.data;
       if (part.data_type === 'station_plans') state.stationPlans = part.data;
       if (part.data_type === 'lar_references') {
-        state.larReferences.length = 0;
         state.larReferences.push(...(part.data || []));
       }
       if (part.data_type === 'estimates') {
