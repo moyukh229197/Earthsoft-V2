@@ -9109,15 +9109,28 @@ function saveState() {
     }
   }
   
-  // Also sync to Supabase if config is present
+  // Also sync to Supabase if config is present (Debounced)
   if (window.supabaseClient && state.project.active) {
-    saveToSupabase();
+    debouncedSaveToSupabase();
   }
 
   // Push to Undo/Redo Stack
   if (!window._isUndoRedoOp && window._History) {
      window._History.push(data);
   }
+}
+
+let syncTimer = null;
+function debouncedSaveToSupabase() {
+  if (syncTimer) clearTimeout(syncTimer);
+  const syncEl = document.getElementById("syncStatus");
+  if (syncEl) {
+    syncEl.classList.add("syncing");
+    syncEl.querySelector("span").textContent = "Waiting to sync...";
+  }
+  syncTimer = setTimeout(() => {
+    saveToSupabase();
+  }, 2000); 
 }
 
 async function saveToSupabase() {
@@ -9163,16 +9176,21 @@ async function saveToSupabase() {
       { type: 'station_plans', data: state.stationPlans || {} }
     ];
 
-    for (const part of heavyParts) {
-      if (part.data && (Array.isArray(part.data) ? part.data.length > 0 : Object.keys(part.data).length > 0)) {
-        await window.supabaseClient
-          .from('project_data')
-          .upsert({
-            project_id: state.supabaseProjectId,
-            data_type: part.type,
-            data: part.data
-          }, { onConflict: 'project_id, data_type' });
-      }
+    // Batch upsert to reduce Disk I/O
+    const upsertRows = heavyParts
+      .filter(part => part.data && (Array.isArray(part.data) ? part.data.length > 0 : Object.keys(part.data).length > 0))
+      .map(part => ({
+        project_id: state.supabaseProjectId,
+        data_type: part.type,
+        data: part.data
+      }));
+
+    if (upsertRows.length > 0) {
+      const { error: batchError } = await window.supabaseClient
+        .from('project_data')
+        .upsert(upsertRows, { onConflict: 'project_id, data_type' });
+        
+      if (batchError) throw batchError;
     }
     
     if (syncEl) {
