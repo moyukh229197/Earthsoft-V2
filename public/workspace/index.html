@@ -505,7 +505,16 @@
         <section class="glass bridge-panel">
           <div class="bridge-head">
             <h3>Bridges</h3>
-            <div class="bridge-actions" style="display: flex; gap: 8px; align-items: center;">
+            <div class="bridge-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <div class="bulk-action-bar" style="display: flex; align-items: center; gap: 8px; padding-right: 12px; margin-right: 12px; border-right: 1px solid var(--stroke);">
+                <span class="muted" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Bulk:</span>
+                <select id="bridgeBulkDeductRule" style="padding: 6px 12px; border-radius: 6px; border: 1px solid var(--blue); background: rgba(59, 130, 246, 0.1); color: var(--blue); font-size: 0.85rem; font-weight: 600; outline: none;">
+                  <option value="" disabled selected>Deduct Rule...</option>
+                  <option value="Always">Deduct Always (On)</option>
+                  <option value="Never">Deduct Never (Off)</option>
+                  <option value="Auto">Auto (Default)</option>
+                </select>
+              </div>
               <select id="bridgeCategoryFilter" style="padding: 6px 12px; border-radius: 6px; border: 1px solid var(--stroke); background: rgba(0,0,0,0.2); color: var(--text); font-size: 0.85rem;">
                 <option value="">All Categories</option>
               </select>
@@ -516,10 +525,8 @@
                 <i class="ri-search-line" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted);"></i>
                 <input id="bridgeFilterInput" type="text" placeholder="Search bridges..." style="padding: 6px 12px 6px 32px; border-radius: 6px; border: 1px solid var(--stroke); background: rgba(0,0,0,0.2); color: var(--text); font-size: 0.85rem; width: 220px;" />
               </div>
-              <button id="bridgeAddBtn" class="btn btn-secondary" type="button" title="Add a new blank bridge row">Add
-                Bridge Row</button>
-              <button id="bridgeApplyBtn" class="btn btn-primary" type="button" title="Apply Changes">Apply Bridge
-                Deductions</button>
+              <button id="bridgeAddBtn" class="btn btn-secondary" type="button" title="Add a new blank bridge row">Add Row</button>
+              <button id="bridgeApplyBtn" class="btn btn-primary" type="button" title="Apply Changes">Apply Changes</button>
             </div>
           </div>
           <div class="bridge-wrap">

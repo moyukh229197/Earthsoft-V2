@@ -154,6 +154,7 @@ const els = {
   bridgeTypeFilter: document.getElementById("bridgeTypeFilter"),
   bridgeApplyBtn: document.getElementById("bridgeApplyBtn"),
   bridgeTableBody: document.getElementById("bridgeTableBody"),
+  bridgeBulkDeductRule: document.getElementById("bridgeBulkDeductRule"),
   bridgeMeta: document.getElementById("bridgeMeta"),
   curveTableBody: document.getElementById("curveTableBody"),
   curveMeta: document.getElementById("curveMeta"),
@@ -2070,9 +2071,9 @@ function renderBridgeInputs() {
       <td><input data-bridge-field="bridgeSpanLength" value="${Number.isFinite(b.bridgeSpanLength) ? r3(b.bridgeSpanLength) : String(b.bridgeSpanLength ?? "")}" style="width: 70px;" /></td>
       <td><input data-bridge-field="clearSpan" value="${Number.isFinite(parseLooseNumber(b.clearSpan, NaN)) ? r3(parseLooseNumber(b.clearSpan, NaN)) : String(b.clearSpan ?? "")}" style="width: 70px;" /></td>
       <td>
-        <select data-bridge-field="deductRule">
-          ${BRIDGE_DEDUCT_RULES.map(rule => `<option value="${rule}" ${String(b.deductRule || "Auto") === rule ? "selected" : ""}>${rule}</option>`).join("")}
-        </select>
+        <label class="toggle-switch" title="Turn ON for 'Always Deduct', OFF for 'Never Deduct'">
+          <input type="checkbox" data-bridge-field="deductRule" ${String(b.deductRule || "Auto") === "Never" ? "" : "checked"} class="toggle-input sm" />
+        </label>
       </td>
       <td><input data-bridge-field="startChainage" value="${Number.isFinite(parseChainage(b.startChainage)) ? r3(parseChainage(b.startChainage)) : String(b.startChainage ?? "")}" /></td>
       <td><input data-bridge-field="endChainage" value="${Number.isFinite(parseChainage(b.endChainage)) ? r3(parseChainage(b.endChainage)) : String(b.endChainage ?? "")}" /></td>
@@ -2100,33 +2101,25 @@ function filterBridgeTable() {
   const catFilter = els.bridgeCategoryFilter?.value || "";
   const typeFilter = els.bridgeTypeFilter?.value || "";
 
-  const rows = els.bridgeTableBody.querySelectorAll("tr");
-  rows.forEach(row => {
-    const catSelect = row.querySelector("select[data-bridge-field='bridgeCategory']");
-    const typeSelect = row.querySelector("select[data-bridge-field='bridgeType']");
+  const rows = Array.from(els.bridgeTableBody.querySelectorAll("tr"));
+  rows.forEach((row) => {
+    // Check internal inputs first for accurate filtering
+    const bridgeNo = (row.querySelector('[data-bridge-field="bridgeNo"]')?.value || "").toLowerCase();
+    const catSelect = row.querySelector('[data-bridge-field="bridgeCategory"]');
+    const typeSelect = row.querySelector('[data-bridge-field="bridgeType"]');
+    
+    const cat = catSelect ? catSelect.value : "";
+    const type = typeSelect ? typeSelect.value : "";
 
-    let isMatch = true;
+    const matchesTerm = !term || bridgeNo.includes(term);
+    const matchesCat = !catFilter || cat === catFilter;
+    const matchesType = !typeFilter || type === typeFilter;
 
-    // 1. Text Search
-    if (term) {
-       let textContext = row.textContent.toLowerCase();
-       row.querySelectorAll("input, select").forEach(input => {
-         if (input.value) textContext += " " + input.value.toLowerCase();
-       });
-       if (!textContext.includes(term)) isMatch = false;
+    if (matchesTerm && matchesCat && matchesType) {
+      row.style.display = "";
+    } else {
+      row.style.display = "none";
     }
-
-    // 2. Category Match
-    if (catFilter && catSelect && catSelect.value !== catFilter) {
-       isMatch = false;
-    }
-
-    // 3. Type Match
-    if (typeFilter && typeSelect && typeSelect.value !== typeFilter) {
-       isMatch = false;
-    }
-
-    row.style.display = isMatch ? "" : "none";
   });
 }
 
@@ -2294,7 +2287,7 @@ function syncBridgeStateFromTable() {
       bridgeSpans: tr.querySelector('[data-bridge-field="bridgeSpans"]')?.value ?? "1",
       bridgeSpanLength: tr.querySelector('[data-bridge-field="bridgeSpanLength"]')?.value ?? "",
       clearSpan: tr.querySelector('[data-bridge-field="clearSpan"]')?.value ?? "",
-      deductRule: tr.querySelector('[data-bridge-field="deductRule"]')?.value ?? "Auto",
+      deductRule: tr.querySelector('[data-bridge-field="deductRule"]')?.checked ? "Always" : "Never",
       startChainage: tr.querySelector('[data-bridge-field="startChainage"]')?.value ?? "",
       endChainage: tr.querySelector('[data-bridge-field="endChainage"]')?.value ?? "",
       length: tr.querySelector('[data-bridge-field="length"]')?.value ?? "",
@@ -8117,6 +8110,7 @@ function bindEvents() {
     });
   }
 
+
   if (closeAiModalBtn && aiBridgeModal) {
     closeAiModalBtn.addEventListener("click", () => {
       aiBridgeModal.classList.add("hidden");
@@ -8200,14 +8194,34 @@ function bindEvents() {
     });
   }
 
-  if (els.bridgeFilterInput) {
-    els.bridgeFilterInput.addEventListener("input", filterBridgeTable);
-  }
-  if (els.bridgeCategoryFilter) {
-    els.bridgeCategoryFilter.addEventListener("change", filterBridgeTable);
-  }
-  if (els.bridgeTypeFilter) {
-    els.bridgeTypeFilter.addEventListener("change", filterBridgeTable);
+  if (els.bridgeCategoryFilter) els.bridgeCategoryFilter.addEventListener("change", filterBridgeTable);
+  if (els.bridgeTypeFilter) els.bridgeTypeFilter.addEventListener("change", filterBridgeTable);
+  if (els.bridgeFilterInput) els.bridgeFilterInput.addEventListener("input", filterBridgeTable);
+
+  if (els.bridgeBulkDeductRule) {
+    els.bridgeBulkDeductRule.addEventListener("change", () => {
+      const rule = els.bridgeBulkDeductRule.value;
+      if (!rule) return;
+
+      syncBridgeStateFromTable(); // capture current edits
+
+      const term = (els.bridgeFilterInput?.value || "").toLowerCase();
+      const catFilter = els.bridgeCategoryFilter?.value || "";
+      const typeFilter = els.bridgeTypeFilter?.value || "";
+
+      state.bridgeRows.forEach((b) => {
+        const matchesTerm = !term || (b.bridgeNo || "").toLowerCase().includes(term);
+        const matchesCat = !catFilter || b.bridgeCategory === catFilter;
+        const matchesType = !typeFilter || b.bridgeType === typeFilter;
+
+        if (matchesTerm && matchesCat && matchesType) {
+          b.deductRule = rule;
+        }
+      });
+
+      renderBridgeInputs();
+      els.bridgeBulkDeductRule.value = ""; // Reset bulk select
+    });
   }
 
   if (els.bridgeAddBtn) {

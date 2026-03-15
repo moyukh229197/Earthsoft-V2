@@ -646,6 +646,13 @@ body.is-authenticated .login-screen {
   transform: translateX(16px);
 }
 
+.toggle-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+
 .export-range-row {
   display: flex;
   flex-direction: column;
