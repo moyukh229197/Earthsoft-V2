@@ -6623,7 +6623,7 @@ function bindEvents() {
       reader.onload = (re) => {
         const lar = { id: 'lar_' + Date.now(), name: file.name, data: re.target.result };
         state.larReferences.push(lar);
-        if (typeof renderLarRefs === 'function') renderLarRefs();
+        renderLarRefs();
         if (els.larRefSelect) els.larRefSelect.value = lar.id;
         saveState();
       };
@@ -9221,7 +9221,19 @@ async function loadFromSupabase(projectId) {
       if (part.data_type === 'snapshots') state.snapshots = part.data;
       if (part.data_type === 'kml') state.kmlData = part.data;
       if (part.data_type === 'station_plans') state.stationPlans = part.data;
+      if (part.data_type === 'lar_references') {
+        state.larReferences.length = 0;
+        state.larReferences.push(...(part.data || []));
+      }
+      if (part.data_type === 'estimates') {
+        Object.keys(state.estimates).forEach(k => delete state.estimates[k]);
+        Object.assign(state.estimates, part.data || {});
+      }
     });
+
+    renderLarRefs();
+    if (typeof window.renderEstGrid === 'function') window.renderEstGrid();
+    if (typeof window.renderAbstract === 'function') window.renderAbstract();
 
     updateDashboard();
     recalculate(); 
@@ -11550,6 +11562,19 @@ async function generateProjectReport(options) {
   }
 }
 
+function renderLarRefs() {
+  if (!els.larRefSelect) return;
+  const currentVal = els.larRefSelect.value;
+  els.larRefSelect.innerHTML = '<option value="">No Reference</option>';
+  (state.larReferences || []).forEach(lar => {
+    const opt = document.createElement('option');
+    opt.value = lar.id;
+    opt.textContent = lar.name;
+    els.larRefSelect.appendChild(opt);
+  });
+  if (currentVal) els.larRefSelect.value = currentVal;
+}
+
 // ==== NEW ESTIMATION MODULE LOGIC (SUPABASE BACKED) ====
 document.addEventListener('DOMContentLoaded', () => {
   const supabase = window.supabaseClient;
@@ -11624,19 +11649,12 @@ document.addEventListener('DOMContentLoaded', () => {
   renderLarRefs();
 
   // Listeners moved to main bindEvents for reliability
+  
+  // Expose for external calls
+  window.renderEstGrid = renderEstGrid;
+  window.renderAbstract = renderAbstract;
 
-  function renderLarRefs() {
-    if (!larRefSelect) return;
-    const currentVal = larRefSelect.value;
-    larRefSelect.innerHTML = '<option value="">No Reference</option>';
-    larReferences.forEach(lar => {
-      const opt = document.createElement('option');
-      opt.value = lar.id;
-      opt.textContent = lar.name;
-      larRefSelect.appendChild(opt);
-    });
-    if (currentVal) larRefSelect.value = currentVal;
-  }
+
 
   // ── SOR Search (Supabase) ─────────────────────────────────────────────
   async function renderSorTable(filter = '') {
