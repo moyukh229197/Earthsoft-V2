@@ -12202,11 +12202,15 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log(`[LAR Parser] Processing PDF: ${file.name}, Pages: ${pdf.numPages}`);
     const items = [];
     
-    // More flexible patterns
-    // Code: Alphanumeric, dots, hyphens (e.g. 011010, 1.1, A-1)
-    // Unit: Expanded list
-    // Rate: Number at the end, optional commas, decimal point
-    const itemPattern = /^([\w\.\-/]{1,15})\s+(.*?)\s+(Cum|Sqm|100\sSqm|Km|RM|Rm|Tonne|Ea|Kg|Pair|Rkm|Tkm|Sqcm|10\sCum|100\sCum|1000\sCum|Litre|Day|Month|L\.S\.|Quintal|Sq\.m\.|Cu\.m\.|KM|Set|No\.?|Each|Per\sKm|MT|Metre|Job|Sht|Set|Bundle|Trip|Hour|Shift|Cubic\sMetre|Square\sMetre|running\smetre)\s+([0-9,]+(?:\.\d+)?)/i;
+    // Unified pattern: [Code] [Description] [Unit] [Rate]
+    // 1. Code: starts with word/number/dot/dash
+    // 2. Unit: Expanded list of railway units
+    // 3. Rate: Number with optional commas and decimals
+    const unitList = "Cum|Sqm|100\sSqm|Km|RM|Rm|Tonne|Ea|Kg|Pair|Rkm|Tkm|Sqcm|10\sCum|100\sCum|1000\sCum|Litre|Day|Month|L\.S\.|Quintal|Sq\.m\.|Cu\.m\.|KM|Set|No\.?|Each|Per\sKm|MT|Metre|Job|Sht|Set|Bundle|Trip|Hour|Shift|Cubic\sMetre|Square\sMetre|running\smetre|R\.m|m|m2|m3|MT|kg|job|nos|LS|per|box|set|bundle|pk|roll|sqm|cum";
+    const itemPattern = new RegExp(`(?:^|\\s)([\\w\\.\\-\\/]{1,15})\\s+(.*?)\\s+(${unitList})\\s+([0-9,]+(?:\\.\\d+)?)`, "i");
+    
+    // Fallback: If strict fails, look for [Code] ... [Rate at end]
+    const fallbackPattern = /(?:^|\s)([\w\.\-\/]{1,15})\s+(.*?)\s+([0-9,]+\.\d{2})\s*$/i;
 
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
@@ -12215,11 +12219,11 @@ document.addEventListener('DOMContentLoaded', () => {
       let currentLine = "";
       let lastY = -1;
 
-      // Group items into lines based on Y coordinate
+      // Group items into lines based on Y coordinate (top to bottom)
       const sortedItems = textContent.items.sort((a, b) => b.transform[5] - a.transform[5] || a.transform[4] - b.transform[4]);
       
       sortedItems.forEach(item => {
-        if (lastY !== -1 && Math.abs(item.transform[5] - lastY) > 5) {
+        if (lastY !== -1 && Math.abs(item.transform[5] - lastY) > 3) {
           lines.push(currentLine.trim());
           currentLine = "";
         }
@@ -12230,31 +12234,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let currentItem = null;
       for (let line of lines) {
-        if (!line.trim()) continue;
+        if (!line.trim() || line.length < 5) continue;
         
-        const match = line.match(itemPattern);
+        // Try strict pattern first
+        let match = line.match(itemPattern);
+        
+        // Try fallback if strict fails on this line
+        if (!match) match = line.match(fallbackPattern);
+
         if (match) {
           if (currentItem) items.push(currentItem);
           currentItem = {
-            code: (match[1] || '').trim() || 'N/A',
-            description: (match[2] || '').trim() || '(Missing Description)',
-            unit: (match[3] || '').trim() || 'No Unit',
-            rate: parseFloat(match[4].replace(/,/g, '')) || 0,
+            code: (match[1] || '').trim(),
+            description: (match[2] || '').trim(),
+            unit: match[3] ? (match[3].length > 15 ? 'LS' : match[3].trim()) : 'N/A',
+            rate: parseFloat(match[match.length - 1].replace(/,/g, '')) || 0,
             contract_ref: file.name
           };
+          
+          // If fallback was used, unit might be incorrectly captured in description or missing
+          if (currentItem.unit === 'N/A' || !isNaN(currentItem.unit)) {
+             currentItem.unit = 'Unit'; // Placeholder
+          }
         } else if (currentItem) {
-          // If it doesn't match a new item but we have an active item,
-          // check if it's a continuation of description or just noise
           const cleanLine = line.trim();
-          if (cleanLine && !/^\d+\s/.test(cleanLine) && cleanLine.length > 3) {
+          // Continuation of description? (Doesn't look like a new item code)
+          if (cleanLine && !/^[\d\w]{4,}/.test(cleanLine) && !/^\d+\s/.test(cleanLine)) {
              currentItem.description += " " + cleanLine;
-          } else {
-             // If we hit something that looks like a new item start (starts with number) 
-             // but didn't match the full pattern, we close the current item
-             if (/^\d{4,}/.test(cleanLine)) {
-                items.push(currentItem);
-                currentItem = null;
-             }
+          } else if (cleanLine.length > 50) {
+             // Long lines often continuation
+             currentItem.description += " " + cleanLine;
           }
         }
       }
@@ -12262,15 +12271,16 @@ document.addEventListener('DOMContentLoaded', () => {
       if (larBankUploadStatus) larBankUploadStatus.textContent = `Parsing PDF: Page ${i} / ${pdf.numPages}...`;
     }
 
-    // Secondary pass: if still no items, try an extremely loose pattern for generic PDFs
-    if (items.length === 0) {
-      console.warn("[LAR Parser] Strict pattern failed, trying relaxed pattern...");
-      const relaxedPattern = /^\s*(\d+[a-zA-Z]?)\s+(.*?)\s+([0-9,]+\.\d+)/i;
-      // ... (Keep it simple for now, usually the strict one with expanded units works)
-    }
-
-    console.log(`[LAR Parser] Extracted ${items.length} items.`);
-    return items;
+    console.log(`[LAR Parser] extracted ${items.length} items.`);
+    
+    // Final Polish
+    return items.map(it => ({
+      ...it,
+      code: it.code || 'N/A',
+      description: (it.description || '').substring(0, 1000), // Safety limit
+      unit: it.unit || 'Nos',
+      rate: it.rate || 0
+    }));
   }
 
   // ── Tab Switching ─────────────────────────────────────────────────────
