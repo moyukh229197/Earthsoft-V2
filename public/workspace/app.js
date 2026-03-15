@@ -11677,20 +11677,32 @@ async function generateProjectReport(options) {
 }
 
 function buildLarOptionsHTML() {
-  return '<option value="">-- No LAR --</option>' + 
-         (state.larReferences || []).map(lar => `<option value="${lar.id}">${lar.name}</option>`).join('');
+  const localOptions = (state.larReferences || []).map(lar => `<option value="${lar.id}">${lar.name}</option>`).join('');
+  const bankOptions = (window.larBankSources || []).map(s => `<option value="${s.id}">${s.display_name} (Bank)</option>`).join('');
+  return '<option value="">-- No LAR --</option>' + localOptions + bankOptions;
 }
 
 function renderLarRefs() {
   if (els.larRefSelect) {
     const currentVal = els.larRefSelect.value;
     els.larRefSelect.innerHTML = '<option value="">No Reference</option>';
+    
+    // Add local uploads
     (state.larReferences || []).forEach(lar => {
       const opt = document.createElement('option');
       opt.value = lar.id;
       opt.textContent = lar.name;
       els.larRefSelect.appendChild(opt);
     });
+
+    // Add global bank sources
+    (window.larBankSources || []).forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.display_name + " (Bank)";
+      els.larRefSelect.appendChild(opt);
+    });
+
     if (currentVal) els.larRefSelect.value = currentVal;
   }
   
@@ -11736,7 +11748,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // ── Database Sync ─────────────────────────────────────────────────────
-  let larBankSources = [];
+  window.larBankSources = [];
   let activeLarBankSourceId = null;
 
   async function loadSorSources() {
@@ -11777,10 +11789,11 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const { data, error } = await supabase.from('lar_sources').select('*').order('uploaded_at', { ascending: false });
       if (error) throw error;
-      larBankSources = data || [];
+      window.larBankSources = data || [];
       refreshLarBankSourceDropdowns();
-      if (larBankSources.length > 0 && !activeLarBankSourceId) {
-        activeLarBankSourceId = larBankSources[0].id;
+      renderLarRefs(); // Sync with estimate header
+      if (window.larBankSources.length > 0 && !activeLarBankSourceId) {
+        activeLarBankSourceId = window.larBankSources[0].id;
         const sel = document.getElementById('larBankSourceSelect');
         if (sel) sel.value = activeLarBankSourceId;
         renderLarBankTable();
@@ -11791,7 +11804,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function refreshLarBankSourceDropdowns() {
     const sel = document.getElementById('larBankSourceSelect');
     if (sel) {
-      sel.innerHTML = larBankSources.map(s => `<option value="${s.id}">${s.display_name}</option>`).join('');
+      sel.innerHTML = window.larBankSources.map(s => `<option value="${s.id}">${s.display_name}</option>`).join('');
       if (activeLarBankSourceId) sel.value = activeLarBankSourceId;
     }
   }
@@ -12366,19 +12379,42 @@ document.addEventListener('DOMContentLoaded', () => {
         const sid = sorSel.value;
         if (!code) return;
 
-        let query = supabase.from('sor_items').select('*').eq('item_code', code);
-        if (sid) query = query.eq('source_id', sid);
-        
-        const { data, error } = await query.limit(1);
-        if (data && data.length > 0) {
-          const found = data[0];
+        if (!code) return;
+
+        let found = null;
+
+        // 1. Try searching LAR Bank if a reference is selected
+        const lid = larRefSel.value;
+        if (lid && lid.length > 20) { // Likely a Supabase UUID if > 20 chars
+          const { data: larData } = await supabase.from('lar_items')
+            .select('*')
+            .eq('source_id', lid)
+            .eq('item_code', code)
+            .limit(1);
+          if (larData && larData.length > 0) {
+            found = larData[0];
+            row.larRefId = lid;
+          }
+        }
+
+        // 2. Fallback to SOR if not found in LAR or no LAR selected
+        if (!found) {
+          let query = supabase.from('sor_items').select('*').eq('item_code', code);
+          if (sid) query = query.eq('source_id', sid);
+          const { data: sorData } = await query.limit(1);
+          if (sorData && sorData.length > 0) {
+            found = sorData[0];
+            row.sor = found.source_id;
+            tr.querySelector('.est-sor-select').value = row.sor;
+          }
+        }
+
+        if (found) {
           row.code = found.item_code;
           row.desc = found.description;
           row.unit = found.unit;
           row.rate = parseFloat(found.rate);
-          row.sor = found.source_id;
           
-          tr.querySelector('.est-sor-select').value = row.sor;
           tr.querySelector('.est-desc-input').value = row.desc;
           tr.querySelector('.est-unit-input').value = row.unit;
           tr.querySelector('.est-rate-input').value = row.rate;
@@ -12386,7 +12422,7 @@ document.addEventListener('DOMContentLoaded', () => {
           saveState();
           tr.querySelector('.est-qty-input').focus();
         } else {
-          console.warn(`Item ${code} not found in database.`);
+          console.warn(`Item ${code} not found in selected SOR or LAR Bank.`);
         }
       }
     });
@@ -12439,7 +12475,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function addEstRow(sor, code, desc, unit, rate) {
-    const row = { sor: sor || '', code: code || '', desc: desc || '', qty: 0, unit: unit || '', rate: Number(rate) || 0 };
+    const lrid = els.larRefSelect ? els.larRefSelect.value : "";
+    const row = { 
+      sor: sor || '', 
+      larRefId: lrid,
+      code: code || '', 
+      desc: desc || '', 
+      qty: 0, 
+      unit: unit || '', 
+      rate: Number(rate) || 0 
+    };
     if (!state.estimates[currentPlanHead]) state.estimates[currentPlanHead] = [];
     state.estimates[currentPlanHead].push(row);
     renderEstGrid();
