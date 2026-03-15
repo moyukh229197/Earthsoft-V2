@@ -9101,7 +9101,13 @@ function saveState() {
     stationPlans: state.stationPlans,
     supabaseProjectId: state.supabaseProjectId
   };
-  localStorage.setItem("earthsoft_saved_work", JSON.stringify(data));
+  try {
+    localStorage.setItem("earthsoft_saved_work", JSON.stringify(data));
+  } catch (e) {
+    if (e.name === 'QuotaExceededError') {
+      console.warn("Local storage quota exceeded. Changes only saved to Supabase (if active).");
+    }
+  }
   
   // Also sync to Supabase if config is present
   if (window.supabaseClient && state.project.active) {
@@ -9259,7 +9265,26 @@ function loadStoredState() {
   try {
     const data = JSON.parse(saved);
     if (!data) return;
-    Object.assign(state, data);
+    
+    // Use mutation to preserve object references
+    if (data.project) Object.assign(state.project, data.project);
+    if (data.meta) state.meta = data.meta;
+    if (data.rawRows) { state.rawRows.length = 0; state.rawRows.push(...data.rawRows); }
+    if (data.bridgeRows) { state.bridgeRows.length = 0; state.bridgeRows.push(...data.bridgeRows); }
+    if (data.curveRows) { state.curveRows.length = 0; state.curveRows.push(...data.curveRows); }
+    if (data.loopPlatformRows) { state.loopPlatformRows.length = 0; state.loopPlatformRows.push(...data.loopPlatformRows); }
+    if (data.estimates) { 
+      Object.keys(state.estimates).forEach(k => delete state.estimates[k]);
+      Object.assign(state.estimates, data.estimates);
+    }
+    if (data.larReferences) { state.larReferences.length = 0; state.larReferences.push(...data.larReferences); }
+    if (data.settings) Object.assign(state.settings, data.settings);
+    if (data.snapshots) { state.snapshots.length = 0; state.snapshots.push(...data.snapshots); }
+    if (data.kmlData) state.kmlData = data.kmlData;
+    if (data.stationPlans) Object.assign(state.stationPlans, data.stationPlans);
+    if (data.supabaseProjectId) state.supabaseProjectId = data.supabaseProjectId;
+    
+    renderLarRefs();
     
     // If we have a supabase ID but maybe some data is missing locally, we could sync here
     // But for now just trust the local storage if it exists.
@@ -11607,8 +11632,8 @@ document.addEventListener('DOMContentLoaded', () => {
       '1150': [], '1160': [], '1170': [], '1180': []
     };
   }
-  const estData = state.estimates;
-  const larReferences = state.larReferences;
+  // Avoid local property copies to prevent stale references after state re-assignment
+  // Use state.estimates and state.larReferences directly
 
   const PLAN_HEAD_MAP = {
     '1110': '1110 - Preliminary Expenses',
@@ -11939,7 +11964,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderEstGrid() {
     const gridBody = document.getElementById('estGridBody');
     if (!gridBody) return;
-    const rows = estData[currentPlanHead] || [];
+    const rows = state.estimates[currentPlanHead] || [];
     gridBody.innerHTML = '';
     
     if (rows.length === 0) {
@@ -11956,12 +11981,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const cash = (row.qty || 0) * (row.rate || 0);
     tr.innerHTML = `<td>${idx + 1}.0</td>` +
       `<td><select class="est-sor-select" style="padding:4px;border-radius:4px;border:1px solid var(--stroke);background:rgba(0,0,0,0.2);color:var(--text);font-size:0.85rem;width:100%;">${buildSorOptionsHTML()}</select></td>` +
+      `<td><select class="est-lar-ref-select" style="padding:4px;border-radius:4px;border:1px solid var(--stroke);background:rgba(0,0,0,0.2);color:var(--text);font-size:0.85rem;width:100%;">${buildLarOptionsHTML()}</select></td>` +
       `<td><input type="text" class="est-code-input" value="${row.code || ''}" placeholder="011..." style="width:100%;" /></td>` +
       `<td><input type="text" class="est-desc-input" value="${(row.desc || '').replace(/"/g, '&quot;')}" placeholder="Description..." style="width:100%;" /></td>` +
       `<td style="text-align:right;"><input type="number" class="est-qty-input est-calc-trigger" style="text-align:right;width:100%;" value="${row.qty || 0}" /></td>` +
       `<td style="text-align:center;"><input type="text" class="est-unit-input" value="${row.unit || ''}" style="text-align:center;width:100%;" /></td>` +
-      `<td><select class="est-lar-ref-select" style="padding:4px;border-radius:4px;border:1px solid var(--stroke);background:rgba(0,0,0,0.2);color:var(--text);font-size:0.85rem;width:100%;">${buildLarOptionsHTML()}</select></td>` +
-      `<td style="text-align:right;"><input type="number" class="est-lar-input" style="text-align:right;width:100%; color:var(--blue); font-weight:500;" value="${row.lar || 0}" step="0.01" /></td>` +
       `<td style="text-align:right;"><input type="number" class="est-rate-input est-calc-trigger" style="text-align:right;width:100%;" value="${row.rate || 0}" step="0.01" /></td>` +
       `<td style="text-align:right;" class="est-cash-cell">${cash.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>` +
       `<td style="text-align:right;" class="est-stores-cell">0.00</td>` +
@@ -12013,12 +12037,11 @@ document.addEventListener('DOMContentLoaded', () => {
     codeInput.addEventListener('input', () => { row.code = codeInput.value; saveState(); });
     tr.querySelector('.est-desc-input').addEventListener('input', (e) => { row.desc = e.target.value; saveState(); });
     tr.querySelector('.est-unit-input').addEventListener('input', (e) => { row.unit = e.target.value; saveState(); });
-    tr.querySelector('.est-lar-input').addEventListener('input', (e) => { row.lar = parseFloat(e.target.value) || 0; saveState(); });
     tr.querySelector('.est-rate-input').addEventListener('input', (e) => { row.rate = parseFloat(e.target.value) || 0; recalcPlanHead(); saveState(); });
     tr.querySelector('.est-qty-input').addEventListener('input', (e) => { row.qty = parseFloat(e.target.value) || 0; recalcPlanHead(); saveState(); });
     
     tr.querySelector('.est-delete-btn').addEventListener('click', () => {
-      const arr = estData[currentPlanHead];
+      const arr = state.estimates[currentPlanHead];
       const i = arr.indexOf(row);
       if (i >= 0) arr.splice(i, 1);
       renderEstGrid();
@@ -12031,7 +12054,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function recalcPlanHead() {
     const gridBody = document.getElementById('estGridBody');
     if (!gridBody) return;
-    const rows = estData[currentPlanHead] || [];
+    const rows = state.estimates[currentPlanHead] || [];
     let totalCash = 0;
     
     Array.from(gridBody.querySelectorAll('tr')).forEach((tr, idx) => {
@@ -12060,8 +12083,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function addEstRow(sor, code, desc, unit, rate) {
     const row = { sor: sor || '', code: code || '', desc: desc || '', qty: 0, unit: unit || '', rate: Number(rate) || 0 };
-    if (!estData[currentPlanHead]) estData[currentPlanHead] = [];
-    estData[currentPlanHead].push(row);
+    if (!state.estimates[currentPlanHead]) state.estimates[currentPlanHead] = [];
+    state.estimates[currentPlanHead].push(row);
     renderEstGrid();
     saveState();
     const gridBody = document.getElementById('estGridBody');
@@ -12081,7 +12104,7 @@ document.addEventListener('DOMContentLoaded', () => {
     body.innerHTML = '';
     let grandCash = 0;
     Object.keys(PLAN_HEAD_MAP).forEach(ph => {
-      const rows = estData[ph] || [];
+      const rows = state.estimates[ph] || [];
       let cash = rows.reduce((acc, r) => acc + ((r.qty || 0) * (r.rate || 0)), 0);
       grandCash += cash;
       const tr = document.createElement('tr');
