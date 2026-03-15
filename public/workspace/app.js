@@ -298,12 +298,7 @@ const els = {
   cloudProjectsModal: document.getElementById("cloudProjectsModal"),
   closeCloudProjectsBtn: document.getElementById("closeCloudProjectsBtn"),
   cloudProjectsList: document.getElementById("cloudProjectsList"),
-  cloudProjectSearch: document.getElementById("cloudProjectSearch"),
-  larRefSelect: document.getElementById('larRefSelect'),
-  larFileInput: document.getElementById('larFileInput'),
-  uploadLarBtn: document.getElementById('uploadLarBtn'),
-  viewLarBtn: document.getElementById('viewLarBtn'),
-  deleteLarLocalBtn: document.getElementById('deleteLarLocalBtn')
+  cloudProjectSearch: document.getElementById("cloudProjectSearch")
 };
 
 async function loadAuthState() {
@@ -6608,52 +6603,8 @@ function bindEvents() {
     });
   }
 
-  if (els.uploadLarBtn && els.larFileInput) {
-    els.uploadLarBtn.addEventListener('click', () => els.larFileInput.click());
-    els.larFileInput.addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (re) => {
-        const lar = { id: 'lar_' + Date.now(), name: file.name, data: re.target.result };
-        state.larReferences.push(lar);
-        renderLarRefs();
-        if (els.larRefSelect) els.larRefSelect.value = lar.id;
-        saveState();
-      };
-      reader.readAsDataURL(file);
-    });
-  }
 
-  if (els.viewLarBtn) {
-    els.viewLarBtn.addEventListener('click', () => {
-      const lid = els.larRefSelect?.value;
-      const lar = state.larReferences.find(l => l.id === lid);
-      if (lar) {
-        const win = window.open();
-        win.document.write(`<iframe src="${lar.data}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-      } else {
-        alert('Please select or upload an LAR reference first.');
-      }
-    });
-  }
 
-  if (els.deleteLarLocalBtn) {
-    els.deleteLarLocalBtn.addEventListener('click', () => {
-      const lid = els.larRefSelect?.value;
-      if (!lid) {
-        alert('Please select an LAR reference to delete.');
-        return;
-      }
-      const lar = state.larReferences.find(l => l.id === lid);
-      if (lar && confirm(`Are you sure you want to delete "${lar.name}"?`)) {
-        state.larReferences = state.larReferences.filter(l => l.id !== lid);
-        renderLarRefs();
-        if (els.larRefSelect) els.larRefSelect.value = "";
-        saveState();
-      }
-    });
-  }
 
   if (els.themeToggleCheckbox) {
     els.themeToggleCheckbox.addEventListener("change", (e) => {
@@ -11683,30 +11634,7 @@ function buildLarOptionsHTML() {
 }
 
 function renderLarRefs() {
-  if (els.larRefSelect) {
-    const currentVal = els.larRefSelect.value;
-    els.larRefSelect.innerHTML = '<option value="">No Reference</option>';
-    
-    // Add local uploads
-    (state.larReferences || []).forEach(lar => {
-      const opt = document.createElement('option');
-      opt.value = lar.id;
-      opt.textContent = lar.name;
-      els.larRefSelect.appendChild(opt);
-    });
-
-    // Add global bank sources
-    (window.larBankSources || []).forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s.id;
-      opt.textContent = s.display_name + " (Bank)";
-      els.larRefSelect.appendChild(opt);
-    });
-
-    if (currentVal) els.larRefSelect.value = currentVal;
-  }
-  
-  // Also update any in-table LAR selects
+  // Update any in-table LAR selects
   document.querySelectorAll('.est-lar-ref-select').forEach(sel => {
     const currentVal = sel.value;
     sel.innerHTML = buildLarOptionsHTML();
@@ -12475,10 +12403,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function addEstRow(sor, code, desc, unit, rate) {
-    const lrid = els.larRefSelect ? els.larRefSelect.value : "";
     const row = { 
       sor: sor || '', 
-      larRefId: lrid,
+      larRefId: '',
       code: code || '', 
       desc: desc || '', 
       qty: 0, 
