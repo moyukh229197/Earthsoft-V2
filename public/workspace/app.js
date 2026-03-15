@@ -12178,8 +12178,9 @@ document.addEventListener('DOMContentLoaded', () => {
         alert(`Successfully uploaded "${displayName}" with ${items.length} items!`);
       } catch (err) {
         console.error('LAR Upload error:', err);
-        alert('Upload failed: ' + err.message);
-        if (larBankUploadStatus) larBankUploadStatus.textContent = 'Error.';
+        const errorDetail = err.details || err.message || JSON.stringify(err);
+        alert('Upload failed: ' + errorDetail);
+        if (larBankUploadStatus) larBankUploadStatus.textContent = 'Error: ' + errorDetail;
       }
       e.target.value = '';
     });
@@ -12235,10 +12236,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (match) {
           if (currentItem) items.push(currentItem);
           currentItem = {
-            code: match[1].trim(),
-            description: match[2].trim(),
-            unit: match[3].trim(),
-            rate: parseFloat(match[4].replace(/,/g, '')),
+            code: (match[1] || '').trim() || 'N/A',
+            description: (match[2] || '').trim() || '(Missing Description)',
+            unit: (match[3] || '').trim() || 'No Unit',
+            rate: parseFloat(match[4].replace(/,/g, '')) || 0,
             contract_ref: file.name
           };
         } else if (currentItem) {
