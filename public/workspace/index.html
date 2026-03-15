@@ -804,6 +804,7 @@
               <hr style="border: none; border-top: 1px solid var(--stroke); margin: 8px 0;" />
               <button class="estimate-nav-btn" data-est-tab="abstract" type="button" style="font-weight: 600; color: var(--blue);">Abstract Estimate</button>
               <button class="estimate-nav-btn" data-est-tab="sor" type="button" style="font-weight: 600; color: var(--green);"><i class="ri-book-read-line" style="margin-right: 6px;"></i> SOR DataBank</button>
+              <button class="estimate-nav-btn" data-est-tab="lar-bank" type="button" style="font-weight: 600; color: #f59e0b;"><i class="ri-folder-info-line" style="margin-right: 6px;"></i> LAR DataBank</button>
             </nav>
           </div>
           
@@ -941,6 +942,56 @@
                        </thead>
                        <tbody id="sorResultsBody">
                           <tr><td colspan="5" style="text-align: center; color: var(--muted); padding: 32px;">Search to find SOR items...</td></tr>
+                       </tbody>
+                    </table>
+                 </div>
+             </div>
+
+             <!-- LAR DataBank Pane -->
+             <div id="estTabLAR" class="est-tab-pane panel glass" style="display: none; height: 100%; flex-direction: column;">
+                 <div class="panel-head">
+                   <h2 style="margin: 0;">📁 LAR DataBank</h2>
+                   <p class="muted" style="margin: 4px 0 0 0; font-size: 0.85rem;">Manage and Search Lowest Accepted Rates (LAR) from previous projects</p>
+                 </div>
+                 <div style="margin: 16px 0;">
+                    <div class="search-box" style="position: relative; width: 100%; max-width: 600px;">
+                      <i class="ri-search-line" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 1.2rem;"></i>
+                      <input type="text" id="larBankSearchInput" placeholder="Search by Item Code, Description, or Contract Ref..." style="width: 100%; padding: 12px 16px 12px 48px; border-radius: 8px; border: 1px solid var(--stroke); background: rgba(0,0,0,0.2); color: var(--text); font-size: 1rem;" />
+                    </div>
+                 </div>
+                 <div class="sor-db-toolbar" style="display: flex; gap: 12px; margin-bottom: 16px; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <select id="larBankSourceSelect" style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--stroke); background: rgba(0,0,0,0.2); color: var(--text); min-width: 180px;">
+                           <option value="">Loading...</option>
+                        </select>
+                        <button id="deleteLarBankBtn" class="btn btn-secondary icon-btn-sm" title="Delete Current LAR" style="color: var(--red); padding: 8px; border: 1px solid var(--stroke);">
+                            <i class="ri-delete-bin-line"></i>
+                        </button>
+                        <span class="muted" style="font-size: 0.85rem;" id="larBankResultCount"></span>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="file" id="larBankFileInput" accept=".json,.pdf" style="display: none;" />
+                        <button id="uploadLarBankBtn" class="btn btn-primary" type="button" onclick="document.getElementById('larBankFileInput').click();">
+                            <i class="ri-upload-cloud-2-line"></i> Upload New LAR
+                        </button>
+                        <span id="larBankUploadStatus" class="muted" style="font-size: 0.85rem;"></span>
+                    </div>
+                 </div>
+                 
+                 <div class="table-wrap" style="flex: 1; overflow-y: auto; background: rgba(0,0,0,0.15); border-radius: 8px;">
+                    <table class="result-table">
+                       <thead style="position: sticky; top: 0; background: var(--bg-primary); z-index: 1;">
+                         <tr>
+                            <th style="width: 100px;">Item Code</th>
+                            <th>Description</th>
+                            <th style="width: 80px; text-align: center;">Unit</th>
+                            <th style="width: 100px; text-align: right;">Rate (₹)</th>
+                            <th style="width: 180px;">Contract Ref</th>
+                            <th style="width: 120px; text-align: right;">Action</th>
+                         </tr>
+                       </thead>
+                       <tbody id="larBankResultsBody">
+                          <tr><td colspan="6" style="text-align: center; color: var(--muted); padding: 32px;">Select or search to find LAR items...</td></tr>
                        </tbody>
                     </table>
                  </div>

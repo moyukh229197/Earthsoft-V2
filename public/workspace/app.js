@@ -11716,6 +11716,9 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // ── Database Sync ─────────────────────────────────────────────────────
+  let larBankSources = [];
+  let activeLarBankSourceId = null;
+
   async function loadSorSources() {
     try {
       const { data, error } = await supabase.from('sor_sources').select('*').order('uploaded_at', { ascending: false });
@@ -11750,8 +11753,32 @@ document.addEventListener('DOMContentLoaded', () => {
            sorSources.map(s => `<option value="${s.id}">${s.display_name}</option>`).join('');
   }
 
+  async function loadLarBankSources() {
+    try {
+      const { data, error } = await supabase.from('lar_sources').select('*').order('uploaded_at', { ascending: false });
+      if (error) throw error;
+      larBankSources = data || [];
+      refreshLarBankSourceDropdowns();
+      if (larBankSources.length > 0 && !activeLarBankSourceId) {
+        activeLarBankSourceId = larBankSources[0].id;
+        const sel = document.getElementById('larBankSourceSelect');
+        if (sel) sel.value = activeLarBankSourceId;
+        renderLarBankTable();
+      }
+    } catch (e) { console.error('Error loading LAR sources:', e); }
+  }
+
+  function refreshLarBankSourceDropdowns() {
+    const sel = document.getElementById('larBankSourceSelect');
+    if (sel) {
+      sel.innerHTML = larBankSources.map(s => `<option value="${s.id}">${s.display_name}</option>`).join('');
+      if (activeLarBankSourceId) sel.value = activeLarBankSourceId;
+    }
+  }
+
   // Initial load
   loadSorSources();
+  loadLarBankSources();
   renderEstGrid();
   renderLarRefs();
 
@@ -11999,6 +12026,205 @@ document.addEventListener('DOMContentLoaded', () => {
     return items;
   }
 
+  // ── LAR Bank Search & Search Rendering ────────────────────────────────
+  async function renderLarBankTable(filter = '') {
+    const larBody = document.getElementById('larBankResultsBody');
+    const count = document.getElementById('larBankResultCount');
+    if (!larBody) return;
+
+    if (!activeLarBankSourceId) {
+      larBody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px;">No LAR uploaded. Click "Upload New LAR" to begin.</td></tr>';
+      return;
+    }
+
+    const query = filter.trim();
+    let supabaseQuery = supabase.from('lar_items')
+      .select('*, lar_sources(display_name)')
+      .eq('source_id', activeLarBankSourceId)
+      .limit(100);
+
+    if (query) {
+      supabaseQuery = supabaseQuery.or(`item_code.ilike.%${query}%,description.ilike.%${query}%,contract_ref.ilike.%${query}%`);
+    }
+
+    try {
+      const { data, error } = await supabaseQuery;
+      if (error) throw error;
+
+      larBody.innerHTML = '';
+      if (!data || data.length === 0) {
+        larBody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px;">No items found matching "' + filter + '".</td></tr>';
+        if (count) count.textContent = '';
+        return;
+      }
+
+      data.forEach(item => {
+        const tr = document.createElement('tr');
+        const descShort = (item.description || '').substring(0, 150) + ((item.description || '').length > 150 ? '...' : '');
+        tr.innerHTML = `<td style="font-weight:600;">${item.item_code}</td>` +
+          `<td>${descShort}</td>` +
+          `<td style="text-align:center;">${item.unit}</td>` +
+          `<td style="text-align:right;">₹${Number(item.rate).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>` +
+          `<td><div style="font-size:0.75rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;" title="${item.contract_ref}">${item.contract_ref || '-'}</div></td>` +
+          `<td style="text-align:right;"><button class="btn btn-secondary add-to-est-btn" style="font-size:0.8rem;padding:4px 8px;">Add to Est</button></td>`;
+        
+        tr.querySelector('.add-to-est-btn').addEventListener('click', () => {
+          addEstRow(null, item.item_code, item.description, item.unit, item.rate);
+          const btn = document.querySelector(`.estimate-nav-btn[data-est-tab="${currentPlanHead}"]`);
+          if (btn) btn.click();
+        });
+        larBody.appendChild(tr);
+      });
+
+      if (count) count.textContent = `Showing top ${data.length} results.`;
+    } catch (e) { console.error('LAR Search error:', e); }
+  }
+
+  // LAR Event Listeners
+  const larBankSourceSelect = document.getElementById('larBankSourceSelect');
+  if (larBankSourceSelect) {
+    larBankSourceSelect.addEventListener('change', () => {
+      activeLarBankSourceId = larBankSourceSelect.value;
+      renderLarBankTable(document.getElementById('larBankSearchInput')?.value || '');
+    });
+  }
+
+  const larBankSearchInput = document.getElementById('larBankSearchInput');
+  if (larBankSearchInput) {
+    let st;
+    larBankSearchInput.addEventListener('input', (e) => {
+      clearTimeout(st);
+      st = setTimeout(() => renderLarBankTable(e.target.value), 300);
+    });
+  }
+
+  const deleteLarBankBtn = document.getElementById('deleteLarBankBtn');
+  if (deleteLarBankBtn) {
+    deleteLarBankBtn.addEventListener('click', async () => {
+      if (!activeLarBankSourceId) return;
+      const source = larBankSources.find(s => s.id === activeLarBankSourceId);
+      if (!source) return;
+      if (!confirm(`Are you sure you want to delete LAR "${source.display_name}"?`)) return;
+      try {
+        const { error } = await supabase.from('lar_sources').delete().eq('id', activeLarBankSourceId);
+        if (error) throw error;
+        alert('LAR deleted successfully.');
+        activeLarBankSourceId = null;
+        await loadLarBankSources();
+        renderLarBankTable();
+      } catch (err) { alert('Failed to delete LAR: ' + err.message); }
+    });
+  }
+
+  const larBankFileInput = document.getElementById('larBankFileInput');
+  const larBankUploadStatus = document.getElementById('larBankUploadStatus');
+  if (larBankFileInput) {
+    larBankFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const displayName = prompt('Enter a name for this LAR:', file.name.replace(/\.[^/.]+$/, "").toUpperCase()) || file.name;
+      const sourceKey = displayName.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
+      if (larBankUploadStatus) larBankUploadStatus.textContent = 'Processing...';
+
+      try {
+        const items = await parseLARPdfInBrowser(file);
+        if (!items || items.length === 0) throw new Error('No items extracted.');
+
+        if (larBankUploadStatus) larBankUploadStatus.textContent = `Uploading ${items.length} items...`;
+        const { data: source, error: sErr } = await supabase.from('lar_sources')
+          .upsert({ source_key: sourceKey, display_name: displayName, item_count: items.length }, { onConflict: 'source_key' })
+          .select().single();
+        if (sErr) throw sErr;
+
+        const batchSize = 100;
+        for (let i = 0; i < items.length; i += batchSize) {
+          const batch = items.slice(i, i + batchSize).map(item => ({
+            source_id: source.id,
+            item_code: String(item.code || '').trim(),
+            description: item.description,
+            unit: item.unit,
+            rate: parseFloat(item.rate) || 0,
+            contract_ref: item.contract_ref
+          }));
+          const { error: iErr } = await supabase.from('lar_items').insert(batch);
+          if (iErr) throw iErr;
+          if (larBankUploadStatus) larBankUploadStatus.textContent = `Uploaded ${Math.min(i + batchSize, items.length)} / ${items.length}...`;
+        }
+
+        if (larBankUploadStatus) larBankUploadStatus.textContent = 'Success!';
+        await loadLarBankSources();
+        activeLarBankSourceId = source.id;
+        renderLarBankTable();
+        alert(`Successfully uploaded "${displayName}" with ${items.length} items!`);
+      } catch (err) {
+        console.error('LAR Upload error:', err);
+        alert('Upload failed: ' + err.message);
+        if (larBankUploadStatus) larBankUploadStatus.textContent = 'Error.';
+      }
+      e.target.value = '';
+    });
+  }
+
+  async function parseLARPdfInBrowser(file) {
+    // Reuse browser parsing logic but for LAR
+    if (typeof pdfjsLib === 'undefined') {
+      await new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js';
+        script.onload = resolve;
+        document.head.appendChild(script);
+      });
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+    const items = [];
+    
+    // Pattern: Attempt to find Code, Description, Unit, Rate + Contract Ref if possible
+    // For many LARs, contract ref is in the header or specific column. 
+    // We'll use a conservative pattern for now.
+    const itemPattern = /(\d{4,6}[a-zA-Z]?)\s+(.*?)\s+(Cum|Sqm|100\sSqm|Km|RM|Rm|Tonne|Ea|Kg|Pair|Rkm|Tkm|Sqcm|10\sCum|100\sCum|1000\sCum|Litre|Day|Month|L\.S\.|Quintal|Sq\.m\.|Cu\.m\.|KM|Set|No\.?|Each|Per\sKm|MT)\s+([0-9,]+\.\d{2})/i;
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const lines = [];
+      let currentLine = "";
+      let lastY = -1;
+
+      textContent.items.forEach(item => {
+        if (lastY !== -1 && Math.abs(item.transform[5] - lastY) > 5) {
+          lines.push(currentLine);
+          currentLine = "";
+        }
+        currentLine += item.str + " ";
+        lastY = item.transform[5];
+      });
+      lines.push(currentLine);
+
+      let currentItem = null;
+      for (let line of lines) {
+        const match = line.match(itemPattern);
+        if (match) {
+          if (currentItem) items.push(currentItem);
+          currentItem = {
+            code: match[1].trim(),
+            description: match[2].trim(),
+            unit: match[3].trim(),
+            rate: parseFloat(match[4].replace(/,/g, '')),
+            contract_ref: file.name // Default to filename as ref for now
+          };
+        } else if (currentItem && line.trim() && !/^\d/.test(line.trim())) {
+          currentItem.description += " " + line.trim();
+        }
+      }
+      if (currentItem) items.push(currentItem);
+      if (larBankUploadStatus) larBankUploadStatus.textContent = `Parsing PDF: Page ${i} / ${pdf.numPages}...`;
+    }
+    return items;
+  }
+
   // ── Tab Switching ─────────────────────────────────────────────────────
   const estNavBtns = document.querySelectorAll('.estimate-nav-btn');
   const estTabPanes = document.querySelectorAll('.est-tab-pane');
@@ -12019,6 +12245,10 @@ document.addEventListener('DOMContentLoaded', () => {
           document.getElementById('estTabSOR').style.display = 'flex';
           await loadSorSources();
           renderSorTable(document.getElementById('sorSearchInput')?.value || '');
+        } else if (tabId === 'lar-bank') {
+          document.getElementById('estTabLAR').style.display = 'flex';
+          await loadLarBankSources();
+          renderLarBankTable(document.getElementById('larBankSearchInput')?.value || '');
         } else {
           currentPlanHead = tabId;
           document.getElementById('estTabDataGrid').style.display = 'flex';
