@@ -9120,13 +9120,17 @@ function saveState() {
   }
 }
 
+window._isSyncing = false;
+window._LastSyncHashes = {};
+
 let syncTimer = null;
 function debouncedSaveToSupabase() {
+  if (window._isSyncing) return;
   if (syncTimer) clearTimeout(syncTimer);
   const syncEl = document.getElementById("syncStatus");
   if (syncEl) {
     syncEl.classList.add("syncing");
-    syncEl.querySelector("span").textContent = "Waiting to sync...";
+    syncEl.querySelector("span").textContent = "Changes detected...";
   }
   syncTimer = setTimeout(() => {
     saveToSupabase();
@@ -9134,12 +9138,14 @@ function debouncedSaveToSupabase() {
 }
 
 async function saveToSupabase() {
-  if (!window.supabaseClient || !state.project.name) return;
+  if (!window.supabaseClient || !state.project.name || window._isSyncing) return;
+  window._isSyncing = true;
+  
   const syncEl = document.getElementById("syncStatus");
   if (syncEl) {
     syncEl.classList.add("syncing");
     syncEl.classList.remove("synced", "error");
-    syncEl.querySelector("span").textContent = "Syncing...";
+    syncEl.querySelector("span").textContent = "Pushing to Cloud...";
   }
   
   try {
@@ -9163,6 +9169,8 @@ async function saveToSupabase() {
       saved.supabaseProjectId = projectData.id;
       localStorage.setItem("earthsoft_saved_work", JSON.stringify(saved));
     }
+
+    if (syncEl) syncEl.querySelector("span").textContent = "Uploading Data Rows...";
     
     const heavyParts = [
       { type: 'levels', data: state.rawRows },
@@ -9176,27 +9184,41 @@ async function saveToSupabase() {
       { type: 'station_plans', data: state.stationPlans || {} }
     ];
 
-    // Batch upsert to reduce Disk I/O
-    const upsertRows = heavyParts
-      .filter(part => part.data && (Array.isArray(part.data) ? part.data.length > 0 : Object.keys(part.data).length > 0))
-      .map(part => ({
-        project_id: state.supabaseProjectId,
-        data_type: part.type,
-        data: part.data
-      }));
+    const currentHashes = {};
+    const upsertRows = [];
+    
+    heavyParts.forEach(part => {
+       const hasData = part.data && (Array.isArray(part.data) ? part.data.length > 0 : Object.keys(part.data).length > 0);
+       if (!hasData) return;
+       
+       const hash = JSON.stringify(part.data).length + "_" + (Array.isArray(part.data) ? part.data.length : Object.keys(part.data).length);
+       currentHashes[part.type] = hash;
+       
+       if (window._LastSyncHashes[part.type] !== hash) {
+          upsertRows.push({
+            project_id: state.supabaseProjectId,
+            data_type: part.type,
+            data: part.data
+          });
+       }
+    });
 
     if (upsertRows.length > 0) {
+      if (syncEl) syncEl.querySelector("span").textContent = `Uploading ${upsertRows.length} changed parts...`;
       const { error: batchError } = await window.supabaseClient
         .from('project_data')
         .upsert(upsertRows, { onConflict: 'project_id, data_type' });
         
       if (batchError) throw batchError;
+      
+      // Update hashes only after success
+      Object.assign(window._LastSyncHashes, currentHashes);
     }
     
     if (syncEl) {
       syncEl.classList.remove("syncing");
       syncEl.classList.add("synced");
-      syncEl.querySelector("span").textContent = "Synced";
+      syncEl.querySelector("span").textContent = "Cloud Synced";
     }
   } catch (err) {
     const errMsg = err.message || "Sync Error";
@@ -9206,6 +9228,8 @@ async function saveToSupabase() {
       syncEl.classList.add("error");
       syncEl.querySelector("span").textContent = errMsg;
     }
+  } finally {
+    window._isSyncing = false;
   }
 }
 
