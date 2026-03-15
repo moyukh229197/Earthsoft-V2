@@ -11562,17 +11562,30 @@ async function generateProjectReport(options) {
   }
 }
 
+function buildLarOptionsHTML() {
+  return '<option value="">-- No LAR --</option>' + 
+         (state.larReferences || []).map(lar => `<option value="${lar.id}">${lar.name}</option>`).join('');
+}
+
 function renderLarRefs() {
-  if (!els.larRefSelect) return;
-  const currentVal = els.larRefSelect.value;
-  els.larRefSelect.innerHTML = '<option value="">No Reference</option>';
-  (state.larReferences || []).forEach(lar => {
-    const opt = document.createElement('option');
-    opt.value = lar.id;
-    opt.textContent = lar.name;
-    els.larRefSelect.appendChild(opt);
+  if (els.larRefSelect) {
+    const currentVal = els.larRefSelect.value;
+    els.larRefSelect.innerHTML = '<option value="">No Reference</option>';
+    (state.larReferences || []).forEach(lar => {
+      const opt = document.createElement('option');
+      opt.value = lar.id;
+      opt.textContent = lar.name;
+      els.larRefSelect.appendChild(opt);
+    });
+    if (currentVal) els.larRefSelect.value = currentVal;
+  }
+  
+  // Also update any in-table LAR selects
+  document.querySelectorAll('.est-lar-ref-select').forEach(sel => {
+    const currentVal = sel.value;
+    sel.innerHTML = buildLarOptionsHTML();
+    if (currentVal) sel.value = currentVal;
   });
-  if (currentVal) els.larRefSelect.value = currentVal;
 }
 
 // ==== NEW ESTIMATION MODULE LOGIC (SUPABASE BACKED) ====
@@ -11930,7 +11943,7 @@ document.addEventListener('DOMContentLoaded', () => {
     gridBody.innerHTML = '';
     
     if (rows.length === 0) {
-      gridBody.innerHTML = `<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:32px;">No items added to ${PLAN_HEAD_MAP[currentPlanHead] || currentPlanHead} yet. Click 'Add Item Row' to begin.</td></tr>`;
+      gridBody.innerHTML = `<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:32px;">No items added to ${PLAN_HEAD_MAP[currentPlanHead] || currentPlanHead} yet. Click 'Add Item Row' to begin.</td></tr>`;
       updatePlanHeadTotals(0, 0);
       return;
     }
@@ -11947,6 +11960,7 @@ document.addEventListener('DOMContentLoaded', () => {
       `<td><input type="text" class="est-desc-input" value="${(row.desc || '').replace(/"/g, '&quot;')}" placeholder="Description..." style="width:100%;" /></td>` +
       `<td style="text-align:right;"><input type="number" class="est-qty-input est-calc-trigger" style="text-align:right;width:100%;" value="${row.qty || 0}" /></td>` +
       `<td style="text-align:center;"><input type="text" class="est-unit-input" value="${row.unit || ''}" style="text-align:center;width:100%;" /></td>` +
+      `<td><select class="est-lar-ref-select" style="padding:4px;border-radius:4px;border:1px solid var(--stroke);background:rgba(0,0,0,0.2);color:var(--text);font-size:0.85rem;width:100%;">${buildLarOptionsHTML()}</select></td>` +
       `<td style="text-align:right;"><input type="number" class="est-lar-input" style="text-align:right;width:100%; color:var(--blue); font-weight:500;" value="${row.lar || 0}" step="0.01" /></td>` +
       `<td style="text-align:right;"><input type="number" class="est-rate-input est-calc-trigger" style="text-align:right;width:100%;" value="${row.rate || 0}" step="0.01" /></td>` +
       `<td style="text-align:right;" class="est-cash-cell">${cash.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>` +
@@ -11956,7 +11970,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const sorSel = tr.querySelector('.est-sor-select');
     if (row.sor) sorSel.value = row.sor;
-    sorSel.addEventListener('change', () => { row.sor = sorSel.value; });
+    sorSel.addEventListener('change', () => { row.sor = sorSel.value; saveState(); });
+
+    const larRefSel = tr.querySelector('.est-lar-ref-select');
+    if (row.larRefId) larRefSel.value = row.larRefId;
+    larRefSel.addEventListener('change', () => { row.larRefId = larRefSel.value; saveState(); });
 
     // Item Code: press Enter to auto-fill from Supabase
     const codeInput = tr.querySelector('.est-code-input');
