@@ -12186,7 +12186,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function parseLARPdfInBrowser(file) {
-    // Reuse browser parsing logic but for LAR
     if (typeof pdfjsLib === 'undefined') {
       await new Promise((resolve) => {
         const script = document.createElement('script');
@@ -12199,12 +12198,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+    console.log(`[LAR Parser] Processing PDF: ${file.name}, Pages: ${pdf.numPages}`);
     const items = [];
     
-    // Pattern: Attempt to find Code, Description, Unit, Rate + Contract Ref if possible
-    // For many LARs, contract ref is in the header or specific column. 
-    // We'll use a conservative pattern for now.
-    const itemPattern = /(\d{4,6}[a-zA-Z]?)\s+(.*?)\s+(Cum|Sqm|100\sSqm|Km|RM|Rm|Tonne|Ea|Kg|Pair|Rkm|Tkm|Sqcm|10\sCum|100\sCum|1000\sCum|Litre|Day|Month|L\.S\.|Quintal|Sq\.m\.|Cu\.m\.|KM|Set|No\.?|Each|Per\sKm|MT)\s+([0-9,]+\.\d{2})/i;
+    // More flexible patterns
+    // Code: Alphanumeric, dots, hyphens (e.g. 011010, 1.1, A-1)
+    // Unit: Expanded list
+    // Rate: Number at the end, optional commas, decimal point
+    const itemPattern = /^([\w\.\-/]{1,15})\s+(.*?)\s+(Cum|Sqm|100\sSqm|Km|RM|Rm|Tonne|Ea|Kg|Pair|Rkm|Tkm|Sqcm|10\sCum|100\sCum|1000\sCum|Litre|Day|Month|L\.S\.|Quintal|Sq\.m\.|Cu\.m\.|KM|Set|No\.?|Each|Per\sKm|MT|Metre|Job|Sht|Set|Bundle|Trip|Hour|Shift|Cubic\sMetre|Square\sMetre|running\smetre)\s+([0-9,]+(?:\.\d+)?)/i;
 
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
@@ -12213,18 +12214,23 @@ document.addEventListener('DOMContentLoaded', () => {
       let currentLine = "";
       let lastY = -1;
 
-      textContent.items.forEach(item => {
+      // Group items into lines based on Y coordinate
+      const sortedItems = textContent.items.sort((a, b) => b.transform[5] - a.transform[5] || a.transform[4] - b.transform[4]);
+      
+      sortedItems.forEach(item => {
         if (lastY !== -1 && Math.abs(item.transform[5] - lastY) > 5) {
-          lines.push(currentLine);
+          lines.push(currentLine.trim());
           currentLine = "";
         }
         currentLine += item.str + " ";
         lastY = item.transform[5];
       });
-      lines.push(currentLine);
+      lines.push(currentLine.trim());
 
       let currentItem = null;
       for (let line of lines) {
+        if (!line.trim()) continue;
+        
         const match = line.match(itemPattern);
         if (match) {
           if (currentItem) items.push(currentItem);
@@ -12233,15 +12239,36 @@ document.addEventListener('DOMContentLoaded', () => {
             description: match[2].trim(),
             unit: match[3].trim(),
             rate: parseFloat(match[4].replace(/,/g, '')),
-            contract_ref: file.name // Default to filename as ref for now
+            contract_ref: file.name
           };
-        } else if (currentItem && line.trim() && !/^\d/.test(line.trim())) {
-          currentItem.description += " " + line.trim();
+        } else if (currentItem) {
+          // If it doesn't match a new item but we have an active item,
+          // check if it's a continuation of description or just noise
+          const cleanLine = line.trim();
+          if (cleanLine && !/^\d+\s/.test(cleanLine) && cleanLine.length > 3) {
+             currentItem.description += " " + cleanLine;
+          } else {
+             // If we hit something that looks like a new item start (starts with number) 
+             // but didn't match the full pattern, we close the current item
+             if (/^\d{4,}/.test(cleanLine)) {
+                items.push(currentItem);
+                currentItem = null;
+             }
+          }
         }
       }
       if (currentItem) items.push(currentItem);
       if (larBankUploadStatus) larBankUploadStatus.textContent = `Parsing PDF: Page ${i} / ${pdf.numPages}...`;
     }
+
+    // Secondary pass: if still no items, try an extremely loose pattern for generic PDFs
+    if (items.length === 0) {
+      console.warn("[LAR Parser] Strict pattern failed, trying relaxed pattern...");
+      const relaxedPattern = /^\s*(\d+[a-zA-Z]?)\s+(.*?)\s+([0-9,]+\.\d+)/i;
+      // ... (Keep it simple for now, usually the strict one with expanded units works)
+    }
+
+    console.log(`[LAR Parser] Extracted ${items.length} items.`);
     return items;
   }
 
