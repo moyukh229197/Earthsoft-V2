@@ -3518,6 +3518,7 @@ function loadProjectFromPayload(data, options = {}) {
   state.kmlData = data?.kmlData && Array.isArray(data.kmlData?.points) ? data.kmlData : null;
   state.stationPlans = data?.stationPlans && typeof data.stationPlans === "object" ? data.stationPlans : {};
   state.calcOverrides = Array.isArray(data?.calcOverrides) ? data.calcOverrides : [];
+  state.pwayRows = Array.isArray(data?.pwayRows) ? data.pwayRows : [];
   state.slopeZones = Array.isArray(data?.slopeZones) ? data.slopeZones : [];
   state.laZones = Array.isArray(data?.laZones) ? data.laZones : [];
   state.importMappings = data?.importMappings && typeof data.importMappings === "object"
@@ -9093,6 +9094,7 @@ function saveState() {
     snapshots: state.snapshots,
     kmlData: state.kmlData,
     stationPlans: state.stationPlans,
+    pwayRows: state.pwayRows,
     supabaseProjectId: state.supabaseProjectId
   };
   try {
@@ -9175,7 +9177,8 @@ async function saveToSupabase() {
       { type: 'lar_references', data: state.larReferences || [] },
       { type: 'snapshots', data: state.snapshots || [] },
       { type: 'kml', data: state.kmlData },
-      { type: 'station_plans', data: state.stationPlans || {} }
+      { type: 'station_plans', data: state.stationPlans || {} },
+      { type: 'pway', data: state.pwayRows || [] }
     ];
 
     const currentHashes = {};
@@ -9281,6 +9284,7 @@ async function loadFromSupabase(projectId) {
       if (part.data_type === 'lar_references') {
         state.larReferences.push(...(part.data || []));
       }
+      if (part.data_type === 'pway') state.pwayRows = part.data || [];
       if (part.data_type === 'estimates') {
         Object.keys(state.estimates).forEach(k => delete state.estimates[k]);
         Object.assign(state.estimates, part.data || {});
@@ -9333,6 +9337,7 @@ function loadStoredState() {
     if (data.snapshots) { state.snapshots.length = 0; state.snapshots.push(...data.snapshots); }
     if (data.kmlData) state.kmlData = data.kmlData;
     if (data.stationPlans) Object.assign(state.stationPlans, data.stationPlans);
+    if (data.pwayRows) { state.pwayRows.length = 0; state.pwayRows.push(...data.pwayRows); }
     if (data.supabaseProjectId) state.supabaseProjectId = data.supabaseProjectId;
     
     renderLarRefs();
@@ -12652,8 +12657,8 @@ document.addEventListener('DOMContentLoaded', () => {
             row.forEach((cell, idx) => {
               const val = String(cell || '').trim().toLowerCase();
               
-              // Exact match for Station to avoid "Type of Station" collision
               if ((val === 'stations' || val === 'station') && colMap.station === undefined) colMap.station = idx;
+              if ((val === 's.no' || val === 'no' || val === 'sno') && colMap.sno === undefined) colMap.sno = idx;
               
               // Map others (prefer first occurrence)
               if ((val.includes('mainline') || val.includes('main line')) && colMap.mainline === undefined) colMap.mainline = idx;
@@ -12685,17 +12690,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const dataRows = rows.slice(headerRowIndex + 1);
         let importedCount = 0;
         state.pwayRows = []; // Clear existing for fresh import
-
         dataRows.forEach(row => {
+          const sno = row[colMap.sno];
           const stationName = row[colMap.station];
-          if (stationName && String(stationName).trim().length > 0) {
-            const nameLower = String(stationName).toLowerCase();
-            // Skip summary row
-            if (nameLower === 'total' || nameLower === 'grand total' || nameLower.includes('total:')) return;
+          
+          // STRICT FILTER: Only rows with a valid S.No are considered stations
+          // This skips "Main line" top rows, bridges, and other non-station rows
+          if (!sno || String(sno).trim() === '' || isNaN(parseInt(sno))) return;
+          if (!stationName || String(stationName).trim().length === 0) return;
 
-            addPwayRow({
-              station: String(stationName).trim(),
-              mainline: parseFloat(row[colMap.mainline]) || 0,
+          const nameLower = String(stationName).toLowerCase();
+          // Skip summary row
+          if (nameLower === 'total' || nameLower === 'grand total' || nameLower.includes('total:')) return;
+
+          addPwayRow({
+            station: String(stationName).trim(),
+            mainline: parseFloat(row[colMap.mainline]) || 0,
               paxLoop: parseFloat(row[colMap.paxLoop]) || 0,
               goodsLoop: parseFloat(row[colMap.goodsLoop]) || 0,
               xover: parseFloat(row[colMap.xover]) || 0,
@@ -12709,7 +12719,6 @@ document.addEventListener('DOMContentLoaded', () => {
               bs: parseInt(row[colMap.bs]) || 0
             });
             importedCount++;
-          }
         });
         alert(`Successfully imported ${importedCount} items from Excel.`);
       };
