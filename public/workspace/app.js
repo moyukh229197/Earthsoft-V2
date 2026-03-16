@@ -12607,28 +12607,67 @@ document.addEventListener('DOMContentLoaded', () => {
         const workbook = XLSX.read(data, { type: 'array' });
         const firstSheet = workbook.SheetNames[0];
         const sheet = workbook.Sheets[firstSheet];
-        const json = XLSX.utils.sheet_to_json(sheet);
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
         
-        // Simple mapping based on expected columns
-        json.forEach(row => {
-          if (row.Stations || row.Station) {
-            addPwayRow({
-              station: row.Stations || row.Station,
-              mainline: row.Mainline || row['Main line'] || 0,
-              paxLoop: row['Passenger Loop'] || row.PaxLoop || 0,
-              goodsLoop: row['Goods Looop'] || row['Goods Loop'] || row.GoodsLoop || 0,
-              xover: row['X Over'] || row.Crossover || 0,
-              sidings: row.Sidings || 0,
-              osl: row.OSL || 0,
-              to12: row['1 in 12 T/O'] || row.TO12 || 0,
-              to85: row['1 in 8.5 T/O'] || row.TO85 || 0,
-              sej: row["SEJ's"] || row.SEJ || 0,
-              ds: row.DS || 0,
-              bs: row.BS || 0
+        // Find the header row (contains "Stations" or "Station")
+        let headerRowIndex = -1;
+        let colMap = {};
+        
+        for (let i = 0; i < Math.min(rows.length, 10); i++) {
+          const row = rows[i];
+          if (row && row.some(cell => String(cell).includes('Station'))) {
+            headerRowIndex = i;
+            row.forEach((cell, idx) => {
+              const val = String(cell).trim().toLowerCase();
+              if (val.includes('station')) colMap.station = idx;
+              if (val.includes('mainline') || val.includes('main line')) colMap.mainline = idx;
+              if (val.includes('passenger loop') || val.includes('pax loop')) colMap.paxLoop = idx;
+              if (val.includes('goods looop') || val.includes('goods loop')) colMap.goodsLoop = idx;
+              if (val.includes('x over') || val.includes('x-over') || val.includes('crossover')) colMap.xover = idx;
+              if (val.includes('sidings')) colMap.sidings = idx;
+              if (val.includes('osl')) colMap.osl = idx;
+              if (val.includes('1 in 12')) colMap.to12 = idx;
+              if (val.includes('1 in 8.5')) colMap.to85 = idx;
+              if (val.includes('1 in 16')) colMap.to16 = idx;
+              if (val.includes('sej')) colMap.sej = idx;
+              if (val.includes('ds') || val.includes('derailing')) colMap.ds = idx;
+              if (val.includes('bs') || val.includes('buffer')) colMap.bs = idx;
             });
+            break;
+          }
+        }
+
+        if (headerRowIndex === -1 || !colMap.station) {
+          console.error("Could not find 'Station' column in Excel file.");
+          alert("Could not find 'Station' column. Please check if the Excel sheet has a header row with 'Stations'.");
+          return;
+        }
+
+        const dataRows = rows.slice(headerRowIndex + 1);
+        let importedCount = 0;
+
+        dataRows.forEach(row => {
+          const stationName = row[colMap.station];
+          if (stationName && String(stationName).trim().length > 0 && isNaN(stationName)) {
+            addPwayRow({
+              station: String(stationName).trim(),
+              mainline: row[colMap.mainline] || 0,
+              paxLoop: row[colMap.paxLoop] || 0,
+              goodsLoop: row[colMap.goodsLoop] || 0,
+              xover: row[colMap.xover] || 0,
+              sidings: row[colMap.sidings] || 0,
+              osl: row[colMap.osl] || 0,
+              to12: row[colMap.to12] || 0,
+              to85: row[colMap.to85] || 0,
+              to16: row[colMap.to16] || 0,
+              sej: row[colMap.sej] || 0,
+              ds: row[colMap.ds] || 0,
+              bs: row[colMap.bs] || 0
+            });
+            importedCount++;
           }
         });
-        alert('Imported ' + json.length + ' rows from Excel.');
+        alert(`Successfully imported ${importedCount} stations from Excel.`);
       };
       reader.readAsArrayBuffer(file);
       e.target.value = '';
