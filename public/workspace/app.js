@@ -12605,61 +12605,93 @@ document.addEventListener('DOMContentLoaded', () => {
       reader.onload = (re) => {
         const data = new Uint8Array(re.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheet = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[firstSheet];
+        let sheet = null;
+        let maxScore = -1;
+
+        // Smart sheet selection: pick the one that looks most like a P-Way table
+        for (const sn of workbook.SheetNames) {
+          const s = workbook.Sheets[sn];
+          if (!s['!ref']) continue;
+          const preview = XLSX.utils.sheet_to_json(s, { header: 1, range: 0, length: 15 });
+          let score = 0;
+          preview.forEach(r => {
+            const rowStr = r.map(c => String(c || '').toLowerCase()).join('|');
+            if (rowStr.includes('station')) score += 5;
+            if (rowStr.includes('mainline') || rowStr.includes('main line')) score += 3;
+            if (rowStr.includes('turnout') || rowStr.includes('t/o')) score += 3;
+            if (rowStr.includes('passenger loop')) score += 3;
+          });
+          if (score > maxScore) {
+            maxScore = score;
+            sheet = s;
+          }
+        }
+
+        if (!sheet) {
+          alert("No valid data found in Excel workbook.");
+          return;
+        }
+
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-        
         let headerRowIndex = -1;
         let colMap = {};
-        
-        // keywords to identify the correct header row
-        const keywords = ['mainline', 'main line', 'turnout', 'loop', 'track', 'siding'];
+        const keywords = ['mainline', 'main line', 'turnout', 'loop', 'track', 'siding', 'stations', 't/o'];
 
-        for (let i = 0; i < Math.min(rows.length, 20); i++) {
+        for (let i = 0; i < Math.min(rows.length, 30); i++) {
           const row = rows[i];
           if (!row) continue;
-          
-          const rowStr = row.map(c => String(c).toLowerCase()).join('|');
-          const hasStation = rowStr.includes('station');
+          const rowStr = row.map(c => String(c || '').toLowerCase()).join('|');
+          const hasStationHeader = row.some(c => {
+            const v = String(c || '').toLowerCase().trim();
+            return v === 'stations' || v === 'station';
+          });
           const hasKeyword = keywords.some(k => rowStr.includes(k));
 
-          if (hasStation && hasKeyword) {
+          if (hasStationHeader && hasKeyword) {
             headerRowIndex = i;
             row.forEach((cell, idx) => {
               const val = String(cell || '').trim().toLowerCase();
-              if (val.includes('station')) colMap.station = idx;
-              if (val.includes('mainline') || val.includes('main line')) colMap.mainline = idx;
-              if (val.includes('passenger loop') || val.includes('pax loop')) colMap.paxLoop = idx;
-              if (val.includes('goods looop') || val.includes('goods loop')) colMap.goodsLoop = idx;
-              if (val.includes('x over') || val.includes('x-over') || val.includes('crossover')) colMap.xover = idx;
-              if (val.includes('sidings')) colMap.sidings = idx;
-              if (val.includes('osl')) colMap.osl = idx;
-              if (val.includes('1 in 12')) colMap.to12 = idx;
-              if (val.includes('1 in 8.5')) colMap.to85 = idx;
-              if (val.includes('1 in 16')) colMap.to16 = idx;
-              if (val.includes('sej')) colMap.sej = idx;
-              if (val.includes('ds') || val.includes('derailing')) colMap.ds = idx;
-              if (val.includes('bs') || val.includes('buffer')) colMap.bs = idx;
+              
+              // Exact match for Station to avoid "Type of Station" collision
+              if ((val === 'stations' || val === 'station') && colMap.station === undefined) colMap.station = idx;
+              
+              // Map others (prefer first occurrence)
+              if ((val.includes('mainline') || val.includes('main line')) && colMap.mainline === undefined) colMap.mainline = idx;
+              if ((val.includes('passenger loop') || val.includes('pax loop')) && colMap.paxLoop === undefined) colMap.paxLoop = idx;
+              if ((val.includes('goods looop') || val.includes('goods loop')) && colMap.goodsLoop === undefined) colMap.goodsLoop = idx;
+              if ((val.includes('x over') || val.includes('x-over') || val.includes('crossover')) && colMap.xover === undefined) colMap.xover = idx;
+              
+              // Add Connecting track to sidings if sidings not found, or sum them later
+              if (val.includes('connecting track') && colMap.connecting === undefined) colMap.connecting = idx;
+              if (val.includes('sidings') && colMap.sidings === undefined) colMap.sidings = idx;
+              if (val.includes('osl') && colMap.osl === undefined) colMap.osl = idx;
+              
+              if (val.includes('1 in 12') && colMap.to12 === undefined) colMap.to12 = idx;
+              if (val.includes('1 in 8.5') && colMap.to85 === undefined) colMap.to85 = idx;
+              if (val.includes('1 in 16') && colMap.to16 === undefined) colMap.to16 = idx;
+              if (val.includes('sej') && colMap.sej === undefined) colMap.sej = idx;
+              if (val.includes('ds') && colMap.ds === undefined) colMap.ds = idx;
+              if ((val.includes('bs') || val.includes('buffer')) && colMap.bs === undefined) colMap.bs = idx;
             });
             break;
           }
         }
 
         if (headerRowIndex === -1 || colMap.station === undefined) {
-          console.error("P-Way Import: Could not find valid header row.");
-          alert("Could not find the P-Way header row. Please ensure your Excel has columns like 'Station' and 'Mainline'.");
+          alert("Could not find the P-Way header row. Ensure a row exists with exactly 'Stations' as a header.");
           return;
         }
 
         const dataRows = rows.slice(headerRowIndex + 1);
         let importedCount = 0;
+        state.pwayRows = []; // Clear existing for fresh import
 
         dataRows.forEach(row => {
           const stationName = row[colMap.station];
-          // Skip empty or summary rows (usually summary rows have 'Total' in the name)
           if (stationName && String(stationName).trim().length > 0) {
             const nameLower = String(stationName).toLowerCase();
-            if (nameLower.includes('total') || nameLower.includes('grand')) return;
+            // Skip summary row
+            if (nameLower === 'total' || nameLower === 'grand total' || nameLower.includes('total:')) return;
 
             addPwayRow({
               station: String(stationName).trim(),
@@ -12667,7 +12699,7 @@ document.addEventListener('DOMContentLoaded', () => {
               paxLoop: parseFloat(row[colMap.paxLoop]) || 0,
               goodsLoop: parseFloat(row[colMap.goodsLoop]) || 0,
               xover: parseFloat(row[colMap.xover]) || 0,
-              sidings: parseFloat(row[colMap.sidings]) || 0,
+              sidings: (parseFloat(row[colMap.sidings]) || 0) + (parseFloat(row[colMap.connecting]) || 0),
               osl: parseFloat(row[colMap.osl]) || 0,
               to12: parseInt(row[colMap.to12]) || 0,
               to85: parseInt(row[colMap.to85]) || 0,
@@ -12679,7 +12711,7 @@ document.addEventListener('DOMContentLoaded', () => {
             importedCount++;
           }
         });
-        alert(`Successfully imported ${importedCount} stations from Excel.`);
+        alert(`Successfully imported ${importedCount} items from Excel.`);
       };
       reader.readAsArrayBuffer(file);
       e.target.value = '';
