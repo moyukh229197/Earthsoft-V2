@@ -12609,16 +12609,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const sheet = workbook.Sheets[firstSheet];
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
         
-        // Find the header row (contains "Stations" or "Station")
         let headerRowIndex = -1;
         let colMap = {};
         
-        for (let i = 0; i < Math.min(rows.length, 10); i++) {
+        // keywords to identify the correct header row
+        const keywords = ['mainline', 'main line', 'turnout', 'loop', 'track', 'siding'];
+
+        for (let i = 0; i < Math.min(rows.length, 20); i++) {
           const row = rows[i];
-          if (row && row.some(cell => String(cell).includes('Station'))) {
+          if (!row) continue;
+          
+          const rowStr = row.map(c => String(c).toLowerCase()).join('|');
+          const hasStation = rowStr.includes('station');
+          const hasKeyword = keywords.some(k => rowStr.includes(k));
+
+          if (hasStation && hasKeyword) {
             headerRowIndex = i;
             row.forEach((cell, idx) => {
-              const val = String(cell).trim().toLowerCase();
+              const val = String(cell || '').trim().toLowerCase();
               if (val.includes('station')) colMap.station = idx;
               if (val.includes('mainline') || val.includes('main line')) colMap.mainline = idx;
               if (val.includes('passenger loop') || val.includes('pax loop')) colMap.paxLoop = idx;
@@ -12637,9 +12645,9 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        if (headerRowIndex === -1 || !colMap.station) {
-          console.error("Could not find 'Station' column in Excel file.");
-          alert("Could not find 'Station' column. Please check if the Excel sheet has a header row with 'Stations'.");
+        if (headerRowIndex === -1 || colMap.station === undefined) {
+          console.error("P-Way Import: Could not find valid header row.");
+          alert("Could not find the P-Way header row. Please ensure your Excel has columns like 'Station' and 'Mainline'.");
           return;
         }
 
@@ -12648,21 +12656,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         dataRows.forEach(row => {
           const stationName = row[colMap.station];
-          if (stationName && String(stationName).trim().length > 0 && isNaN(stationName)) {
+          // Skip empty or summary rows (usually summary rows have 'Total' in the name)
+          if (stationName && String(stationName).trim().length > 0) {
+            const nameLower = String(stationName).toLowerCase();
+            if (nameLower.includes('total') || nameLower.includes('grand')) return;
+
             addPwayRow({
               station: String(stationName).trim(),
-              mainline: row[colMap.mainline] || 0,
-              paxLoop: row[colMap.paxLoop] || 0,
-              goodsLoop: row[colMap.goodsLoop] || 0,
-              xover: row[colMap.xover] || 0,
-              sidings: row[colMap.sidings] || 0,
-              osl: row[colMap.osl] || 0,
-              to12: row[colMap.to12] || 0,
-              to85: row[colMap.to85] || 0,
-              to16: row[colMap.to16] || 0,
-              sej: row[colMap.sej] || 0,
-              ds: row[colMap.ds] || 0,
-              bs: row[colMap.bs] || 0
+              mainline: parseFloat(row[colMap.mainline]) || 0,
+              paxLoop: parseFloat(row[colMap.paxLoop]) || 0,
+              goodsLoop: parseFloat(row[colMap.goodsLoop]) || 0,
+              xover: parseFloat(row[colMap.xover]) || 0,
+              sidings: parseFloat(row[colMap.sidings]) || 0,
+              osl: parseFloat(row[colMap.osl]) || 0,
+              to12: parseInt(row[colMap.to12]) || 0,
+              to85: parseInt(row[colMap.to85]) || 0,
+              to16: parseInt(row[colMap.to16]) || 0,
+              sej: parseInt(row[colMap.sej]) || 0,
+              ds: parseInt(row[colMap.ds]) || 0,
+              bs: parseInt(row[colMap.bs]) || 0
             });
             importedCount++;
           }
