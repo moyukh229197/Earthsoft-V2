@@ -171,6 +171,19 @@
           </svg>
           <span class="nav-text">Alignment Map</span>
         </button>
+        <button class="work-nav-btn" data-work-page-btn="pway" type="button">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <line x1="2" y1="16" x2="22" y2="16"></line>
+            <path d="M5 12v4"></path>
+            <path d="M9 12v4"></path>
+            <path d="M13 12v4"></path>
+            <path d="M17 12v4"></path>
+            <path d="M21 12v4"></path>
+            <path d="M12 2v20"></path>
+          </svg>
+          <span class="nav-text">P-Way Calculation</span>
+        </button>
         <button class="work-nav-btn" data-work-page-btn="information" type="button">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
             stroke-linecap="round" stroke-linejoin="round">
@@ -1405,6 +1418,79 @@
           </article>
         </div>
       </section>
+
+      <!-- ==================== P-WAY CALCULATION MODULE ==================== -->
+      <section class="work-page" data-work-page="pway">
+        <div class="panel glass" style="height: 100%; display: flex; flex-direction: column;">
+          <div class="panel-head">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="background: var(--primary); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white;">
+                <i class="ri-ruler-2-line" style="font-size: 1.5rem;"></i>
+              </div>
+              <div>
+                <h2 style="margin: 0;">🛤️ P-Way Calculation</h2>
+                <p class="muted" style="margin: 4px 0 0 0; font-size: 0.85rem;">Permanent Way track lengths, sleepers, and turnout management</p>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button id="pwayImportXlsxBtn" class="btn btn-secondary" title="Import from Excel"><i class="ri-file-excel-line"></i> Import XLSX</button>
+              <button id="pwayPullStationsBtn" class="btn btn-secondary" title="Auto-populate from Station & Loops"><i class="ri-refresh-line"></i> Pull from Stations</button>
+              <button id="pwayAddRowBtn" class="btn btn-secondary"><i class="ri-add-line"></i> Add Entry</button>
+              <button id="pwayExportExcelBtn" class="btn btn-primary"><i class="ri-download-2-line"></i> Export</button>
+            </div>
+          </div>
+
+          <div class="table-wrap" style="flex: 1; overflow-y: auto;">
+            <table class="result-table pway-grid">
+              <thead style="position: sticky; top: 0; background: var(--bg-primary); z-index: 1;">
+                <tr>
+                   <th rowspan="2" style="width: 50px;">S.No</th>
+                   <th rowspan="2">Station / Segment</th>
+                   <th colspan="6" style="text-align: center; background: rgba(255,255,255,0.03);">Track Length (m)</th>
+                   <th colspan="3" style="text-align: center; background: rgba(255,255,255,0.05);">Turnouts (Nos)</th>
+                   <th colspan="3" style="text-align: center; background: rgba(255,255,255,0.03);">Ancillary (Nos)</th>
+                   <th rowspan="2" style="text-align: right; width: 100px;">Total (m)</th>
+                   <th rowspan="2" style="width: 50px;"></th>
+                </tr>
+                <tr>
+                   <th style="font-size: 0.75rem;">Mainline</th>
+                   <th style="font-size: 0.75rem;">Pax Loop</th>
+                   <th style="font-size: 0.75rem;">Goods Loop</th>
+                   <th style="font-size: 0.75rem;">X-Over</th>
+                   <th style="font-size: 0.75rem;">Sidings</th>
+                   <th style="font-size: 0.75rem;">OSL</th>
+                   <th style="font-size: 0.71rem;">1 in 12</th>
+                   <th style="font-size: 0.71rem;">1 in 8.5</th>
+                   <th style="font-size: 0.71rem;">1 in 16</th>
+                   <th style="font-size: 0.71rem;">SEJ</th>
+                   <th style="font-size: 0.71rem;">DS</th>
+                   <th style="font-size: 0.71rem;">BS</th>
+                </tr>
+              </thead>
+              <tbody id="pwayTableBody"></tbody>
+              <tfoot>
+                <tr style="background: rgba(var(--primary-rgb), 0.1); font-weight: 600;">
+                  <td colspan="2">GRAND TOTAL</td>
+                  <td id="pwayTotalMainline" style="text-align: right;">0.00</td>
+                  <td id="pwayTotalPaxLoop" style="text-align: right;">0.00</td>
+                  <td id="pwayTotalGoodsLoop" style="text-align: right;">0.00</td>
+                  <td id="pwayTotalXOver" style="text-align: right;">0.00</td>
+                  <td id="pwayTotalSidings" style="text-align: right;">0.00</td>
+                  <td id="pwayTotalOSL" style="text-align: right;">0.00</td>
+                  <td id="pwayTotalTO12" style="text-align: center;">0</td>
+                  <td id="pwayTotalTO85" style="text-align: center;">0</td>
+                  <td id="pwayTotalTO16" style="text-align: center;">0</td>
+                  <td id="pwayTotalSEJ" style="text-align: center;">0</td>
+                  <td id="pwayTotalDS" style="text-align: center;">0</td>
+                  <td id="pwayTotalBS" style="text-align: center;">0</td>
+                  <td id="pwayGrandTotal" style="text-align: right; color: var(--primary);">0.00</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+        <input type="file" id="pwayXlsxInput" accept=".xlsx,.xls" style="display: none;" />
     </div> <!-- /main-content -->
   </div> <!-- /app-layout -->
 

@@ -95,6 +95,7 @@ const state = {
   },
   supabaseProjectId: null,
   veState: { nodes: [], wires: [], groups: [], pan: { x: 0, y: 0 }, zoom: 1, nodeIdCounter: 1 },
+  pwayRows: [],
 };
 
 const els = {
@@ -298,7 +299,14 @@ const els = {
   cloudProjectsModal: document.getElementById("cloudProjectsModal"),
   closeCloudProjectsBtn: document.getElementById("closeCloudProjectsBtn"),
   cloudProjectsList: document.getElementById("cloudProjectsList"),
-  cloudProjectSearch: document.getElementById("cloudProjectSearch")
+  cloudProjectSearch: document.getElementById("cloudProjectSearch"),
+  pwayTableBody: document.getElementById('pwayTableBody'),
+  pwayAddRowBtn: document.getElementById('pwayAddRowBtn'),
+  pwayPullStationsBtn: document.getElementById('pwayPullStationsBtn'),
+  pwayImportXlsxBtn: document.getElementById('pwayImportXlsxBtn'),
+  pwayXlsxInput: document.getElementById('pwayXlsxInput'),
+  pwayExportExcelBtn: document.getElementById('pwayExportExcelBtn'),
+  pwayGrandTotal: document.getElementById('pwayGrandTotal'),
 };
 
 async function loadAuthState() {
@@ -3350,6 +3358,9 @@ function setWorkPage(pageName) {
   }
   if (selected === "roll-diagram" && state.calcRows.length) {
     requestAnimationFrame(() => { renderRollDiagram(); renderSideView(); });
+  }
+  if (selected === "pway") {
+    renderPwayGrid();
   }
   if (selected === "graphs" && state.calcRows.length) {
     requestAnimationFrame(() => renderCharts());
@@ -12451,4 +12462,210 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.recalcPlanHead = recalcPlanHead;
   window.addEstRow = addEstRow;
+
+  // ==== P-WAY CALCULATION MODULE ====
+  function renderPwayGrid() {
+    if (!els.pwayTableBody) return;
+    els.pwayTableBody.innerHTML = '';
+    const rows = state.pwayRows || [];
+    
+    rows.forEach((row, idx) => {
+      const tr = document.createElement('tr');
+      const total = (Number(row.mainline) || 0) + (Number(row.paxLoop) || 0) + (Number(row.goodsLoop) || 0) + 
+                    (Number(row.xover) || 0) + (Number(row.sidings) || 0) + (Number(row.osl) || 0);
+      
+      tr.innerHTML = `
+        <td>${idx + 1}</td>
+        <td><input type="text" class="est-desc-input pway-station" value="${row.station || ''}" /></td>
+        <td><input type="number" class="est-qty-input pway-mainline" value="${row.mainline || 0}" step="0.001" /></td>
+        <td><input type="number" class="est-qty-input pway-paxloop" value="${row.paxLoop || 0}" step="0.001" /></td>
+        <td><input type="number" class="est-qty-input pway-goodsloop" value="${row.goodsLoop || 0}" step="0.001" /></td>
+        <td><input type="number" class="est-qty-input pway-xover" value="${row.xover || 0}" step="0.001" /></td>
+        <td><input type="number" class="est-qty-input pway-sidings" value="${row.sidings || 0}" step="0.001" /></td>
+        <td><input type="number" class="est-qty-input pway-osl" value="${row.osl || 0}" step="0.001" /></td>
+        <td><input type="number" class="est-qty-input pway-to12" value="${row.to12 || 0}" /></td>
+        <td><input type="number" class="est-qty-input pway-to85" value="${row.to85 || 0}" /></td>
+        <td><input type="number" class="est-qty-input pway-to16" value="${row.to16 || 0}" /></td>
+        <td><input type="number" class="est-qty-input pway-sej" value="${row.sej || 0}" /></td>
+        <td><input type="number" class="est-qty-input pway-ds" value="${row.ds || 0}" /></td>
+        <td><input type="number" class="est-qty-input pway-bs" value="${row.bs || 0}" /></td>
+        <td style="text-align: right; font-weight: 500;">${total.toFixed(2)}</td>
+        <td><button class="btn btn-secondary icon-btn-sm pway-del-btn" title="Delete"><i class="ri-delete-bin-line"></i></button></td>
+      `;
+
+      tr.querySelector('.pway-station').addEventListener('input', (e) => { row.station = e.target.value; saveState(); });
+      ['mainline', 'paxloop', 'goodsloop', 'xover', 'sidings', 'osl', 'to12', 'to85', 'to16', 'sej', 'ds', 'bs'].forEach(key => {
+        tr.querySelector(`.pway-${key}`).addEventListener('input', (e) => {
+          row[key === 'paxloop' ? 'paxLoop' : key === 'goodsloop' ? 'goodsLoop' : key] = parseFloat(e.target.value) || 0;
+          calcPwayGrandTotals();
+          saveState();
+          tr.querySelector('td:nth-last-child(2)').textContent = ((Number(row.mainline) || 0) + (Number(row.paxLoop) || 0) + (Number(row.goodsLoop) || 0) + 
+                                                                  (Number(row.xover) || 0) + (Number(row.sidings) || 0) + (Number(row.osl) || 0)).toFixed(2);
+        });
+      });
+
+      tr.querySelector('.pway-del-btn').addEventListener('click', () => {
+        state.pwayRows.splice(idx, 1);
+        renderPwayGrid();
+        saveState();
+      });
+
+      els.pwayTableBody.appendChild(tr);
+    });
+    calcPwayGrandTotals();
+  }
+
+  function calcPwayGrandTotals() {
+    const rows = state.pwayRows || [];
+    const totals = {
+      mainline: 0, paxLoop: 0, goodsLoop: 0, xover: 0, sidings: 0, osl: 0,
+      to12: 0, to85: 0, to16: 0, sej: 0, ds: 0, bs: 0, grand: 0
+    };
+
+    rows.forEach(r => {
+      totals.mainline += Number(r.mainline) || 0;
+      totals.paxLoop += Number(r.paxLoop) || 0;
+      totals.goodsLoop += Number(r.goodsLoop) || 0;
+      totals.xover += Number(r.xover) || 0;
+      totals.sidings += Number(r.sidings) || 0;
+      totals.osl += Number(r.osl) || 0;
+      totals.to12 += Number(r.to12) || 0;
+      totals.to85 += Number(r.to85) || 0;
+      totals.to16 += Number(r.to16) || 0;
+      totals.sej += Number(r.sej) || 0;
+      totals.ds += Number(r.ds) || 0;
+      totals.bs += Number(r.bs) || 0;
+    });
+    totals.grand = totals.mainline + totals.paxLoop + totals.goodsLoop + totals.xover + totals.sidings + totals.osl;
+
+    if (document.getElementById('pwayTotalMainline')) document.getElementById('pwayTotalMainline').textContent = totals.mainline.toFixed(2);
+    if (document.getElementById('pwayTotalPaxLoop')) document.getElementById('pwayTotalPaxLoop').textContent = totals.paxLoop.toFixed(2);
+    if (document.getElementById('pwayTotalGoodsLoop')) document.getElementById('pwayTotalGoodsLoop').textContent = totals.goodsLoop.toFixed(2);
+    if (document.getElementById('pwayTotalXOver')) document.getElementById('pwayTotalXOver').textContent = totals.xover.toFixed(2);
+    if (document.getElementById('pwayTotalSidings')) document.getElementById('pwayTotalSidings').textContent = totals.sidings.toFixed(2);
+    if (document.getElementById('pwayTotalOSL')) document.getElementById('pwayTotalOSL').textContent = totals.osl.toFixed(2);
+    if (document.getElementById('pwayTotalTO12')) document.getElementById('pwayTotalTO12').textContent = totals.to12;
+    if (document.getElementById('pwayTotalTO85')) document.getElementById('pwayTotalTO85').textContent = totals.to85;
+    if (document.getElementById('pwayTotalTO16')) document.getElementById('pwayTotalTO16').textContent = totals.to16;
+    if (document.getElementById('pwayTotalSEJ')) document.getElementById('pwayTotalSEJ').textContent = totals.sej;
+    if (document.getElementById('pwayTotalDS')) document.getElementById('pwayTotalDS').textContent = totals.ds;
+    if (document.getElementById('pwayTotalBS')) document.getElementById('pwayTotalBS').textContent = totals.bs;
+    if (els.pwayGrandTotal) els.pwayGrandTotal.textContent = totals.grand.toFixed(2);
+  }
+
+  function addPwayRow(data = {}) {
+    const row = {
+      station: data.station || 'New Station',
+      mainline: Number(data.mainline) || 0,
+      paxLoop: Number(data.paxLoop) || 0,
+      goodsLoop: Number(data.goodsLoop) || 0,
+      xover: Number(data.xover) || 0,
+      sidings: Number(data.sidings) || 0,
+      osl: Number(data.osl) || 0,
+      to12: Number(data.to12) || 0,
+      to85: Number(data.to85) || 0,
+      to16: Number(data.to16) || 0,
+      sej: Number(data.sej) || 0,
+      ds: Number(data.ds) || 0,
+      bs: Number(data.bs) || 0
+    };
+    if (!state.pwayRows) state.pwayRows = [];
+    state.pwayRows.push(row);
+    renderPwayGrid();
+    saveState();
+  }
+
+  // Event Listeners
+  if (els.pwayAddRowBtn) els.pwayAddRowBtn.addEventListener('click', () => addPwayRow());
+  
+  if (els.pwayPullStationsBtn) {
+    els.pwayPullStationsBtn.addEventListener('click', () => {
+      const stations = getGroupedStations();
+      if (stations.size === 0) {
+        alert('No stations found in Station & Loops tab. Please add stations there first.');
+        return;
+      }
+      if (confirm(`This will pull ${stations.size} stations from your data. Continue?`)) {
+        stations.forEach(s => {
+          // Check if station already exists
+          if (!state.pwayRows.find(r => r.station.toLowerCase() === s.station.toLowerCase())) {
+            addPwayRow({ station: s.station });
+          }
+        });
+      }
+    });
+  }
+
+  if (els.pwayImportXlsxBtn && els.pwayXlsxInput) {
+    els.pwayImportXlsxBtn.addEventListener('click', () => els.pwayXlsxInput.click());
+    els.pwayXlsxInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (re) => {
+        const data = new Uint8Array(re.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[firstSheet];
+        const json = XLSX.utils.sheet_to_json(sheet);
+        
+        // Simple mapping based on expected columns
+        json.forEach(row => {
+          if (row.Stations || row.Station) {
+            addPwayRow({
+              station: row.Stations || row.Station,
+              mainline: row.Mainline || row['Main line'] || 0,
+              paxLoop: row['Passenger Loop'] || row.PaxLoop || 0,
+              goodsLoop: row['Goods Looop'] || row['Goods Loop'] || row.GoodsLoop || 0,
+              xover: row['X Over'] || row.Crossover || 0,
+              sidings: row.Sidings || 0,
+              osl: row.OSL || 0,
+              to12: row['1 in 12 T/O'] || row.TO12 || 0,
+              to85: row['1 in 8.5 T/O'] || row.TO85 || 0,
+              sej: row["SEJ's"] || row.SEJ || 0,
+              ds: row.DS || 0,
+              bs: row.BS || 0
+            });
+          }
+        });
+        alert('Imported ' + json.length + ' rows from Excel.');
+      };
+      reader.readAsArrayBuffer(file);
+      e.target.value = '';
+    });
+  }
+
+  if (els.pwayExportExcelBtn) {
+    els.pwayExportExcelBtn.addEventListener('click', () => {
+      const data = (state.pwayRows || []).map((r, i) => ({
+        'S.No': i + 1,
+        'Station': r.station,
+        'Mainline': r.mainline,
+        'Pax Loop': r.paxLoop,
+        'Goods Loop': r.goodsLoop,
+        'X-Over': r.xover,
+        'Sidings': r.sidings,
+        'OSL': r.osl,
+        'TO 1 in 12': r.to12,
+        'TO 1 in 8.5': r.to85,
+        'TO 1 in 16': r.to16,
+        'SEJ': r.sej,
+        'DS': r.ds,
+        'BS': r.bs,
+        'Total Track': (Number(r.mainline) || 0) + (Number(r.paxLoop) || 0) + (Number(r.goodsLoop) || 0) + 
+                        (Number(r.xover) || 0) + (Number(r.sidings) || 0) + (Number(r.osl) || 0)
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "P-Way Calculation");
+      XLSX.writeFile(wb, "P-Way_Calculation_" + (state.project?.name || "Earthsoft") + ".xlsx");
+    });
+  }
+
+  // Initialize P-Way if active
+  if (state.activeWorkPage === 'pway') renderPwayGrid();
+  
+  // Expose to window for tab switching
+  window.renderPwayGrid = renderPwayGrid;
+
 });
