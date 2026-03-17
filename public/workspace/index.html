@@ -342,6 +342,14 @@
               </div>
             </div>
             <div class="mission-actions">
+              <button class="btn btn-secondary" type="button" id="overviewLayoutToggleBtn" data-overview-action="layout-toggle">
+                <i class="ri-drag-move-2-line"></i>
+                <span>Customize Layout</span>
+              </button>
+              <button class="btn btn-secondary" type="button" id="overviewLayoutResetBtn" data-overview-action="layout-reset">
+                <i class="ri-layout-grid-line"></i>
+                <span>Reset Layout</span>
+              </button>
               <button class="btn btn-secondary" type="button" data-overview-action="edit">
                 <i class="ri-edit-line"></i>
                 <span>Edit Project</span>
@@ -411,28 +419,28 @@
             </article>
           </section>
 
-          <section id="projectDashboard" class="mission-stats">
-            <div class="glass-card mission-stat">
+          <section id="projectDashboard" class="mission-stats" data-overview-layout="dashboard">
+            <div class="glass-card mission-stat" data-overview-card="dash_chainage">
               <div class="mission-stat-label"><i class="ri-ruler-line"></i> Chainage Range</div>
               <div id="dashChRange" class="mission-stat-value">0.000 to 0.000</div>
             </div>
-            <div class="glass-card mission-stat">
+            <div class="glass-card mission-stat" data-overview-card="dash_length">
               <div class="mission-stat-label"><i class="ri-route-line"></i> Total Length</div>
               <div id="dashLength" class="mission-stat-value">0.000 km</div>
             </div>
-            <div class="glass-card mission-stat">
+            <div class="glass-card mission-stat" data-overview-card="dash_points">
               <div class="mission-stat-label"><i class="ri-shape-line"></i> Data Points</div>
               <div id="dashPoints" class="mission-stat-value">0 Cross-Sections</div>
             </div>
-            <div class="glass-card mission-stat">
+            <div class="glass-card mission-stat" data-overview-card="dash_structures">
               <div class="mission-stat-label"><i class="ri-building-line"></i> Structures</div>
               <div id="dashStructures" class="mission-stat-value">0 Bridges, 0 Curves</div>
             </div>
           </section>
 
-          <section class="mission-grid">
-            <section class="cards mission-cards-swap" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-              <article class="glass-card stat glow-success" id="fillStatCard"
+          <section id="overviewMainGrid" class="mission-grid" data-overview-layout="main">
+            <section class="cards mission-cards-swap" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;" data-overview-card="earthwork_totals" data-overview-layout="earthwork_totals">
+              <article class="glass-card stat glow-success" id="fillStatCard" data-overview-card="fill_stat"
                 style="position:relative; overflow:hidden; min-height:160px; display:flex; flex-direction:column; justify-content:space-between; padding:20px;">
                 <!-- SVG Wave Water Fill -->
                 <div id="fillWaterNode"
@@ -486,7 +494,7 @@
                 <small id="fillLength" style="display:none;">Length: 0.000 km</small>
               </article>
 
-              <article class="glass-card stat stat-cut glow-destructive" id="cutStatCard"
+              <article class="glass-card stat stat-cut glow-destructive" id="cutStatCard" data-overview-card="cut_stat"
                 style="position:relative; overflow:hidden; min-height:160px; display:flex; flex-direction:column; justify-content:space-between; padding:20px;">
                 <!-- SVG Wave Water Fill -->
                 <div id="cutWaterNode"
@@ -535,7 +543,7 @@
               </article>
             </section>
 
-            <article class="glass mission-panel">
+            <article class="glass mission-panel" data-overview-card="critical_chainages">
               <div class="mission-panel-head">
                 <h3>Critical Chainages</h3>
                 <span class="mission-panel-tag">Hotspots</span>
@@ -543,7 +551,7 @@
               <div id="criticalChainagesList" class="mission-list"></div>
             </article>
 
-            <article class="glass mission-panel mission-panel-wide">
+            <article class="glass mission-panel mission-panel-wide" data-overview-card="corridor_intelligence">
               <div class="mission-panel-head">
                 <h3>Corridor Intelligence</h3>
                 <span class="mission-panel-tag">Route Story</span>
@@ -551,7 +559,7 @@
               <div id="corridorIntelligence" class="corridor-panel"></div>
             </article>
 
-            <article class="glass mission-panel">
+            <article class="glass mission-panel" data-overview-card="volume_balance">
               <div class="mission-panel-head">
                 <h3>Volume Balance</h3>
                 <span class="mission-panel-tag">Earthwork</span>
@@ -559,7 +567,7 @@
               <div id="volumeBalanceGrid" class="mission-balance-grid"></div>
             </article>
 
-            <article class="glass mission-panel">
+            <article class="glass mission-panel" data-overview-card="design_alerts">
               <div class="mission-panel-head">
                 <h3>Design Alerts</h3>
                 <span class="mission-panel-tag">Review</span>
@@ -569,8 +577,8 @@
           </section>
         </section>
 
-        <section class="summary-strip mission-summary-strip">
-          <article class="glass formula-panel">
+        <section id="overviewSummaryStrip" class="summary-strip mission-summary-strip" data-overview-layout="summary">
+          <article class="glass formula-panel" data-overview-card="earthwork_result_summary">
             <h3>Earthwork Result Summary</h3>
             <div class="result-tabs" id="resultTabs">
               <button class="result-tab-btn active" data-result-tab="inputs" type="button">Inputs</button>
@@ -608,7 +616,7 @@
               </table>
             </div>
           </article>
-          <article class="glass mission-panel">
+          <article class="glass mission-panel" data-overview-card="project_health">
             <div class="mission-panel-head">
               <h3>Project Health</h3>
               <span class="mission-panel-tag">Readiness</span>

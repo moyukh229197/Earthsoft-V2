@@ -1582,6 +1582,51 @@ h1 {
   min-width: 280px;
 }
 
+.overview-layout-editing [data-overview-card] {
+  cursor: grab;
+  user-select: none;
+  outline: 1px dashed rgba(96, 165, 250, 0.35);
+  outline-offset: 3px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, opacity 0.18s ease;
+}
+
+.overview-layout-editing [data-overview-card]:active {
+  cursor: grabbing;
+}
+
+.overview-layout-editing [data-overview-card]:hover {
+  border-color: rgba(96, 165, 250, 0.38);
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.12), 0 10px 24px rgba(15, 23, 42, 0.18);
+}
+
+.overview-card-dragging {
+  opacity: 0.52;
+  transform: scale(0.985);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.28);
+}
+
+.overview-card-source-hidden {
+  display: none !important;
+}
+
+.overview-drop-placeholder {
+  min-height: 96px;
+  border-radius: 16px;
+  border: 1.5px dashed rgba(96, 165, 250, 0.55);
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.10), rgba(59, 130, 246, 0.04));
+  box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.08);
+  transition: all 0.18s ease;
+}
+
+.overview-drop-placeholder-wide {
+  grid-column: 1 / -1;
+}
+
+.overview-drop-placeholder-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
 .mission-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

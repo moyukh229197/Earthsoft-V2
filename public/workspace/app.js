@@ -63,6 +63,16 @@ const RETAINING_WALL_REASON_SHORT_LABELS = {
   water: "waterbody",
   habitation: "habitation",
 };
+const OVERVIEW_LAYOUT_DEFAULTS = {
+  dashboard: ["dash_chainage", "dash_length", "dash_points", "dash_structures"],
+  earthwork_totals: ["fill_stat", "cut_stat"],
+  main: ["earthwork_totals", "critical_chainages", "corridor_intelligence", "volume_balance", "design_alerts"],
+  summary: ["earthwork_result_summary", "project_health"],
+};
+let overviewLayoutEditing = false;
+let activeOverviewDragCard = null;
+let activeOverviewDragContainer = null;
+let activeOverviewDragPlaceholder = null;
 
 function createEmptyLoopRow(index = 0, overrides = {}) {
   return {
@@ -1786,7 +1796,141 @@ function updateDashboard() {
       `).join("")
       : `<div class="mission-list-empty">No critical design alerts. The current dataset is complete enough for review and export.</div>`;
   }
+  applyOverviewLayout();
   updateTopbarSummary();
+}
+
+function getDefaultOverviewLayout() {
+  return Object.fromEntries(
+    Object.entries(OVERVIEW_LAYOUT_DEFAULTS).map(([zone, order]) => [zone, [...order]])
+  );
+}
+
+function ensureOverviewLayoutState() {
+  state.meta = state.meta || {};
+  const defaults = getDefaultOverviewLayout();
+  const existing = state.meta.overviewLayout && typeof state.meta.overviewLayout === "object"
+    ? state.meta.overviewLayout
+    : {};
+  const normalized = {};
+  Object.entries(defaults).forEach(([zone, defaultOrder]) => {
+    const seen = new Set();
+    const saved = Array.isArray(existing[zone]) ? existing[zone] : [];
+    normalized[zone] = [...saved, ...defaultOrder].filter((cardId) => {
+      if (!defaultOrder.includes(cardId) || seen.has(cardId)) return false;
+      seen.add(cardId);
+      return true;
+    });
+  });
+  state.meta.overviewLayout = normalized;
+  return normalized;
+}
+
+function applyOverviewZoneLayout(zoneName, cardOrder) {
+  const container = document.querySelector(`[data-overview-layout="${zoneName}"]`);
+  if (!container) return;
+  const cards = Array.from(container.children).filter((node) => node.matches?.("[data-overview-card]"));
+  const cardMap = new Map(cards.map((card) => [card.dataset.overviewCard, card]));
+  const orderedCards = [];
+  cardOrder.forEach((cardId) => {
+    const card = cardMap.get(cardId);
+    if (card) orderedCards.push(card);
+  });
+  cards.forEach((card) => {
+    if (!orderedCards.includes(card)) orderedCards.push(card);
+  });
+  orderedCards.forEach((card) => container.appendChild(card));
+}
+
+function applyOverviewLayout() {
+  const layout = ensureOverviewLayoutState();
+  Object.entries(layout).forEach(([zoneName, order]) => applyOverviewZoneLayout(zoneName, order));
+  setOverviewLayoutEditing(overviewLayoutEditing, { quiet: true });
+}
+
+function captureOverviewLayoutFromDOM() {
+  const layout = {};
+  Object.keys(OVERVIEW_LAYOUT_DEFAULTS).forEach((zoneName) => {
+    const container = document.querySelector(`[data-overview-layout="${zoneName}"]`);
+    if (!container) {
+      layout[zoneName] = [...OVERVIEW_LAYOUT_DEFAULTS[zoneName]];
+      return;
+    }
+    layout[zoneName] = Array.from(container.children)
+      .filter((node) => node.matches?.("[data-overview-card]"))
+      .map((node) => node.dataset.overviewCard)
+      .filter(Boolean);
+  });
+  return layout;
+}
+
+function syncOverviewLayoutFromDOM() {
+  const nextLayout = captureOverviewLayoutFromDOM();
+  const previousLayout = JSON.stringify(state.meta?.overviewLayout || {});
+  const nextLayoutString = JSON.stringify(nextLayout);
+  state.meta = state.meta || {};
+  state.meta.overviewLayout = nextLayout;
+  if (previousLayout !== nextLayoutString) {
+    saveState();
+  }
+}
+
+function updateOverviewLayoutControls() {
+  const toggleBtn = document.getElementById("overviewLayoutToggleBtn");
+  const resetBtn = document.getElementById("overviewLayoutResetBtn");
+  if (toggleBtn) {
+    toggleBtn.classList.toggle("btn-primary", overviewLayoutEditing);
+    toggleBtn.classList.toggle("btn-secondary", !overviewLayoutEditing);
+    toggleBtn.innerHTML = overviewLayoutEditing
+      ? '<i class="ri-check-line"></i><span>Done</span>'
+      : '<i class="ri-drag-move-2-line"></i><span>Customize Layout</span>';
+  }
+  if (resetBtn) {
+    resetBtn.disabled = overviewLayoutEditing;
+    resetBtn.style.opacity = overviewLayoutEditing ? "0.55" : "";
+    resetBtn.style.cursor = overviewLayoutEditing ? "not-allowed" : "";
+  }
+}
+
+function setOverviewLayoutEditing(editing, options = {}) {
+  overviewLayoutEditing = Boolean(editing);
+  document.body.classList.toggle("overview-layout-editing", overviewLayoutEditing);
+  document.querySelectorAll('[data-overview-card]').forEach((card) => {
+    card.setAttribute("draggable", overviewLayoutEditing ? "true" : "false");
+  });
+  if (!options.quiet) updateOverviewLayoutControls();
+}
+
+function resetOverviewLayout() {
+  state.meta = state.meta || {};
+  state.meta.overviewLayout = getDefaultOverviewLayout();
+  applyOverviewLayout();
+  saveState();
+}
+
+function createOverviewDragPlaceholder(card) {
+  const placeholder = document.createElement("div");
+  placeholder.className = "overview-drop-placeholder";
+  if (card.classList.contains("mission-panel-wide")) {
+    placeholder.classList.add("overview-drop-placeholder-wide");
+  }
+  const rect = card.getBoundingClientRect();
+  placeholder.style.minHeight = `${Math.max(72, rect.height)}px`;
+  if (card.dataset.overviewLayout === "earthwork_totals") {
+    placeholder.classList.add("overview-drop-placeholder-grid");
+  }
+  return placeholder;
+}
+
+function getOverviewDropInsertBefore(targetCard, event) {
+  const rect = targetCard.getBoundingClientRect();
+  const parent = targetCard.parentElement;
+  const computed = parent ? window.getComputedStyle(parent) : null;
+  const isGrid = computed?.display === "grid";
+  if (isGrid) {
+    return event.clientX < (rect.left + (rect.width / 2));
+  }
+  return event.clientY < (rect.top + (rect.height / 2));
 }
 
 function updateTopbarSummary() {
@@ -8416,6 +8560,14 @@ function bindEvents() {
     const btn = e.target.closest("[data-overview-action]");
     if (!btn) return;
     const action = btn.dataset.overviewAction;
+    if (action === "layout-toggle") {
+      setOverviewLayoutEditing(!overviewLayoutEditing);
+      return;
+    }
+    if (action === "layout-reset") {
+      if (!overviewLayoutEditing) resetOverviewLayout();
+      return;
+    }
     if (action === "create") els.createProjectBtn?.click();
     if (action === "edit") {
       if (state.project?.active) {
@@ -8464,6 +8616,69 @@ function bindEvents() {
       moreMenu.removeAttribute("open");
     }
   });
+
+  document.addEventListener("dragstart", (e) => {
+    const card = e.target.closest("[data-overview-card]");
+    if (!overviewLayoutEditing || !card) return;
+    activeOverviewDragCard = card;
+    activeOverviewDragContainer = card.parentElement;
+    activeOverviewDragPlaceholder = createOverviewDragPlaceholder(card);
+    card.parentElement?.insertBefore(activeOverviewDragPlaceholder, card.nextSibling);
+    card.classList.add("overview-card-dragging");
+    window.setTimeout(() => {
+      if (activeOverviewDragCard === card) {
+        card.classList.add("overview-card-source-hidden");
+      }
+    }, 0);
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", card.dataset.overviewCard || "");
+    }
+  });
+
+  document.addEventListener("dragover", (e) => {
+    if (!overviewLayoutEditing || !activeOverviewDragCard || !activeOverviewDragContainer || !activeOverviewDragPlaceholder) return;
+    const container = e.target.closest("[data-overview-layout]");
+    if (!container || container !== activeOverviewDragContainer) return;
+    e.preventDefault();
+    const targetCard = e.target.closest("[data-overview-card]");
+    if (!targetCard || targetCard === activeOverviewDragCard || targetCard === activeOverviewDragPlaceholder || targetCard.parentElement !== activeOverviewDragContainer) {
+      return;
+    }
+    const before = getOverviewDropInsertBefore(targetCard, e);
+    activeOverviewDragContainer.insertBefore(activeOverviewDragPlaceholder, before ? targetCard : targetCard.nextSibling);
+  });
+
+  document.addEventListener("drop", (e) => {
+    if (!overviewLayoutEditing || !activeOverviewDragCard || !activeOverviewDragContainer || !activeOverviewDragPlaceholder) return;
+    const container = e.target.closest("[data-overview-layout]");
+    if (container !== activeOverviewDragContainer) return;
+    e.preventDefault();
+    activeOverviewDragContainer.insertBefore(activeOverviewDragCard, activeOverviewDragPlaceholder);
+  });
+
+  document.addEventListener("dragend", () => {
+    if (activeOverviewDragCard) {
+      activeOverviewDragCard.classList.remove("overview-card-dragging");
+      activeOverviewDragCard.classList.remove("overview-card-source-hidden");
+    }
+    if (activeOverviewDragCard && activeOverviewDragPlaceholder?.parentElement) {
+      activeOverviewDragPlaceholder.parentElement.insertBefore(activeOverviewDragCard, activeOverviewDragPlaceholder);
+    }
+    if (activeOverviewDragPlaceholder) {
+      activeOverviewDragPlaceholder.remove();
+    }
+    if (activeOverviewDragContainer) {
+      syncOverviewLayoutFromDOM();
+    }
+    activeOverviewDragCard = null;
+    activeOverviewDragContainer = null;
+    activeOverviewDragPlaceholder = null;
+  });
+
+  applyOverviewLayout();
+  updateOverviewLayoutControls();
+  setOverviewLayoutEditing(false, { quiet: true });
 
   if (els.createProjectBtn && els.projectWizardModal) {
     els.createProjectBtn.addEventListener("click", () => {
