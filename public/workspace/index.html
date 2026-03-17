@@ -254,41 +254,40 @@
       <header class="topbar glass">
         <div class="brand">
           <div class="topbar-brand-stack">
-            <h1 id="topbarProjectName">No Active Project</h1>
-            <p id="projectMeta" class="muted">Earthwork Calculations</p>
-            <div class="topbar-project-statuses">
-              <span id="topbarProjectState" class="topbar-status-pill">Draft</span>
-              <span id="topbarMapState" class="topbar-status-pill">No Map</span>
-              <span id="topbarSaveState" class="topbar-status-pill">Local</span>
-            </div>
+            <h1>Earthsoft Workspace</h1>
+            <p id="projectMeta" class="muted">Earthwork Calculations Workspace</p>
           </div>
           <span class="pro-badge">Pro</span>
         </div>
-        <div class="toolbar">
-          <div class="toolbar-group toolbar-group-utility">
-            <button id="globalUndoBtn" class="btn btn-secondary topbar-btn" style="min-width:36px; padding:0 8px;" title="Undo (Ctrl+Z)"><i class="ri-arrow-go-back-line"></i></button>
-            <button id="globalRedoBtn" class="btn btn-secondary topbar-btn" style="min-width:36px; padding:0 8px;" title="Redo (Ctrl+Y)"><i class="ri-arrow-go-forward-line"></i></button>
-          </div>
-          <div class="toolbar-group">
-            <button id="createProjectBtn" class="btn btn-primary topbar-btn" title="Create Project"><i class="ri-folder-add-line"></i><span>Create Project</span></button>
-            <button id="importProjectBtn" class="btn btn-secondary topbar-btn" title="Open Project File"><i class="ri-folder-open-line"></i><span>Open File</span></button>
-            <button id="openCloudProjectsBtn" class="btn btn-secondary topbar-btn" title="Open Cloud Project"><i class="ri-cloud-line"></i><span>Cloud</span></button>
-            <button id="saveProjectBtn" class="btn btn-secondary topbar-btn" title="Save Project to Cloud"><i class="ri-save-3-line"></i><span>Save</span></button>
-          </div>
-          <div class="toolbar-group toolbar-group-primary">
-            <div class="import-wrap">
-            <input id="importInput" type="file" accept=".xlsx,.xls,.csv" hidden />
-            <input id="bridgeImportInput" type="file" accept=".xlsx,.xls,.csv" hidden />
-            <input id="curveImportInput" type="file" accept=".xlsx,.xls,.csv" hidden />
-            <input id="loopImportInput" type="file" accept=".xlsx,.xls,.csv" hidden />
-            <input id="projectImportInput" type="file" accept=".ew,.EW" hidden />
-              <button id="importBtn" class="btn btn-secondary topbar-btn" title="Import Data"><i class="ri-download-cloud-2-line"></i><span>Import</span></button>
+        <div class="topbar-actions">
+          <div class="toolbar">
+            <div class="toolbar-group toolbar-group-utility">
+              <button id="globalUndoBtn" class="btn btn-secondary topbar-btn" style="min-width:36px; padding:0 8px;" title="Undo (Ctrl+Z)"><i class="ri-arrow-go-back-line"></i></button>
+              <button id="globalRedoBtn" class="btn btn-secondary topbar-btn" style="min-width:36px; padding:0 8px;" title="Redo (Ctrl+Y)"><i class="ri-arrow-go-forward-line"></i></button>
             </div>
-            <button id="verifyCalcBtn" class="btn-verify-inline topbar-btn" type="button" title="Verify Project" disabled><i class="ri-shield-check-line"></i><span>Verify</span></button>
-            <button id="viewer3dBtn" class="btn btn-primary topbar-btn" type="button" title="Launch 3D Fly-Through Viewer" data-open-3d="true"><i class="ri-box-3-line"></i><span>3D View</span></button>
+            <div class="toolbar-group">
+              <button id="createProjectBtn" class="btn btn-primary topbar-btn" title="Create Project"><i class="ri-folder-add-line"></i><span>Create Project</span></button>
+              <button id="importProjectBtn" class="btn btn-secondary topbar-btn" title="Open Project File"><i class="ri-folder-open-line"></i><span>Open File</span></button>
+              <button id="openCloudProjectsBtn" class="btn btn-secondary topbar-btn" title="Open Cloud Project"><i class="ri-cloud-line"></i><span>Cloud</span></button>
+              <button id="saveProjectBtn" class="btn btn-secondary topbar-btn" title="Save Project to Cloud"><i class="ri-save-3-line"></i><span>Save</span></button>
+            </div>
+            <div class="toolbar-group toolbar-group-primary">
+              <div class="import-wrap">
+              <input id="importInput" type="file" accept=".xlsx,.xls,.csv" hidden />
+              <input id="bridgeImportInput" type="file" accept=".xlsx,.xls,.csv" hidden />
+              <input id="curveImportInput" type="file" accept=".xlsx,.xls,.csv" hidden />
+              <input id="loopImportInput" type="file" accept=".xlsx,.xls,.csv" hidden />
+              <input id="projectImportInput" type="file" accept=".ew,.EW" hidden />
+                <button id="importBtn" class="btn btn-secondary topbar-btn" title="Import Data"><i class="ri-download-cloud-2-line"></i><span>Import</span></button>
+              </div>
+              <button id="verifyCalcBtn" class="btn-verify-inline topbar-btn" type="button" title="Verify Project" disabled><i class="ri-shield-check-line"></i><span>Verify</span></button>
+              <button id="viewer3dBtn" class="btn btn-primary topbar-btn" type="button" title="Launch 3D Fly-Through Viewer" data-open-3d="true"><i class="ri-box-3-line"></i><span>3D View</span></button>
+            </div>
           </div>
           <details class="topbar-more-menu">
-            <summary class="btn btn-secondary topbar-btn topbar-more-trigger" title="More Actions"><i class="ri-more-2-fill"></i><span>More</span></summary>
+            <summary class="btn btn-secondary topbar-btn topbar-more-trigger" title="More Actions" aria-label="More Actions">
+              <i class="ri-more-2-fill"></i>
+            </summary>
             <div class="topbar-more-panel">
               <button id="saveAsProjectBtn" class="btn btn-secondary topbar-menu-btn" title="Save Project as Local File"><i class="ri-save-line"></i><span>Save As</span></button>
               <button id="snapshotsBtn" class="btn btn-secondary topbar-menu-btn" title="View Snapshots"><i class="ri-history-line"></i><span>Snapshots</span></button>
@@ -336,6 +335,11 @@
               <p class="mission-kicker">Mission Control</p>
               <h2 id="overviewHeroTitle">No active project</h2>
               <p id="overviewHeroText" class="muted">Create or open a project to begin importing levels, structures, loops, and map alignment.</p>
+              <div class="mission-hero-statuses">
+                <span id="topbarProjectState" class="topbar-status-pill">Draft</span>
+                <span id="topbarMapState" class="topbar-status-pill">No Map</span>
+                <span id="topbarSaveState" class="topbar-status-pill">Local</span>
+              </div>
             </div>
             <div class="mission-actions">
               <button class="btn btn-secondary" type="button" data-overview-action="edit">

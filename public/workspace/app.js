@@ -759,7 +759,6 @@ const els = {
   logoutBtn: document.getElementById("logoutBtn"),
   loginUserChip: document.getElementById("loginUserChip"),
   projectMeta: document.getElementById("projectMeta"),
-  topbarProjectName: document.getElementById("topbarProjectName"),
   topbarProjectState: document.getElementById("topbarProjectState"),
   topbarMapState: document.getElementById("topbarMapState"),
   topbarSaveState: document.getElementById("topbarSaveState"),
@@ -1792,15 +1791,11 @@ function updateDashboard() {
 
 function updateTopbarSummary() {
   const active = Boolean(state.project?.active);
-  const projectName = String(state.project?.profile?.corridorName || state.project?.name || "").trim();
   const uploads = state.project?.uploads || {};
   const savedAt = state.meta?.lastSavedAt ? new Date(state.meta.lastSavedAt) : null;
 
-  if (els.topbarProjectName) {
-    els.topbarProjectName.textContent = active ? (projectName || "Unnamed Project") : "No Active Project";
-  }
   if (els.projectMeta) {
-    els.projectMeta.textContent = active ? "Earthwork Calculations Workspace" : "Earthwork Calculations";
+    els.projectMeta.textContent = "Earthwork Calculations Workspace";
   }
 
   if (els.topbarProjectState) {
@@ -14170,8 +14165,457 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('absGrandTotal')) document.getElementById('absGrandTotal').textContent = fmt(grandCash);
   }
 
+  function getEstimateExportFilename() {
+    const rawName = String(state.project?.name || state.project?.profile?.corridorName || "Earthsoft_Project").trim();
+    const safeName = rawName.replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_");
+    const stamp = new Date().toISOString().slice(0, 10);
+    return `${safeName || "Earthsoft_Project"}_Estimate_Workbook_${stamp}.xlsx`;
+  }
+
+  function resolveEstimateSorName(sourceId) {
+    if (!sourceId) return "";
+    const source = (sorSources || []).find((item) => item.id === sourceId);
+    return source?.display_name || "";
+  }
+
+  function resolveEstimateLarName(sourceId) {
+    if (!sourceId) return "";
+    const local = (state.larReferences || []).find((item) => item.id === sourceId);
+    if (local?.name) return local.name;
+    const bank = (window.larBankSources || []).find((item) => item.id === sourceId);
+    return bank?.display_name || "";
+  }
+
+  function sanitizeWorksheetName(name, fallback) {
+    const cleaned = String(name || fallback || "Sheet")
+      .replace(/[\\/*?:[\]]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const finalName = cleaned || fallback || "Sheet";
+    return finalName.slice(0, 31);
+  }
+
+  function createEstimateWorkbookStyles() {
+    return {
+      title: {
+        font: { bold: true, sz: 16, color: { rgb: "FFFFFF" } },
+        fill: { fgColor: { rgb: "1D4ED8" } },
+        alignment: { horizontal: "center", vertical: "center" },
+      },
+      subtitle: {
+        font: { italic: true, sz: 10, color: { rgb: "475569" } },
+        fill: { fgColor: { rgb: "EFF6FF" } },
+        alignment: { wrapText: true, vertical: "center" },
+      },
+      meta: {
+        font: { sz: 9, color: { rgb: "334155" } },
+        fill: { fgColor: { rgb: "F8FAFC" } },
+      },
+      header: {
+        font: { bold: true, color: { rgb: "0F172A" } },
+        fill: { fgColor: { rgb: "DBEAFE" } },
+        alignment: { horizontal: "center", vertical: "center", wrapText: true },
+        border: {
+          top: { style: "thin", color: { rgb: "BFDBFE" } },
+          bottom: { style: "thin", color: { rgb: "BFDBFE" } },
+        },
+      },
+      section: {
+        font: { bold: true, color: { rgb: "1E3A8A" } },
+        fill: { fgColor: { rgb: "E0F2FE" } },
+        alignment: { vertical: "center" },
+      },
+      text: {
+        alignment: { vertical: "top", wrapText: true },
+      },
+      center: {
+        alignment: { horizontal: "center", vertical: "center" },
+      },
+      number: {
+        alignment: { horizontal: "right", vertical: "center" },
+        numFmt: '#,##0.000',
+      },
+      currency: {
+        alignment: { horizontal: "right", vertical: "center" },
+        numFmt: '"₹"#,##0.00',
+      },
+      total: {
+        font: { bold: true, color: { rgb: "0F172A" } },
+        fill: { fgColor: { rgb: "E2E8F0" } },
+        alignment: { vertical: "center" },
+        border: {
+          top: { style: "thin", color: { rgb: "94A3B8" } },
+          bottom: { style: "thin", color: { rgb: "94A3B8" } },
+        },
+      },
+      note: {
+        font: { italic: true, color: { rgb: "64748B" } },
+        fill: { fgColor: { rgb: "F8FAFC" } },
+        alignment: { wrapText: true, vertical: "top" },
+      },
+    };
+  }
+
+  function applyWorksheetStyle(ws, cellRef, style) {
+    if (!ws[cellRef]) return;
+    ws[cellRef].s = style;
+  }
+
+  function applyWorksheetRangeStyle(ws, startRow, endRow, startCol, endCol, style) {
+    for (let r = startRow; r <= endRow; r += 1) {
+      for (let c = startCol; c <= endCol; c += 1) {
+        applyWorksheetStyle(ws, XLSX.utils.encode_cell({ r, c }), style);
+      }
+    }
+  }
+
+  function appendEstimateSheetHeader(aoa, merges, title, subtitle, projectLine) {
+    aoa.push([title]);
+    merges.push({ s: { r: aoa.length - 1, c: 0 }, e: { r: aoa.length - 1, c: 11 } });
+    aoa.push([subtitle]);
+    merges.push({ s: { r: aoa.length - 1, c: 0 }, e: { r: aoa.length - 1, c: 11 } });
+    aoa.push([projectLine]);
+    merges.push({ s: { r: aoa.length - 1, c: 0 }, e: { r: aoa.length - 1, c: 11 } });
+    aoa.push([]);
+  }
+
+  function buildEstimatePlanHeadSheet(planHead, rows, styles) {
+    const label = PLAN_HEAD_MAP[planHead] || planHead;
+    const isAuto = AUTO_EST_PLAN_HEADS.has(planHead);
+    const aoa = [];
+    const merges = [];
+    const formulaRows = [];
+    appendEstimateSheetHeader(
+      aoa,
+      merges,
+      label,
+      isAuto
+        ? "Auto-generated from project calculations, structures, and estimate assumptions. Qty is exported from the current verified workspace."
+        : "Manual estimate rows exported from the Estimates tab. Rates, references, and descriptions follow the current workbook state.",
+      `Project: ${state.project?.name || "Untitled Project"} | Exported: ${new Date().toLocaleString()}`
+    );
+
+    const headerRow = ["S.No.", "SOR Source", "LAR Reference", "Item Code", "Description", "Qty", "Unit", "Rate (₹)", "Cash (₹)", "Stores (₹)", "Total (₹)", "Basis / Remarks"];
+    aoa.push(headerRow);
+    const headerRowIndex = aoa.length - 1;
+
+    let currentSection = "";
+    let itemCount = 0;
+    rows.forEach((row, idx) => {
+      if (planHead === "1130" && row.section && row.section !== currentSection) {
+        currentSection = row.section;
+        aoa.push([EST1130_SECTION_LABELS[row.section] || row.section]);
+        merges.push({ s: { r: aoa.length - 1, c: 0 }, e: { r: aoa.length - 1, c: 11 } });
+      }
+
+      const exportRow = [
+        row.sequence || idx + 1,
+        resolveEstimateSorName(row.sor),
+        resolveEstimateLarName(row.larRefId),
+        row.code || "",
+        row.desc || "",
+        safeNum(row.qty, 0),
+        row.unit || "",
+        safeNum(row.rate, 0),
+        0,
+        safeNum(row.stores, 0),
+        0,
+        row.autoBasis || "",
+      ];
+      aoa.push(exportRow);
+      formulaRows.push(aoa.length);
+      itemCount += 1;
+    });
+
+    if (!itemCount) {
+      aoa.push(["No estimate rows available for this plan head."]);
+      merges.push({ s: { r: aoa.length - 1, c: 0 }, e: { r: aoa.length - 1, c: 11 } });
+    } else {
+      aoa.push(["", "", "", "", "Plan Head Total", 0, "", 0, 0, 0, 0, `${itemCount} item row${itemCount === 1 ? "" : "s"} exported`]);
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [
+      { wch: 8 },
+      { wch: 22 },
+      { wch: 22 },
+      { wch: 14 },
+      { wch: 48 },
+      { wch: 14 },
+      { wch: 10 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 40 },
+    ];
+    ws["!rows"] = [
+      { hpt: 24 },
+      { hpt: 30 },
+      { hpt: 18 },
+    ];
+    ws["!merges"] = merges;
+
+    applyWorksheetRangeStyle(ws, 0, 0, 0, 11, styles.title);
+    applyWorksheetRangeStyle(ws, 1, 1, 0, 11, styles.subtitle);
+    applyWorksheetRangeStyle(ws, 2, 2, 0, 11, styles.meta);
+    applyWorksheetRangeStyle(ws, headerRowIndex, headerRowIndex, 0, 11, styles.header);
+
+    formulaRows.forEach((excelRowNumber) => {
+      const zeroBasedRow = excelRowNumber - 1;
+      const cashRef = `I${excelRowNumber}`;
+      const storesRef = `J${excelRowNumber}`;
+      const totalRef = `K${excelRowNumber}`;
+      ws[cashRef] = { t: "n", f: `F${excelRowNumber}*H${excelRowNumber}`, s: styles.currency };
+      ws[storesRef] = ws[storesRef] || { t: "n", v: 0 };
+      ws[storesRef].s = styles.currency;
+      ws[totalRef] = { t: "n", f: `I${excelRowNumber}+J${excelRowNumber}`, s: styles.currency };
+      applyWorksheetRangeStyle(ws, zeroBasedRow, zeroBasedRow, 0, 4, styles.text);
+      applyWorksheetRangeStyle(ws, zeroBasedRow, zeroBasedRow, 5, 5, styles.number);
+      applyWorksheetRangeStyle(ws, zeroBasedRow, zeroBasedRow, 6, 6, styles.center);
+      applyWorksheetRangeStyle(ws, zeroBasedRow, zeroBasedRow, 7, 10, styles.currency);
+      applyWorksheetRangeStyle(ws, zeroBasedRow, zeroBasedRow, 11, 11, styles.note);
+    });
+
+    for (let rowIdx = headerRowIndex + 1; rowIdx < aoa.length; rowIdx += 1) {
+      const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 0 });
+      const cellValue = ws[cellRef]?.v;
+      if (typeof cellValue === "string" && cellValue && !String(aoa[rowIdx][4] || "").trim() && aoa[rowIdx].length === 1) {
+        applyWorksheetRangeStyle(ws, rowIdx, rowIdx, 0, 11, styles.section);
+      }
+    }
+
+    if (itemCount) {
+      const totalExcelRow = aoa.length;
+      const firstDataExcelRow = headerRowIndex + 2;
+      const lastDataExcelRow = totalExcelRow - 1;
+      ws[`I${totalExcelRow}`] = { t: "n", f: `SUM(I${firstDataExcelRow}:I${lastDataExcelRow})`, s: styles.currency };
+      ws[`J${totalExcelRow}`] = { t: "n", f: `SUM(J${firstDataExcelRow}:J${lastDataExcelRow})`, s: styles.currency };
+      ws[`K${totalExcelRow}`] = { t: "n", f: `SUM(K${firstDataExcelRow}:K${lastDataExcelRow})`, s: styles.currency };
+      applyWorksheetRangeStyle(ws, totalExcelRow - 1, totalExcelRow - 1, 0, 11, styles.total);
+    } else {
+      applyWorksheetRangeStyle(ws, aoa.length - 1, aoa.length - 1, 0, 11, styles.note);
+    }
+
+    return ws;
+  }
+
+  function buildAbstractEstimateSheet(styles) {
+    sync1110EstimateRows();
+    sync1130EstimateRows();
+    const aoa = [];
+    const merges = [];
+    appendEstimateSheetHeader(
+      aoa,
+      merges,
+      "Abstract Estimate",
+      "Consolidated plan-head summary from the current estimate workspace.",
+      `Project: ${state.project?.name || "Untitled Project"} | Exported: ${new Date().toLocaleString()}`
+    );
+    aoa.push(["Plan Head", "Description", "Cash (₹)", "Stores (₹)", "Total (₹)"]);
+    const headerRowIndex = aoa.length - 1;
+
+    let grandCash = 0;
+    Object.keys(PLAN_HEAD_MAP).forEach((planHead) => {
+      const rows = (planHead === "1110")
+        ? sync1110EstimateRows()
+        : (planHead === "1130" ? sync1130EstimateRows() : (state.estimates[planHead] || []));
+      const cash = rows.reduce((acc, row) => acc + (safeNum(row.qty, 0) * safeNum(row.rate, 0)), 0);
+      const stores = rows.reduce((acc, row) => acc + safeNum(row.stores, 0), 0);
+      grandCash += cash + stores;
+      aoa.push([planHead, PLAN_HEAD_MAP[planHead], cash, stores, cash + stores]);
+    });
+    aoa.push(["", "Grand Total", grandCash, 0, grandCash]);
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [
+      { wch: 12 },
+      { wch: 42 },
+      { wch: 18 },
+      { wch: 16 },
+      { wch: 18 },
+    ];
+    ws["!merges"] = merges;
+    applyWorksheetRangeStyle(ws, 0, 0, 0, 4, styles.title);
+    applyWorksheetRangeStyle(ws, 1, 1, 0, 4, styles.subtitle);
+    applyWorksheetRangeStyle(ws, 2, 2, 0, 4, styles.meta);
+    applyWorksheetRangeStyle(ws, headerRowIndex, headerRowIndex, 0, 4, styles.header);
+    applyWorksheetRangeStyle(ws, headerRowIndex + 1, aoa.length - 2, 0, 1, styles.text);
+    applyWorksheetRangeStyle(ws, headerRowIndex + 1, aoa.length - 1, 2, 4, styles.currency);
+    applyWorksheetRangeStyle(ws, aoa.length - 1, aoa.length - 1, 0, 4, styles.total);
+    return ws;
+  }
+
+  function buildEstimateSummarySheet(styles) {
+    sync1110EstimateRows();
+    sync1130EstimateRows();
+    const uploads = state.project?.uploads || {};
+    const totalLengthKm = getMainLineRouteLengthM() / 1000;
+    const totalEstimate = Object.keys(PLAN_HEAD_MAP).reduce((acc, planHead) => {
+      const rows = state.estimates[planHead] || [];
+      return acc + rows.reduce((sum, row) => sum + (safeNum(row.qty, 0) * safeNum(row.rate, 0)) + safeNum(row.stores, 0), 0);
+    }, 0);
+    const aoa = [
+      ["Earthsoft Estimate Workbook"],
+      ["Project summary and export metadata"],
+      [`Exported: ${new Date().toLocaleString()}`],
+      [],
+      ["Project Name", state.project?.name || "Untitled Project"],
+      ["Corridor", state.project?.profile?.corridorName || "-"],
+      ["Verification", state.project?.verified ? "Verified" : "Needs Review"],
+      ["KML Alignment", uploads.kml ? "Mapped" : "Not Mapped"],
+      ["Last Saved", state.meta?.lastSavedAt ? new Date(state.meta.lastSavedAt).toLocaleString() : "Local session"],
+      ["Main Line Length (km)", safeNum(totalLengthKm, 0)],
+      ["Plan Heads", Object.keys(PLAN_HEAD_MAP).length],
+      ["Grand Estimate (₹)", safeNum(totalEstimate, 0)],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [{ wch: 28 }, { wch: 34 }];
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 1 } },
+    ];
+    applyWorksheetRangeStyle(ws, 0, 0, 0, 1, styles.title);
+    applyWorksheetRangeStyle(ws, 1, 1, 0, 1, styles.subtitle);
+    applyWorksheetRangeStyle(ws, 2, 2, 0, 1, styles.meta);
+    applyWorksheetRangeStyle(ws, 4, aoa.length - 1, 0, 0, styles.header);
+    applyWorksheetRangeStyle(ws, 4, aoa.length - 1, 1, 1, styles.text);
+    applyWorksheetStyle(ws, "B10", styles.number);
+    applyWorksheetStyle(ws, "B12", styles.currency);
+    return ws;
+  }
+
+  function buildEarthworkStructuresSheet(styles) {
+    ensureEarthworkStructuresState();
+    const aoa = [];
+    const merges = [];
+    appendEstimateSheetHeader(
+      aoa,
+      merges,
+      "1130 Structures Basis",
+      "Supporting retaining wall and drain inputs used for the 1130 auto-generated estimate.",
+      `Project: ${state.project?.name || "Untitled Project"} | Exported: ${new Date().toLocaleString()}`
+    );
+
+    aoa.push(["Retaining Walls"]);
+    merges.push({ s: { r: aoa.length - 1, c: 0 }, e: { r: aoa.length - 1, c: 6 } });
+    aoa.push(["S.No.", "From Ch. (m)", "To Ch. (m)", "Side", "Type", "Qty (RM)", "Remarks"]);
+    const retainingHeaderIndex = aoa.length - 1;
+    const retainingRows = state.earthworkStructures.retainingWalls || [];
+    if (!retainingRows.length) {
+      aoa.push(["No retaining wall entries recorded."]);
+      merges.push({ s: { r: aoa.length - 1, c: 0 }, e: { r: aoa.length - 1, c: 6 } });
+    } else {
+      retainingRows.forEach((row, idx) => {
+        aoa.push([
+          idx + 1,
+          safeNum(parseChainage(row.fromCh), 0),
+          safeNum(parseChainage(row.toCh), 0),
+          row.side || "",
+          row.wallType || "",
+          safeNum(getEffectiveRetainingWallQty(row), 0),
+          row.remarks || "",
+        ]);
+      });
+    }
+
+    aoa.push([]);
+    aoa.push(["Drains"]);
+    merges.push({ s: { r: aoa.length - 1, c: 0 }, e: { r: aoa.length - 1, c: 7 } });
+    aoa.push(["S.No.", "From Ch. (m)", "To Ch. (m)", "Side", "Type", "Runs", "Qty (RM)", "Remarks"]);
+    const drainHeaderIndex = aoa.length - 1;
+    const drainRows = state.earthworkStructures.drains || [];
+    if (!drainRows.length) {
+      aoa.push(["No drain entries recorded."]);
+      merges.push({ s: { r: aoa.length - 1, c: 0 }, e: { r: aoa.length - 1, c: 7 } });
+    } else {
+      drainRows.forEach((row, idx) => {
+        aoa.push([
+          idx + 1,
+          safeNum(parseChainage(row.fromCh), 0),
+          safeNum(parseChainage(row.toCh), 0),
+          row.side || "",
+          row.drainType || "",
+          Math.max(1, Math.round(safeNum(row.runs, 1))),
+          safeNum(getEffectiveDrainQty(row), 0),
+          row.remarks || "",
+        ]);
+      });
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [
+      { wch: 8 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 10 },
+      { wch: 28 },
+      { wch: 10 },
+      { wch: 14 },
+      { wch: 42 },
+    ];
+    ws["!merges"] = merges;
+    applyWorksheetRangeStyle(ws, 0, 0, 0, 7, styles.title);
+    applyWorksheetRangeStyle(ws, 1, 1, 0, 7, styles.subtitle);
+    applyWorksheetRangeStyle(ws, 2, 2, 0, 7, styles.meta);
+    applyWorksheetRangeStyle(ws, 4, 4, 0, 6, styles.section);
+    applyWorksheetRangeStyle(ws, retainingHeaderIndex, retainingHeaderIndex, 0, 6, styles.header);
+    applyWorksheetRangeStyle(ws, drainHeaderIndex - 1, drainHeaderIndex - 1, 0, 7, styles.section);
+    applyWorksheetRangeStyle(ws, drainHeaderIndex, drainHeaderIndex, 0, 7, styles.header);
+    return ws;
+  }
+
+  function exportEstimateWorkbook() {
+    if (typeof XLSX === "undefined") {
+      alert("Excel export library is not available. Please refresh the page and try again.");
+      return;
+    }
+
+    sync1110EstimateRows();
+    sync1130EstimateRows();
+    renderAbstract();
+
+    const styles = createEstimateWorkbookStyles();
+    const workbook = XLSX.utils.book_new();
+    workbook.Props = {
+      Title: `${state.project?.name || "Earthsoft"} Estimate Workbook`,
+      Subject: "Earthsoft estimate export",
+      Author: "Earthsoft",
+      CreatedDate: new Date(),
+    };
+
+    XLSX.utils.book_append_sheet(workbook, buildEstimateSummarySheet(styles), sanitizeWorksheetName("Summary", "Summary"));
+    XLSX.utils.book_append_sheet(workbook, buildAbstractEstimateSheet(styles), sanitizeWorksheetName("Abstract Estimate", "Abstract"));
+    Object.keys(PLAN_HEAD_MAP).forEach((planHead) => {
+      const rows = planHead === "1110"
+        ? sync1110EstimateRows()
+        : (planHead === "1130" ? sync1130EstimateRows() : (state.estimates[planHead] || []));
+      XLSX.utils.book_append_sheet(
+        workbook,
+        buildEstimatePlanHeadSheet(planHead, rows, styles),
+        sanitizeWorksheetName(`${planHead} ${PLAN_HEAD_MAP[planHead].replace(/^\d+\s*-\s*/, "")}`, planHead)
+      );
+    });
+    XLSX.utils.book_append_sheet(workbook, buildEarthworkStructuresSheet(styles), sanitizeWorksheetName("1130 Structures Basis", "1130 Basis"));
+
+    XLSX.writeFile(workbook, getEstimateExportFilename(), { compression: true, cellStyles: true });
+  }
+
   window.recalcPlanHead = recalcPlanHead;
   window.addEstRow = addEstRow;
+
+  const estExportBtn = document.getElementById('estExportBtn');
+  if (estExportBtn) {
+    estExportBtn.addEventListener('click', () => {
+      try {
+        exportEstimateWorkbook();
+      } catch (error) {
+        console.error('Estimate workbook export failed:', error);
+        alert(`Failed to export estimate workbook: ${error?.message || 'Unknown error'}`);
+      }
+    });
+  }
 
   // ==== P-WAY CALCULATION MODULE ====
   function renderPwayGrid() {
