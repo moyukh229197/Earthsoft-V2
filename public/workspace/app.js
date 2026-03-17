@@ -12256,6 +12256,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabId === 'abstract') {
           document.getElementById('estTabAbstract').style.display = 'flex';
           renderAbstract();
+        } else if (tabId === '1120') {
+          document.getElementById('estTab1120').style.display = 'flex';
+          renderLandBOQ();
         } else if (tabId === '1130') {
           document.getElementById('estTab1130').style.display = 'flex';
           renderEarthworkBOQ();
@@ -12606,6 +12609,178 @@ document.addEventListener('DOMContentLoaded', () => {
     // Abstract estimate is auto regenerated if viewed again
   }
 
+  // ── 1120 Land specific logic ──────────────────────────────────────────
+  function loadLandParamOrInput(id, defaultVal) {
+     const input = document.getElementById(id);
+     if (!input) return defaultVal;
+     if (!state.estimates.land1120Params) state.estimates.land1120Params = {};
+     if (state.estimates.land1120Params[id] !== undefined) {
+        input.value = state.estimates.land1120Params[id];
+     }
+     return parseFloat(input.value) || 0;
+  }
+
+  function saveLandParam(id) {
+     const input = document.getElementById(id);
+     if (!input) return;
+     if (!state.estimates.land1120Params) state.estimates.land1120Params = {};
+     state.estimates.land1120Params[id] = parseFloat(input.value) || 0;
+     saveState();
+  }
+
+  function bindLandInputs() {
+     const landInputs = [
+        'landRuralArea','landRuralRate','landUrbanArea','landUrbanRate','landBuiltUpArea','landBuiltUpRate',
+        'landGovArea','landGovRate','landRnRFamilies','landInterestYears',
+        'landForestArea','landForestJointFee','landForestNpvRate','landForestAfforestRate',
+        'landForestTreeCost','landForestWildlifeCost'
+     ];
+     landInputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+           el.addEventListener('input', () => saveLandParam(id));
+           el.addEventListener('blur', renderLandBOQ);
+        }
+     });
+     
+     const refreshBtn = document.getElementById('landRefreshBtn');
+     if (refreshBtn) refreshBtn.addEventListener('click', renderLandBOQ);
+  }
+
+  // Call once to bind early
+  setTimeout(bindLandInputs, 500);
+
+  function renderLandBOQ() {
+    const p = {
+      ruralArea: loadLandParamOrInput('landRuralArea', 686.23),
+      ruralRate: loadLandParamOrInput('landRuralRate', 1221872.79),
+      urbanArea: loadLandParamOrInput('landUrbanArea', 0),
+      urbanRate: loadLandParamOrInput('landUrbanRate', 0),
+      builtUpArea: loadLandParamOrInput('landBuiltUpArea', 0),
+      builtUpRate: loadLandParamOrInput('landBuiltUpRate', 0),
+      govArea: loadLandParamOrInput('landGovArea', 0),
+      govRate: loadLandParamOrInput('landGovRate', 0),
+      rnrFamilies: loadLandParamOrInput('landRnRFamilies', 0),
+      interestYears: loadLandParamOrInput('landInterestYears', 1),
+      forestArea: loadLandParamOrInput('landForestArea', 115.47),
+      forestJointFee: loadLandParamOrInput('landForestJointFee', 32491),
+      forestNpvRate: loadLandParamOrInput('landForestNpvRate', 1058591.48),
+      forestAfforestRate: loadLandParamOrInput('landForestAfforestRate', 1264575.19),
+      forestTreeCost: loadLandParamOrInput('landForestTreeCost', 750000),
+      forestWildlifeCost: loadLandParamOrInput('landForestWildlifeCost', 3000000)
+    };
+
+    // A: Private Land
+    const ruralBase = p.ruralArea * p.ruralRate;
+    const urbanBase = p.urbanArea * p.urbanRate;
+    const builtUpBase = p.builtUpArea * p.builtUpRate;
+    const privSubA = ruralBase + urbanBase + builtUpBase;
+    
+    const ruralMultiplied = ruralBase * 1.5; // Default 1.5x for rural
+    const urbanBuiltUpMultiplied = (urbanBase + builtUpBase) * 1; // Default 1x for urban/builtup
+    const crops = privSubA * 0.03; // 3% on items 1
+    const privSubB = ruralMultiplied + urbanBuiltUpMultiplied + crops;
+    
+    // Sub C (Buildings & Borewells) - kept as 0 or could be added later if needed. Assuming 0 based on reference.
+    const privSubC = 0;
+    
+    const privSolatium = privSubB * 1.0; // 100% solatium
+    const privD = privSubB + privSubC; // As per excel Sub Total : (D) = B+C
+
+    const rnrCost = p.rnrFamilies * 1000000; // Rs 10 Lakh per family
+    const privE = 0; // Any other charges
+
+    const privSubBCD = privSubB + privSubC + privD; // B+C+D
+    
+    // In excel, Admin cost F = (B+C+D)*6%, but wait: D is already B+C. The formula in excel is confusing, it might mean (base + solatium).
+    // Let's use the explicit formulas from excel: F = (B+C+D)*6%
+    const privAdminF = (privSubB + privSubC + privD) * 0.06;
+    const privContingenciesG = (privSubB + privSubC + privD) * 0.05;
+    const privInterestH = (privSubB + privSubC + privD + privE) * 0.12 * p.interestYears;
+
+    const privTotal = privSubB + privSubC + privD + privE + privAdminF + privContingenciesG + privInterestH + rnrCost;
+
+    // B: Government Land
+    const govBase = p.govArea * p.govRate; // Sub A
+    const govSubB = govBase * 1; // 1x multiplier for gov
+    const govSubC = 0;
+    const govD = govSubB + govSubC;
+    const govE = 0;
+    const govAdminF = (govSubB + govSubC + govD) * 0.06;
+    const govContingenciesG = (govSubB + govSubC + govD) * 0.05;
+    const govInterestH = (govSubB + govSubC + govD + govE) * 0.12 * p.interestYears;
+    const govTotal = govBase + govSubB + govSubC + govD + govE + govAdminF + govContingenciesG + govInterestH; // Excel says A+B+C+D+E+F+G+H
+
+    // C: Forest Land
+    const forestNpvTotal = p.forestArea * p.forestNpvRate; // Sub A
+    const doubleDegradedArea = p.forestArea * 2;
+    const forestAfforestTotal = doubleDegradedArea * p.forestAfforestRate;
+    const jointFeeTotal = p.forestArea * p.forestJointFee;
+    
+    const forestSubB = forestAfforestTotal + jointFeeTotal + p.forestTreeCost + p.forestWildlifeCost;
+    const forestStaff = (forestNpvTotal + forestSubB) * 0.03;
+    const forestContingencies = (forestNpvTotal + forestSubB) * 0.05;
+    const forestTotal = forestNpvTotal + forestSubB + forestStaff + forestContingencies;
+
+    // Grand Total
+    const grandTotal = privTotal + govTotal + forestTotal;
+
+    const boqData = [
+      { section: "1120-A", desc: "Private Land: Rural Area Base Cost", qty: p.ruralArea, unit: "Hect", rate: p.ruralRate, amount: ruralBase },
+      { section: "", desc: "Private Land: Urban/Built-Up Area Base", qty: p.urbanArea + p.builtUpArea, unit: "Hect", rate: 0, amount: urbanBase + builtUpBase },
+      { section: "", desc: "Multiplier Factor (1.5x Rural, 1x Urban)", qty: 1, unit: "LS", rate: (ruralMultiplied + urbanBuiltUpMultiplied), amount: (ruralMultiplied + urbanBuiltUpMultiplied) },
+      { section: "", desc: "Compensation for standing crops (3%)", qty: 0.03, unit: "Pct", rate: privSubA, amount: crops },
+      { section: "", desc: "Solatium @ 100% on land cost", qty: 1, unit: "LS", rate: privSubB, amount: privSubB }, // Note: In excel Solatium is D, value is same as Sub B
+      { section: "", desc: "R&R Entitlement (₹10L/family)", qty: p.rnrFamilies, unit: "Nos", rate: 1000000, amount: rnrCost },
+      { section: "", desc: `Administrative Cost (6% of B+C+D)`, qty: 0.06, unit: "Pct", rate: privSubB+privSubC+privD, amount: privAdminF },
+      { section: "", desc: `Contingencies (5% of B+C+D)`, qty: 0.05, unit: "Pct", rate: privSubB+privSubC+privD, amount: privContingenciesG },
+      { section: "", desc: `Interest (12% * ${p.interestYears} years)`, qty: 0.12 * p.interestYears, unit: "Pct", rate: privSubB+privSubC+privD+privE, amount: privInterestH },
+      
+      { section: "1120-B", desc: "Government Land Base Cost", qty: p.govArea, unit: "Hect", rate: p.govRate, amount: govBase },
+      { section: "", desc: "Multiplier (1x) & Solatium", qty: 1, unit: "LS", rate: govSubB + govD, amount: govSubB + govD },
+      { section: "", desc: "Admin (6%) & Contingencies (5%)", qty: 0.11, unit: "Pct", rate: govSubB+govSubC+govD, amount: govAdminF + govContingenciesG },
+      { section: "", desc: `Interest (12% * ${p.interestYears} years)`, qty: 0.12 * p.interestYears, unit: "Pct", rate: govSubB+govSubC+govD+govE, amount: govInterestH },
+      
+      { section: "1120-C", desc: "Forest Land: Net Present Value (NPV)", qty: p.forestArea, unit: "Hect", rate: p.forestNpvRate, amount: forestNpvTotal },
+      { section: "", desc: "Compensatory Afforest (Double Degraded)", qty: doubleDegradedArea, unit: "Hect", rate: p.forestAfforestRate, amount: forestAfforestTotal },
+      { section: "", desc: "Joint Measurement Fees", qty: p.forestArea, unit: "Hect", rate: p.forestJointFee, amount: jointFeeTotal },
+      { section: "", desc: "Tree Cutting / Wildlife Mitigation", qty: 1, unit: "LS", rate: p.forestTreeCost + p.forestWildlifeCost, amount: p.forestTreeCost + p.forestWildlifeCost },
+      { section: "", desc: "Pay & Allowances LA Staff (3%)", qty: 0.03, unit: "Pct", rate: forestNpvTotal + forestSubB, amount: forestStaff },
+      { section: "", desc: "Contingencies (5%)", qty: 0.05, unit: "Pct", rate: forestNpvTotal + forestSubB, amount: forestContingencies }
+    ];
+
+    const boqBody = document.getElementById('landBoqBody');
+    if (!boqBody) return;
+    boqBody.innerHTML = '';
+
+    boqData.forEach(item => {
+      // Don't render zero amount rows for cleanliness, unless it's a base row
+      if (item.amount === 0 && !item.section) return; 
+      
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="color:var(--blue); font-weight:700;">${item.section}</td>
+        <td>${item.desc}</td>
+        <td style="text-align:right;">${item.qty.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+        <td style="text-align:center; color:var(--muted);">${item.unit}</td>
+        <td style="text-align:right;">${item.rate ? '₹' + item.rate.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) : ''}</td>
+        <td style="text-align:right; font-weight:600;">₹${item.amount.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+      `;
+      boqBody.appendChild(tr);
+    });
+
+    const gtEl = document.getElementById('landBoqGrandTotal');
+    if(gtEl) gtEl.textContent = '₹' + grandTotal.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+    // Save strictly to 1120 planhead so Abstract Estimate table can pull it up correctly
+    state.estimates['1120'] = boqData.filter(d => d.amount > 0).map(d => ({
+       code: d.section || "NS",
+       desc: d.desc,
+       qty: 1, // Store as lumpsum of amounts for the abstract sheet's generic renderer
+       unit: "LS",
+       rate: d.amount
+    }));
+  }
 
   function renderAbstract() {
     const body = document.getElementById('estAbstractBody');

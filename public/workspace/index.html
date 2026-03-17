@@ -934,6 +934,84 @@
                    </table>
                  </div>
                </div>
+               </div>
+             </div>
+
+             <!-- 1120 Land specific pane -->
+             <div id="estTab1120" class="est-tab-pane" style="display: none; height: 100%; flex-direction: column; gap: 16px; overflow-y: hidden; padding-right: 8px;">
+               <div style="display: flex; gap: 16px; flex-shrink: 0; min-height: 250px;">
+                 <!-- Private & Gov Land Assumptions -->
+                 <div class="panel glass" style="flex: 1; padding: 20px; overflow-y: auto;">
+                   <h3 style="margin-top: 0; margin-bottom: 8px;">Private & Government Land (Area & Rates)</h3>
+                   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end;">
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">Rural Land Area (Hect)</label><input type="number" id="landRuralArea" class="ew-input" value="686.23" style="margin-top:0;"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">Rural Rate (₹/Hect)</label><input type="number" id="landRuralRate" class="ew-input" value="1221872.79" style="margin-top:0;"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">Urban Land Area (Hect)</label><input type="number" id="landUrbanArea" class="ew-input" value="0" style="margin-top:0;"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">Urban Rate (₹/Hect)</label><input type="number" id="landUrbanRate" class="ew-input" value="0" style="margin-top:0;"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">Built-Up Area (Hect)</label><input type="number" id="landBuiltUpArea" class="ew-input" value="0" style="margin-top:0;"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">Built-Up Rate (₹/Hect)</label><input type="number" id="landBuiltUpRate" class="ew-input" value="0" style="margin-top:0;"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">Govt Land Area (Hect)</label><input type="number" id="landGovArea" class="ew-input" value="0" style="margin-top:0;"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">Govt Rate (₹/Hect)</label><input type="number" id="landGovRate" class="ew-input" value="0" style="margin-top:0;"></div>
+                   </div>
+                   
+                   <h4 style="margin-top: 16px; margin-bottom: 8px; font-size: 0.9rem; color: var(--blue);">General Parameters</h4>
+                   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end;">
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">R&R Families (Nos)</label><input type="number" id="landRnRFamilies" class="ew-input" value="0" style="margin-top:0;" title="R&R entitlement @ 10,00,000 per family"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">Interest Duration (Years)</label><input type="number" id="landInterestYears" class="ew-input" value="1" title="n=1 (1-4 yrs), n=2 (5-8 yrs), n=3 (9+ yrs)" style="margin-top:0;"></div>
+                   </div>
+                 </div>
+                 
+                 <!-- Forest Land Assumptions -->
+                 <div class="panel glass" style="flex: 1; padding: 20px; overflow-y: auto;">
+                   <h3 style="margin-top: 0; margin-bottom: 8px;">Forest Land (Area, Rates & Fees)</h3>
+                   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end;">
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">Forest Area (Hect)</label><input type="number" id="landForestArea" class="ew-input" value="115.47" style="margin-top:0;"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">Joint Meas. Fee (₹/Hect)</label><input type="number" id="landForestJointFee" class="ew-input" value="32491" style="margin-top:0;"></div>
+                     
+                     <div style="grid-column: span 2; border-top: 1px dashed var(--stroke); margin-top: 4px; padding-top: 8px;">
+                       <label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:8px;">WPI Indexed Rates (₹)</label>
+                     </div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">NPV Rate (₹/Hect)</label><input type="number" id="landForestNpvRate" class="ew-input" value="1058591.48" style="margin-top:0;" title="Basic: 803000 + WPI indexing"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">Comp. Afforest (₹)</label><input type="number" id="landForestAfforestRate" class="ew-input" value="1264575.19" style="margin-top:0;" title="Basic: 959250 + WPI indexing (Applies to double area)"></div>
+                     
+                     <div style="grid-column: span 2; border-top: 1px dashed var(--stroke); margin-top: 4px; padding-top: 8px;">
+                       <label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:8px;">Other Direct Costs (₹)</label>
+                     </div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">Tree Cutting Lumpsum</label><input type="number" id="landForestTreeCost" class="ew-input" value="750000" style="margin-top:0;"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">Wildlife Mitigation</label><input type="number" id="landForestWildlifeCost" class="ew-input" value="3000000" style="margin-top:0;"></div>
+                   </div>
+                 </div>
+               </div>
+               
+               <div class="panel glass" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                 <div class="panel-head" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 1px solid var(--stroke); margin-bottom: 0;">
+                   <h2 style="margin: 0; font-size: 1.25rem;">1120 - Land Acquisition Breakup & BOQ</h2>
+                   <button id="landRefreshBtn" class="btn btn-primary" type="button"><i class="ri-refresh-line"></i> Refresh Estimate</button>
+                 </div>
+                 <div class="table-wrap" style="flex: 1; overflow-y: auto;">
+                   <table class="result-table" style="width: 100%;">
+                     <thead style="position: sticky; top: 0; z-index: 10; background: var(--bg-2);">
+                       <tr>
+                         <th style="width:100px;">SECTION</th>
+                         <th style="text-align:left;">DESCRIPTION</th>
+                         <th style="width:140px;text-align:right;">QTY.</th>
+                         <th style="width:80px;text-align:center;">UNIT</th>
+                         <th style="width:140px;text-align:right;">RATE (₹)</th>
+                         <th style="width:180px;text-align:right;">TOTAL AMOUNT (₹)</th>
+                       </tr>
+                     </thead>
+                     <tbody id="landBoqBody">
+                       <!-- Reactively rendered rows -->
+                     </tbody>
+                     <tfoot style="position: sticky; bottom: 0; z-index: 10; background: var(--bg-1);">
+                       <tr style="font-weight:700; background:rgba(var(--primary-rgb),0.1);">
+                         <td colspan="5" style="text-align:right; font-size:1.1rem; color:var(--blue); padding: 12px;">Grand Total for Land (1120):</td>
+                         <td id="landBoqGrandTotal" style="text-align:right; font-size:1.1rem; color:var(--blue); padding: 12px;">₹0.00</td>
+                       </tr>
+                     </tfoot>
+                   </table>
+                 </div>
+               </div>
              </div>
              <!-- Abstract Estimate Pane -->
              <div id="estTabAbstract" class="est-tab-pane panel glass" style="display: none; height: 100%; flex-direction: column;">
