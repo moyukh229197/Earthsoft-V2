@@ -4835,22 +4835,3 @@ td:first-child {
 .light .pway-grid td {
   border-bottom: 1px solid var(--stroke);
 }
-
-/* Earthwork 1130 Custom Inputs */
-.ew-input {
-  width: 100%;
-  padding: 8px;
-  background: var(--bg-1);
-  border: 1px solid var(--stroke);
-  color: var(--text);
-  border-radius: 6px;
-  margin-top: 6px;
-  font-family: inherit;
-  transition: all 0.2s;
-}
-
-.ew-input:focus {
-  outline: 1.5px solid var(--blue);
-  border-color: var(--blue);
-  background: var(--bg-2);
-}
