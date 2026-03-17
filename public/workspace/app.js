@@ -12256,6 +12256,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tabId === 'abstract') {
           document.getElementById('estTabAbstract').style.display = 'flex';
           renderAbstract();
+        } else if (tabId === '1130') {
+          document.getElementById('estTab1130').style.display = 'flex';
+          renderEarthworkBOQ();
         } else if (tabId === 'sor') {
           document.getElementById('estTabSOR').style.display = 'flex';
           await loadSorSources();
@@ -12442,6 +12445,167 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const estAddRowBtn = document.getElementById('estAddRowBtn');
   if (estAddRowBtn) { estAddRowBtn.addEventListener('click', () => addEstRow()); }
+
+  // ── 1130 Earthwork specific logic ──────────────────────────────────────
+  function loadEwParamOrInput(id, defaultVal) {
+     const input = document.getElementById(id);
+     if (!input) return defaultVal;
+     if (!state.estimates.ew1130Params) state.estimates.ew1130Params = {};
+     if (state.estimates.ew1130Params[id] !== undefined) {
+        input.value = state.estimates.ew1130Params[id];
+     }
+     return parseFloat(input.value) || 0;
+  }
+
+  function saveEwParam(id) {
+     const input = document.getElementById(id);
+     if (!input) return;
+     if (!state.estimates.ew1130Params) state.estimates.ew1130Params = {};
+     state.estimates.ew1130Params[id] = parseFloat(input.value) || 0;
+     saveState();
+  }
+
+  function bindEwInputs() {
+     const ewInputs = ['ewRateClearing','ewRateBenching','ewRateFill','ewRateBlanket','ewRateCutSoil','ewRateCutSoftRock','ewRateCutHardBlast','ewRateCutHardChisel','ewRateLead','ewRateTurfing','ewGeoSoil','ewGeoSoftRock','ewGeoHardBlast','ewGeoHardChisel','ewGeoReuse','ewGeoLeadKm'];
+     ewInputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+           el.addEventListener('input', () => {
+              saveEwParam(id);
+              // don't eagerly recalculate everything on every keystroke, wait for blur or Refresh button
+           });
+           el.addEventListener('blur', renderEarthworkBOQ);
+        }
+     });
+     
+     const refreshBtn = document.getElementById('ewRefreshBtn');
+     if (refreshBtn) refreshBtn.addEventListener('click', renderEarthworkBOQ);
+  }
+
+  // Call once to bind early
+  setTimeout(bindEwInputs, 500);
+
+  function renderEarthworkBOQ() {
+    const rates = {
+      clearing: loadEwParamOrInput('ewRateClearing', 537.37),
+      benching: loadEwParamOrInput('ewRateBenching', 122817.77),
+      fill: loadEwParamOrInput('ewRateFill', 538.18),
+      blanket: loadEwParamOrInput('ewRateBlanket', 859.69),
+      cutSoil: loadEwParamOrInput('ewRateCutSoil', 98.70),
+      cutSoftRock: loadEwParamOrInput('ewRateCutSoftRock', 238.57),
+      cutHardBlast: loadEwParamOrInput('ewRateCutHardBlast', 359.06),
+      cutHardChisel: loadEwParamOrInput('ewRateCutHardChisel', 952.04),
+      lead: loadEwParamOrInput('ewRateLead', 4.91),
+      turfing: loadEwParamOrInput('ewRateTurfing', 7109.80)
+    };
+    const geo = {
+      soil: loadEwParamOrInput('ewGeoSoil', 50) / 100,
+      softRock: loadEwParamOrInput('ewGeoSoftRock', 35) / 100,
+      hardBlast: loadEwParamOrInput('ewGeoHardBlast', 10) / 100,
+      hardChisel: loadEwParamOrInput('ewGeoHardChisel', 5) / 100,
+      reuse: loadEwParamOrInput('ewGeoReuse', 60) / 100,
+      leadKm: loadEwParamOrInput('ewGeoLeadKm', 3)
+    };
+
+    const calcRows = state.calcRows || [];
+    let totalCut = 0; let totalFill = 0; let totalBlanket = 0;
+    let lenM = 0;
+
+    if (calcRows.length > 0) {
+      lenM = safeNum(calcRows[calcRows.length - 1].chainage, 0) - safeNum(calcRows[0].chainage, 0);
+      calcRows.forEach(r => {
+        totalCut += safeNum(r.cutVol, 0);
+        totalFill += safeNum(r.fillVol, 0);
+        if (r.blanketingVol) totalBlanket += parseLooseNumber(r.blanketingVol);
+      });
+    }
+
+    const fwFill = safeNum(state.settings.formationWidthFill, 6.81);
+    const fwCut = safeNum(state.settings.formationWidthCut, 6.25);
+    const sfV = safeNum(state.settings.slopeFillV, 1);
+    const sfH = safeNum(state.settings.slopeFillH, 2);
+    
+    // Estimate Area logic
+    let turfingSqm = 0;
+    let clearingSqm = 0;
+    if (calcRows.length > 1) {
+       for (let i = 1; i < calcRows.length; i++) {
+          const r = calcRows[i];
+          const prevLen = Math.abs(r.chainage - calcRows[i-1].chainage);
+          // footprint approx
+          let w = r.bank > 0 ? (fwFill + 2 * r.bank * sfH / sfV) : (fwCut + 2 * Math.abs(r.bank) * (state.settings.slopeCutH || 1) / (state.settings.slopeCutV || 1));
+          clearingSqm += (w * prevLen);
+          
+          if (r.bank > 0) {
+             let slpLen = Math.sqrt(Math.pow(r.bank, 2) + Math.pow(r.bank * sfH / sfV, 2));
+             turfingSqm += (2 * slpLen * prevLen);
+          }
+       }
+    }
+
+    let actClearing100Sqm = parseFloat((clearingSqm / 100).toFixed(2));
+    let benchingKm = parseFloat((lenM / 1000).toFixed(2));
+    let reusableSpoil = totalCut * geo.reuse;
+    let contractorEarth = parseFloat(Math.max(0, totalFill - reusableSpoil).toFixed(2));
+    let blanketQty = parseFloat((totalBlanket || (totalFill * 0.15)).toFixed(2)); // fallback if blanket calc isn't done
+    let cutSoilVol = parseFloat((totalCut * geo.soil).toFixed(2));
+    let cutSoftRockVol = parseFloat((totalCut * geo.softRock).toFixed(2));
+    let cutHardBlastVol = parseFloat((totalCut * geo.hardBlast).toFixed(2));
+    let cutHardChiselVol = parseFloat((totalCut * geo.hardChisel).toFixed(2));
+    let extraLeadKm = Math.max(0, geo.leadKm - 2);
+    let extraLeadQty = parseFloat((totalCut * extraLeadKm).toFixed(2));
+    let actTurfing100Sqm = parseFloat((turfingSqm / 100).toFixed(2));
+
+    const boqData = [
+      { sl: 1, ussr: "011010", desc: "Preparation of foundation by clearing, grubbing & stripping", qty: actClearing100Sqm, unit: "100 Sqm", rate: rates.clearing },
+      { sl: 2, ussr: "011020", desc: "Benching of existing embankment manually", qty: benchingKm, unit: "Km", rate: rates.benching },
+      { sl: 3, ussr: "NS Item", desc: "Earthwork with contractor's earth in embankment SQ3 (after deducting reusable cut spoil)", qty: contractorEarth, unit: "Cum", rate: rates.fill },
+      { sl: 4, ussr: "012040", desc: "Providing blanketing on top of formation", qty: blanketQty, unit: "Cum", rate: rates.blanket },
+      { sl: 5, ussr: "012011", desc: "Earthwork in cutting in formation in all soils", qty: cutSoilVol, unit: "Cum", rate: rates.cutSoil },
+      { sl: 6, ussr: "012012", desc: "Earthwork in cutting in soft rock not required blasting", qty: cutSoftRockVol, unit: "Cum", rate: rates.cutSoftRock },
+      { sl: 7, ussr: "012013", desc: "In hard rock with Blasting", qty: cutHardBlastVol, unit: "Cum", rate: rates.cutHardBlast },
+      { sl: 8, ussr: "012014", desc: "In hard rock with hammer / chisel", qty: cutHardChiselVol, unit: "Cum", rate: rates.cutHardChisel },
+      { sl: 9, ussr: "012015", desc: `Extra for leading of Cut spoil beyond 2km (${geo.leadKm}km total - 2km base = ${extraLeadKm}km lead)`, qty: extraLeadQty, unit: "Cum-Km", rate: rates.lead },
+      { sl: 10, ussr: "013023", desc: "Turfing with sads or placing protective grass cover on embankment slopes", qty: actTurfing100Sqm, unit: "100 Sqm", rate: rates.turfing }
+    ];
+
+    const boqBody = document.getElementById('ewBoqBody');
+    if (!boqBody) return;
+    boqBody.innerHTML = '';
+    let grandTotal = 0;
+
+    boqData.forEach(item => {
+      const amount = item.qty * item.rate;
+      grandTotal += amount;
+      const tr = document.createElement('tr');
+      // Hover effect is handled by standard styles if available
+      tr.innerHTML = `
+        <td style="text-align:center;">${item.sl}</td>
+        <td style="color:var(--blue); font-weight:600;">${item.ussr}</td>
+        <td>${item.desc}</td>
+        <td style="text-align:right;">${item.qty.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+        <td style="text-align:center; color:var(--muted);">${item.unit}</td>
+        <td style="text-align:right;">₹${item.rate.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+        <td style="text-align:right; font-weight:600;">₹${amount.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+      `;
+      boqBody.appendChild(tr);
+    });
+
+    const gtEl = document.getElementById('ewBoqGrandTotal');
+    if(gtEl) gtEl.textContent = '₹' + grandTotal.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+    // Update state so Abstract Estimate picks it up
+    state.estimates['1130'] = boqData.map(d => ({
+       code: d.ussr,
+       desc: d.desc,
+       qty: d.qty,
+       unit: d.unit,
+       rate: d.rate
+    }));
+    
+    // Abstract estimate is auto regenerated if viewed again
+  }
+
 
   function renderAbstract() {
     const body = document.getElementById('estAbstractBody');

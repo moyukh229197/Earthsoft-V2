@@ -870,6 +870,71 @@
                </div>
              </div>
 
+             <!-- 1130 Earthwork specific pane -->
+             <div id="estTab1130" class="est-tab-pane" style="display: none; height: 100%; flex-direction: column; gap: 16px; overflow-y: hidden; padding-right: 8px;">
+               <div style="display: flex; gap: 16px; flex-shrink: 0;">
+                 <div class="panel glass" style="flex: 2; padding: 20px;">
+                   <h3 style="margin-top: 0; margin-bottom: 8px;">1130 - Formation USSR Rates (₹)</h3>
+                   <p class="muted" style="margin-top: 0; margin-bottom: 20px; font-size: 0.85rem;">Enter applicable item rates per Indian Railway Standard Schedule of Rates.</p>
+                   <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">011010 Clearing (₹/100SQM)</label><input type="number" id="ewRateClearing" class="ew-input"  value="537.37"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">011020 Benching (₹/KM)</label><input type="number" id="ewRateBenching" class="ew-input"  value="122817.77"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">SQ3 Embankment Fill (₹/M³)</label><input type="number" id="ewRateFill" class="ew-input"  value="538.18"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">012040 Blanketing (₹/M³)</label><input type="number" id="ewRateBlanket" class="ew-input"  value="859.69"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">012011 Cut: Soil (₹/M³)</label><input type="number" id="ewRateCutSoil" class="ew-input"  value="98.70"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">012012 Cut: Soft Rock (₹/M³)</label><input type="number" id="ewRateCutSoftRock" class="ew-input"  value="238.57"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">012013 Cut: Rock Blast (₹/M³)</label><input type="number" id="ewRateCutHardBlast" class="ew-input"  value="359.06"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">012014 Cut: Chisel (₹/M³)</label><input type="number" id="ewRateCutHardChisel" class="ew-input"  value="952.04"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">012015 Extra Lead (₹/M³)</label><input type="number" id="ewRateLead" class="ew-input"  value="4.91"></div>
+                     <div><label style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;">013023 Turfing (₹/100SQM)</label><input type="number" id="ewRateTurfing" class="ew-input"  value="7109.80"></div>
+                   </div>
+                 </div>
+                 
+                 <div class="panel glass" style="flex: 1; padding: 20px;">
+                   <h3 style="margin-top: 0; margin-bottom: 8px;">Geological Assumptions</h3>
+                   <p class="muted" style="margin-top: 0; margin-bottom: 20px; font-size: 0.85rem;">Define strata composition and spoil reuse.</p>
+                   <div style="display: flex; flex-direction: column; gap: 12px;">
+                     <div style="display: flex; justify-content: space-between; align-items: center;"><label style="font-size:0.8rem;font-weight:600;">% SOIL (CUT)</label><input type="number" id="ewGeoSoil" class="ew-input" style="width:80px;text-align:center;margin-top:0;" value="50"></div>
+                     <div style="display: flex; justify-content: space-between; align-items: center;"><label style="font-size:0.8rem;font-weight:600;">% SOFT ROCK (CUT)</label><input type="number" id="ewGeoSoftRock" class="ew-input" style="width:80px;text-align:center;margin-top:0;" value="35"></div>
+                     <div style="display: flex; justify-content: space-between; align-items: center;"><label style="font-size:0.8rem;font-weight:600;">% HARD ROCK [BLAST]</label><input type="number" id="ewGeoHardBlast" class="ew-input" style="width:80px;text-align:center;margin-top:0;" value="10"></div>
+                     <div style="display: flex; justify-content: space-between; align-items: center;"><label style="font-size:0.8rem;font-weight:600;">% HARD ROCK [CHISEL]</label><input type="number" id="ewGeoHardChisel" class="ew-input" style="width:80px;text-align:center;margin-top:0;" value="5"></div>
+                     <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--stroke); padding-top: 12px;"><label style="font-size:0.8rem;font-weight:600;">REUSABLE SPOIL %</label><input type="number" id="ewGeoReuse" class="ew-input" style="width:80px;text-align:center;margin-top:0;" value="60"></div>
+                     <div style="display: flex; justify-content: space-between; align-items: center;"><label style="font-size:0.8rem;font-weight:600;">AVG LEAD FOR SPOIL (KM)</label><input type="number" id="ewGeoLeadKm" class="ew-input" style="width:80px;text-align:center;margin-top:0;" value="3"></div>
+                   </div>
+                 </div>
+               </div>
+               
+               <div class="panel glass" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                 <div class="panel-head" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 1px solid var(--stroke); margin-bottom: 0;">
+                   <h2 style="margin: 0; font-size: 1.25rem;">1130 - Formation Bill of Quantities (BOQ)</h2>
+                   <button id="ewRefreshBtn" class="btn btn-primary" type="button"><i class="ri-refresh-line"></i> Refresh Estimate</button>
+                 </div>
+                 <div class="table-wrap" style="flex: 1; overflow-y: auto;">
+                   <table class="result-table" style="width: 100%;">
+                     <thead style="position: sticky; top: 0; z-index: 10; background: var(--bg-2);">
+                       <tr>
+                         <th style="width:60px;">SL. NO.</th>
+                         <th style="width:100px;">USSR NO.</th>
+                         <th style="text-align:left;">DESCRIPTION</th>
+                         <th style="width:140px;text-align:right;">QTY.</th>
+                         <th style="width:80px;text-align:center;">UNIT</th>
+                         <th style="width:140px;text-align:right;">RATE (₹)</th>
+                         <th style="width:180px;text-align:right;">AMOUNT (₹)</th>
+                       </tr>
+                     </thead>
+                     <tbody id="ewBoqBody">
+                       <!-- Reactively rendered rows -->
+                     </tbody>
+                     <tfoot style="position: sticky; bottom: 0; z-index: 10; background: var(--bg-1);">
+                       <tr style="font-weight:700; background:rgba(var(--primary-rgb),0.1);">
+                         <td colspan="6" style="text-align:right; font-size:1.1rem; color:var(--blue); padding: 12px;">Grand Total for Formation (1130):</td>
+                         <td id="ewBoqGrandTotal" style="text-align:right; font-size:1.1rem; color:var(--blue); padding: 12px;">₹0.00</td>
+                       </tr>
+                     </tfoot>
+                   </table>
+                 </div>
+               </div>
+             </div>
              <!-- Abstract Estimate Pane -->
              <div id="estTabAbstract" class="est-tab-pane panel glass" style="display: none; height: 100%; flex-direction: column;">
                  <div class="panel-head">
