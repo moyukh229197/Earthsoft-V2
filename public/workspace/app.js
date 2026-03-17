@@ -3346,6 +3346,17 @@ function setWorkPage(pageName) {
     if (els.tableBody) els.tableBody.innerHTML = '<tr><td colspan="19" class="muted">Table detached to save memory...</td></tr>';
   }
 
+  // Turn off split mode if navigating to non-split pages
+  if (selected !== "table" && selected !== "roll-diagram") {
+    const mainContent = document.querySelector(".main-content");
+    if (mainContent && mainContent.classList.contains("split-mode")) {
+      mainContent.classList.remove("split-mode");
+      if (els.splitViewBtn) els.splitViewBtn.classList.remove('active');
+      if (els.mainSplitter) els.mainSplitter.classList.add("hidden");
+      document.body.style.setProperty("--split-pos", "50%");
+    }
+  }
+
   state.activeWorkPage = selected;
   els.workPageButtons.forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.workPageBtn === selected);
