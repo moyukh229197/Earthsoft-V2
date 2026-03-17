@@ -24,6 +24,45 @@ const BRIDGE_TYPES = ["Box", "PSC Slab", "Composite Girder", "OWG", "Other"];
 const BRIDGE_DEDUCT_RULES = ["Auto", "Always", "Never"];
 const LOOP_LINE_TYPES = ["Loop", "TM Siding", "Ballast Siding", "Connecting Line", "Main Line", "Platform"];
 const LOOP_SIDES = ["Left", "Right"];
+const STRUCTURE_SIDES = ["Left", "Right", "Both"];
+const RETAINING_WALL_TYPES = [
+  { key: "rw_3m", label: "Retaining wall (3.00 m high)", code: "RA-1130/1", defaultRate: 48780.6384568 },
+  { key: "rw_4m", label: "Retaining wall (4.00 m high)", code: "RA-1130/2", defaultRate: 68632.83194375626 },
+];
+const DRAIN_TYPE_OPTIONS = [
+  { key: "side_drain", label: "Side drain", code: "RA-1130/3", defaultRate: 8058, defaultDesc: "Providing Precast Side Drains in Cutting (0.6 m x 0.6 m)" },
+  { key: "yard_drain", label: "Yard drain", code: "RA-1130/3", defaultRate: 8058, defaultDesc: "Providing Precast Yard Drains (0.6 m x 0.6 m)" },
+  { key: "catchwater_drain", label: "Catchwater drain", code: "RA-1130/4", defaultRate: 1305, defaultDesc: "Providing CC Lined Catchwater Drain in Cutting" },
+  { key: "berm_drain", label: "Berm drain", code: "RA-1130/5", defaultRate: 1089, defaultDesc: "Providing CC Lined Berm Drain in Cutting" },
+];
+const STRUCTURE_SUMMARY_SIDES = ["Left", "Right", "Both"];
+const EST1130_SECTION_LABELS = {
+  earthwork: "1131 - A) Earth Work",
+  walling: "1131 - B) Walling",
+  drains: "1131 - C) Side Drains",
+};
+const AUTO_EST_PLAN_HEADS = new Set(["1110", "1130"]);
+const RETAINING_WALL_REVIEW_NOTE = "Review required";
+const RETAINING_WALL_MIN_HEIGHT_M = 3;
+const RETAINING_WALL_HIGH_HEIGHT_M = 4;
+const RETAINING_WALL_SAMPLE_SPACING_M = 180;
+const RETAINING_WALL_MAX_SAMPLES = 80;
+const RETAINING_WALL_OVERPASS_TIMEOUT_MS = 18000;
+const RETAINING_WALL_OVERPASS_CACHE_TTL_MS = 10 * 60 * 1000;
+const RETAINING_WALL_OVERPASS_ENDPOINTS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://lz4.overpass-api.de/api/interpreter",
+];
+const RETAINING_WALL_REASON_LABELS = {
+  road: "parallel road / access corridor",
+  water: "waterbody / drainage edge",
+  habitation: "habitation / buildings",
+};
+const RETAINING_WALL_REASON_SHORT_LABELS = {
+  road: "road",
+  water: "waterbody",
+  habitation: "habitation",
+};
 
 function createEmptyLoopRow(index = 0, overrides = {}) {
   return {
@@ -41,6 +80,614 @@ function createEmptyLoopRow(index = 0, overrides = {}) {
     remarks: "",
     ...overrides,
   };
+}
+
+function createEmptyRetainingWallRow(index = 0, overrides = {}) {
+  const type = getRetainingWallTypeMeta(overrides.wallType);
+  return {
+    id: overrides.id || `rw_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    fromCh: null,
+    toCh: null,
+    side: "Left",
+    wallType: type.key,
+    remarks: "",
+    ...overrides,
+  };
+}
+
+function createEmptyDrainRow(index = 0, overrides = {}) {
+  const type = getDrainTypeMeta(overrides.drainType);
+  return {
+    id: overrides.id || `dr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    fromCh: null,
+    toCh: null,
+    side: "Both",
+    drainType: type.key,
+    runs: 1,
+    remarks: "",
+    ...overrides,
+  };
+}
+
+function getRetainingWallTypeMeta(key) {
+  return RETAINING_WALL_TYPES.find((item) => item.key === key) || RETAINING_WALL_TYPES[0];
+}
+
+function getDrainTypeMeta(key) {
+  return DRAIN_TYPE_OPTIONS.find((item) => item.key === key) || DRAIN_TYPE_OPTIONS[0];
+}
+
+function ensureEarthworkStructuresState() {
+  if (!state.earthworkStructures || typeof state.earthworkStructures !== "object") {
+    state.earthworkStructures = { retainingWalls: [], drains: [] };
+  }
+  if (!Array.isArray(state.earthworkStructures.retainingWalls)) {
+    state.earthworkStructures.retainingWalls = [];
+  }
+  if (!Array.isArray(state.earthworkStructures.drains)) {
+    state.earthworkStructures.drains = [];
+  }
+  return state.earthworkStructures;
+}
+
+function getStructureLength(row) {
+  const from = parseChainage(row?.fromCh);
+  const to = parseChainage(row?.toCh);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return 0;
+  return Math.max(Math.abs(to - from), 0);
+}
+
+function getSideMultiplier(side) {
+  return String(side || "").toLowerCase() === "both" ? 2 : 1;
+}
+
+function getEffectiveRetainingWallQty(row) {
+  return getStructureLength(row) * getSideMultiplier(row?.side);
+}
+
+function getEffectiveDrainQty(row) {
+  return getStructureLength(row) * getSideMultiplier(row?.side) * Math.max(1, Math.round(safeNum(row?.runs, 1)));
+}
+
+function getBermCountForDepth(depth) {
+  const primary = safeNum(state.settings?.bermRulePrimary, 4);
+  const secondary = safeNum(state.settings?.bermRuleSecondary, 8);
+  const d = safeNum(depth, 0);
+  if (d >= secondary) return 2;
+  if (d >= primary) return 1;
+  return 0;
+}
+
+function buildMergedStructureSegments(segments) {
+  const sorted = [...segments]
+    .filter((segment) => Number.isFinite(parseChainage(segment?.fromCh)) && Number.isFinite(parseChainage(segment?.toCh)))
+    .map((segment) => ({
+      ...segment,
+      fromCh: Math.min(parseChainage(segment.fromCh), parseChainage(segment.toCh)),
+      toCh: Math.max(parseChainage(segment.fromCh), parseChainage(segment.toCh)),
+    }))
+    .sort((a, b) => a.fromCh - b.fromCh);
+
+  const merged = [];
+  sorted.forEach((segment) => {
+    const last = merged[merged.length - 1];
+    const sameShape = last &&
+      last.side === segment.side &&
+      last.runs === segment.runs &&
+      last.drainType === segment.drainType &&
+      Math.abs(last.toCh - segment.fromCh) <= 1;
+    if (sameShape) {
+      last.toCh = Math.max(last.toCh, segment.toCh);
+      return;
+    }
+    merged.push({ ...segment });
+  });
+  return merged;
+}
+
+function buildSuggestedDrainRows() {
+  const rows = Array.isArray(state.calcRows) ? state.calcRows : [];
+  const suggestions = [];
+
+  rows.forEach((row) => {
+    const ewDiff = safeNum(row?.ewDiff, 0);
+    const endCh = parseChainage(row?.chainage);
+    if (!(ewDiff > 0) || !Number.isFinite(endCh)) return;
+    const fromCh = endCh - ewDiff;
+
+    if (row.type === "CUTTING" && safeNum(row.cut, 0) > 4) {
+      suggestions.push({
+        fromCh,
+        toCh: endCh,
+        side: "Both",
+        drainType: "side_drain",
+        runs: 1,
+        remarks: "Auto-detected from cutting depth > 4 m",
+      });
+    }
+
+    const bermCount = getBermCountForDepth(row.cut);
+    if (row.type === "CUTTING" && bermCount > 0) {
+      suggestions.push({
+        fromCh,
+        toCh: endCh,
+        side: "Both",
+        drainType: "berm_drain",
+        runs: bermCount,
+        remarks: `Auto-detected from ${bermCount} berm${bermCount > 1 ? "s" : ""} per side`,
+      });
+    }
+
+    if (safeNum(row.bank, 0) > 6) {
+      suggestions.push({
+        fromCh,
+        toCh: endCh,
+        side: "Both",
+        drainType: "catchwater_drain",
+        runs: 1,
+        remarks: "Auto-detected from embankment height > 6 m",
+      });
+    }
+  });
+
+  getGroupedStations().forEach((station) => {
+    if (!Number.isFinite(station.loopStartCh) || !Number.isFinite(station.loopEndCh) || station.loopEndCh <= station.loopStartCh) return;
+    suggestions.push({
+      fromCh: station.loopStartCh,
+      toCh: station.loopEndCh,
+      side: "Both",
+      drainType: "yard_drain",
+      runs: 1,
+      remarks: `Auto-detected yard drain at ${station.station}`,
+    });
+  });
+
+  return buildMergedStructureSegments(suggestions).map((segment) => createEmptyDrainRow(0, segment));
+}
+
+function getChainageWindowMeters(fromCh, toCh) {
+  const from = parseChainage(fromCh);
+  const to = parseChainage(toCh);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return 0;
+  return Math.max(Math.abs(to - from), 0);
+}
+
+function getNearestCalcRowByChainage(chainageAbs) {
+  const rows = Array.isArray(state.calcRows) ? state.calcRows : [];
+  if (!rows.length || !Number.isFinite(chainageAbs)) return null;
+  let low = 0;
+  let high = rows.length - 1;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const ch = safeNum(rows[mid]?.chainage, NaN);
+    if (!Number.isFinite(ch)) break;
+    if (ch < chainageAbs) low = mid + 1;
+    else if (ch > chainageAbs) high = mid - 1;
+    else return rows[mid];
+  }
+  const a = rows[Math.max(0, Math.min(rows.length - 1, high))];
+  const b = rows[Math.max(0, Math.min(rows.length - 1, low))];
+  if (!a) return b || null;
+  if (!b) return a || null;
+  return Math.abs(safeNum(a.chainage, 0) - chainageAbs) <= Math.abs(safeNum(b.chainage, 0) - chainageAbs) ? a : b;
+}
+
+function getRetainingWallCandidateHeight(row) {
+  return Math.max(safeNum(row?.bank, 0), safeNum(row?.cut, 0));
+}
+
+function getRetainingWallTypeForHeight(heightM) {
+  return safeNum(heightM, 0) >= RETAINING_WALL_HIGH_HEIGHT_M ? "rw_4m" : "rw_3m";
+}
+
+function getDrainSummaryRows(drains) {
+  const summary = new Map();
+  DRAIN_TYPE_OPTIONS.forEach((item) => {
+    summary.set(item.key, { label: item.label, Left: 0, Right: 0, Both: 0, total: 0 });
+  });
+
+  (drains || []).forEach((row) => {
+    const meta = getDrainTypeMeta(row?.drainType);
+    const bucket = summary.get(meta.key) || { label: meta.label, Left: 0, Right: 0, Both: 0, total: 0 };
+    const side = STRUCTURE_SUMMARY_SIDES.includes(row?.side) ? row.side : "Both";
+    const qty = getEffectiveDrainQty(row);
+    bucket[side] += qty;
+    bucket.total += qty;
+    summary.set(meta.key, bucket);
+  });
+
+  return DRAIN_TYPE_OPTIONS.map((item) => summary.get(item.key));
+}
+
+function isAutoSuggestedRetainingWall(row) {
+  return String(row?.remarks || "").startsWith("Auto-suggested from map constraints");
+}
+
+function getRetainingWallSamplingSegments() {
+  const rows = Array.isArray(state.calcRows) ? state.calcRows : [];
+  if (!rows.length) return [];
+  const segments = [];
+  let current = null;
+
+  const flush = () => {
+    if (!current) return;
+    if (current.endCh > current.startCh) segments.push(current);
+    current = null;
+  };
+
+  rows.forEach((row) => {
+    const ch = safeNum(row?.chainage, NaN);
+    const step = Math.max(safeNum(row?.ewDiff, 0), 0);
+    const height = getRetainingWallCandidateHeight(row);
+    if (!Number.isFinite(ch) || !(step > 0) || !(height >= RETAINING_WALL_MIN_HEIGHT_M)) {
+      flush();
+      return;
+    }
+    const wallType = getRetainingWallTypeForHeight(height);
+    const fromCh = ch - step;
+    const toCh = ch;
+
+    if (
+      current &&
+      current.wallType === wallType &&
+      fromCh <= current.endCh + Math.max(10, step * 1.5)
+    ) {
+      current.endCh = Math.max(current.endCh, toCh);
+      current.maxHeight = Math.max(current.maxHeight, height);
+      return;
+    }
+
+    flush();
+    current = { startCh: fromCh, endCh: toCh, wallType, maxHeight: height };
+  });
+
+  flush();
+  return segments;
+}
+
+function getSignedSideFromAlignment(sample, feature) {
+  if (!sample || !feature) return "Left";
+  const metersPerDegLat = 111320;
+  const metersPerDegLng = Math.max(Math.cos(sample.lat * Math.PI / 180) * metersPerDegLat, 1e-6);
+  const east = (feature.lng - sample.lng) * metersPerDegLng;
+  const north = (feature.lat - sample.lat) * metersPerDegLat;
+  const cross = (sample.tangent.east * north) - (sample.tangent.north * east);
+  return cross >= 0 ? "Left" : "Right";
+}
+
+function getLatLngDistanceMeters(a, b) {
+  if (!a || !b) return Infinity;
+  const metersPerDegLat = 111320;
+  const metersPerDegLng = Math.max(Math.cos(((a.lat + b.lat) / 2) * Math.PI / 180) * metersPerDegLat, 1e-6);
+  const east = (b.lng - a.lng) * metersPerDegLng;
+  const north = (b.lat - a.lat) * metersPerDegLat;
+  return Math.hypot(east, north);
+}
+
+function classifyRetainingWallConstraint(tags = {}) {
+  const highway = String(tags.highway || "").toLowerCase();
+  if (highway && !/^(footway|path|cycleway|steps|track|pedestrian|corridor|construction|proposed)$/.test(highway)) {
+    return "road";
+  }
+  if (tags.waterway || String(tags.natural || "").toLowerCase() === "water" || /reservoir|basin/i.test(String(tags.landuse || ""))) {
+    return "water";
+  }
+  if (
+    tags.building ||
+    /residential|commercial|industrial/i.test(String(tags.landuse || "")) ||
+    /village|hamlet|suburb|neighbourhood|quarter/i.test(String(tags.place || ""))
+  ) {
+    return "habitation";
+  }
+  return "";
+}
+
+function buildRetainingWallSamplePoints() {
+  if (!state.kmlData?.points?.length || !Array.isArray(state.calcRows) || !state.calcRows.length) return [];
+  if (typeof getLatLngFromChainage !== "function" || typeof getAlignmentTangentAtChainage !== "function" || typeof getLandBoundaryHalfWidth !== "function" || typeof getTypicalChainageStep !== "function") {
+    return [];
+  }
+
+  const points = state.kmlData.points;
+  const startChOffset = safeNum(state.calcRows[0]?.chainage, 0);
+  const sampleWindow = getTypicalChainageStep(state.calcRows);
+  const bridges = Array.isArray(state.bridgeRows) ? state.bridgeRows : [];
+  const laSettings = typeof getLASettings === "function" ? getLASettings() : { offsetFromToe: safeNum(state.settings?.laOffsetFromToe, 10), bridgeExtraWidth: safeNum(state.settings?.laBridgeExtraWidth, 5) };
+  const segments = getRetainingWallSamplingSegments();
+  const samples = [];
+
+  segments.forEach((segment) => {
+    const segmentLength = getChainageWindowMeters(segment.startCh, segment.endCh);
+    const spacing = Math.max(RETAINING_WALL_SAMPLE_SPACING_M, Math.min(350, segmentLength / 3 || RETAINING_WALL_SAMPLE_SPACING_M));
+    const coverageHalf = Math.max(40, spacing / 2);
+    if (!(segmentLength > 0)) return;
+
+    const chainages = [];
+    if (segmentLength <= spacing) {
+      chainages.push((segment.startCh + segment.endCh) / 2);
+    } else {
+      for (let ch = segment.startCh + (spacing / 2); ch < segment.endCh; ch += spacing) {
+        chainages.push(ch);
+      }
+    }
+    if (!chainages.length) {
+      chainages.push((segment.startCh + segment.endCh) / 2);
+    }
+
+    chainages.forEach((chainageAbs) => {
+      const row = getNearestCalcRowByChainage(chainageAbs);
+      const height = getRetainingWallCandidateHeight(row);
+      if (!(height >= RETAINING_WALL_MIN_HEIGHT_M)) return;
+      const alignmentCh = chainageAbs - startChOffset;
+      const center = getLatLngFromChainage(alignmentCh, points);
+      const tangent = getAlignmentTangentAtChainage(alignmentCh, points, sampleWindow);
+      const halfWidth = row ? getLandBoundaryHalfWidth(row, chainageAbs, bridges, laSettings) : 0;
+      if (!center || !tangent || !(halfWidth > 0)) return;
+
+      samples.push({
+        chainageAbs,
+        lat: center.lat,
+        lng: center.lng,
+        tangent,
+        halfWidth,
+        searchRadius: Math.max(50, Math.min(140, halfWidth + 25)),
+        wallType: getRetainingWallTypeForHeight(height),
+        height,
+        fromCh: Math.max(segment.startCh, chainageAbs - coverageHalf),
+        toCh: Math.min(segment.endCh, chainageAbs + coverageHalf),
+      });
+    });
+  });
+
+  return samples.slice(0, RETAINING_WALL_MAX_SAMPLES);
+}
+
+function getRetainingWallFeatureCacheStore() {
+  if (!window.__earthsoftRetainingWallFeatureCache) {
+    window.__earthsoftRetainingWallFeatureCache = new Map();
+  }
+  return window.__earthsoftRetainingWallFeatureCache;
+}
+
+function buildRetainingWallSampleBBox(samples) {
+  if (!samples.length) return null;
+  const marginMeters = Math.max(...samples.map((sample) => safeNum(sample.searchRadius, 0)), 0) + 40;
+  const avgLat = samples.reduce((sum, sample) => sum + sample.lat, 0) / samples.length;
+  const marginLat = marginMeters / 111320;
+  const marginLng = marginMeters / Math.max(Math.cos(avgLat * Math.PI / 180) * 111320, 1e-6);
+
+  let minLat = Infinity;
+  let minLng = Infinity;
+  let maxLat = -Infinity;
+  let maxLng = -Infinity;
+
+  samples.forEach((sample) => {
+    minLat = Math.min(minLat, sample.lat);
+    minLng = Math.min(minLng, sample.lng);
+    maxLat = Math.max(maxLat, sample.lat);
+    maxLng = Math.max(maxLng, sample.lng);
+  });
+
+  return {
+    south: minLat - marginLat,
+    west: minLng - marginLng,
+    north: maxLat + marginLat,
+    east: maxLng + marginLng,
+  };
+}
+
+function getRetainingWallBBoxCacheKey(bbox) {
+  if (!bbox) return "";
+  return [
+    bbox.south.toFixed(4),
+    bbox.west.toFixed(4),
+    bbox.north.toFixed(4),
+    bbox.east.toFixed(4),
+  ].join(":");
+}
+
+function buildRetainingWallConstraintBBoxQuery(bbox) {
+  const { south, west, north, east } = bbox;
+  return `
+    [out:json][timeout:45];
+    (
+      way(${south},${west},${north},${east})[highway];
+      way(${south},${west},${north},${east})[waterway];
+      way(${south},${west},${north},${east})[natural=water];
+      relation(${south},${west},${north},${east})[natural=water];
+      way(${south},${west},${north},${east})[landuse~"^(reservoir|basin|residential|commercial|industrial)$"];
+      relation(${south},${west},${north},${east})[landuse~"^(reservoir|basin|residential|commercial|industrial)$"];
+      node(${south},${west},${north},${east})[building];
+      way(${south},${west},${north},${east})[building];
+      node(${south},${west},${north},${east})[place~"^(village|hamlet|suburb|neighbourhood|quarter)$"];
+    );
+    out tags center;
+  `;
+}
+
+async function requestRetainingWallFeaturesFromEndpoint(endpoint, query) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), RETAINING_WALL_OVERPASS_TIMEOUT_MS);
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+      body: `data=${encodeURIComponent(query)}`,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const error = new Error(`Overpass request failed (${response.status})`);
+      error.status = response.status;
+      throw error;
+    }
+    return await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchRetainingWallConstraintFeatures(samples) {
+  if (!samples.length) return { features: [], warning: "" };
+
+  const bbox = buildRetainingWallSampleBBox(samples);
+  const cacheKey = getRetainingWallBBoxCacheKey(bbox);
+  const cacheStore = getRetainingWallFeatureCacheStore();
+  const cached = cacheStore.get(cacheKey);
+  if (cached && (Date.now() - cached.savedAt) < RETAINING_WALL_OVERPASS_CACHE_TTL_MS) {
+    return { features: cached.features, warning: "" };
+  }
+
+  const query = buildRetainingWallConstraintBBoxQuery(bbox);
+  let lastError = null;
+
+  for (const endpoint of RETAINING_WALL_OVERPASS_ENDPOINTS) {
+    try {
+      const data = await requestRetainingWallFeaturesFromEndpoint(endpoint, query);
+      const allFeatures = new Map();
+      (data.elements || []).forEach((element) => {
+        const lat = safeNum(element?.lat, safeNum(element?.center?.lat, NaN));
+        const lng = safeNum(element?.lon, safeNum(element?.center?.lon, NaN));
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        const tags = element.tags || {};
+        const kind = classifyRetainingWallConstraint(tags);
+        if (!kind) return;
+        const key = `${element.type}:${element.id}:${kind}`;
+        allFeatures.set(key, { id: key, kind, lat, lng, tags });
+      });
+      const features = [...allFeatures.values()];
+      cacheStore.set(cacheKey, { savedAt: Date.now(), features });
+      return { features, warning: "" };
+    } catch (error) {
+      lastError = error;
+      console.warn("Retaining wall map scan failed for endpoint:", endpoint, error);
+      continue;
+    }
+  }
+
+  const warning = lastError?.status === 429
+    ? "Map constraint server is busy right now, so no external road/water/habitation scan could be completed."
+    : "Map constraint service could not be reached, so no external road/water/habitation scan could be completed.";
+  return { features: [], warning };
+}
+
+function mergeRetainingWallDetections(detections) {
+  const sorted = [...detections]
+    .filter((item) => Number.isFinite(item?.fromCh) && Number.isFinite(item?.toCh) && item.toCh > item.fromCh)
+    .sort((a, b) => a.fromCh - b.fromCh);
+  const merged = [];
+
+  sorted.forEach((item) => {
+    const last = merged[merged.length - 1];
+    const sameShape = last &&
+      last.side === item.side &&
+      last.wallType === item.wallType &&
+      item.fromCh <= last.toCh + RETAINING_WALL_SAMPLE_SPACING_M;
+
+    if (sameShape) {
+      last.toCh = Math.max(last.toCh, item.toCh);
+      last.reasons = [...new Set([...last.reasons, ...item.reasons])];
+      last.maxHeight = Math.max(last.maxHeight, item.maxHeight);
+      return;
+    }
+
+    merged.push({
+      side: item.side,
+      wallType: item.wallType,
+      fromCh: item.fromCh,
+      toCh: item.toCh,
+      reasons: [...item.reasons],
+      maxHeight: item.maxHeight,
+    });
+  });
+
+  return merged.filter((item) => getChainageWindowMeters(item.fromCh, item.toCh) >= 20);
+}
+
+function buildRetainingWallRemarkText(reasons) {
+  const shortReasons = (reasons || [])
+    .map((reason) => RETAINING_WALL_REASON_SHORT_LABELS[reason] || reason)
+    .filter(Boolean);
+  if (!shortReasons.length) return `Auto-suggested. ${RETAINING_WALL_REVIEW_NOTE}.`;
+  return `Reason: ${shortReasons.join(", ")}. ${RETAINING_WALL_REVIEW_NOTE}.`;
+}
+
+async function buildSuggestedRetainingWallRowsFromMap() {
+  if (!state.kmlData?.points?.length) {
+    throw new Error("Import the KML/KMZ alignment first so map-based wall suggestions can be analysed.");
+  }
+  if (!Array.isArray(state.calcRows) || !state.calcRows.length) {
+    throw new Error("Run the earthwork calculation first so embankment / cutting heights are available.");
+  }
+
+  const samples = buildRetainingWallSamplePoints();
+  if (!samples.length) return [];
+  const { features, warning } = await fetchRetainingWallConstraintFeatures(samples);
+  const detections = [];
+
+  samples.forEach((sample) => {
+    const reasonsBySide = { Left: new Set(), Right: new Set() };
+    features.forEach((feature) => {
+      const distance = getLatLngDistanceMeters(sample, feature);
+      if (!(distance <= sample.halfWidth + 20)) return;
+      const side = getSignedSideFromAlignment(sample, feature);
+      reasonsBySide[side].add(feature.kind);
+    });
+
+    ["Left", "Right"].forEach((side) => {
+      const reasons = [...reasonsBySide[side]];
+      if (!reasons.length) return;
+      detections.push({
+        fromCh: sample.fromCh,
+        toCh: sample.toCh,
+        side,
+        wallType: sample.wallType,
+        reasons,
+        maxHeight: sample.height,
+      });
+    });
+  });
+
+  const rows = mergeRetainingWallDetections(detections).map((segment) => {
+    return createEmptyRetainingWallRow(0, {
+      fromCh: Number(segment.fromCh.toFixed(3)),
+      toCh: Number(segment.toCh.toFixed(3)),
+      side: segment.side,
+      wallType: segment.wallType,
+      remarks: buildRetainingWallRemarkText(segment.reasons),
+    });
+  });
+  rows.warning = warning;
+  return rows;
+}
+
+function getMainLineRouteLengthM() {
+  const calcRows = Array.isArray(state.calcRows) ? state.calcRows : [];
+  if (calcRows.length >= 2) {
+    const startCh = parseChainage(calcRows[0]?.chainage);
+    const endCh = parseChainage(calcRows[calcRows.length - 1]?.chainage);
+    if (Number.isFinite(startCh) && Number.isFinite(endCh)) {
+      return Math.max(Math.abs(endCh - startCh), 0);
+    }
+  }
+
+  const rawRows = Array.isArray(state.rawRows) ? state.rawRows : [];
+  if (rawRows.length >= 2) {
+    const chainages = rawRows
+      .map((row) => parseChainage(row?.chainage))
+      .filter((value) => Number.isFinite(value));
+    if (chainages.length >= 2) {
+      return Math.max(Math.max(...chainages) - Math.min(...chainages), 0);
+    }
+  }
+
+  const mappedDistance = safeNum(state.kmlData?.totalDistance, 0);
+  return Math.max(mappedDistance, 0);
+}
+
+function derive1110SurveyType() {
+  const explicit = String(state.settings?.est1110SurveyType || "").trim();
+  if (explicit === "new_line" || explicit === "doubling") return explicit;
+  return state.settings?.formationPreset === "single" ? "new_line" : "doubling";
 }
 const state = {
   meta: null,
@@ -89,6 +736,10 @@ const state = {
   kmlData: null,
   stationPlans: {},
   projectFileHandle: null,
+  earthworkStructures: {
+    retainingWalls: [],
+    drains: [],
+  },
   auth: {
     authenticated: false,
     user: "",
@@ -108,6 +759,10 @@ const els = {
   logoutBtn: document.getElementById("logoutBtn"),
   loginUserChip: document.getElementById("loginUserChip"),
   projectMeta: document.getElementById("projectMeta"),
+  topbarProjectName: document.getElementById("topbarProjectName"),
+  topbarProjectState: document.getElementById("topbarProjectState"),
+  topbarMapState: document.getElementById("topbarMapState"),
+  topbarSaveState: document.getElementById("topbarSaveState"),
   rollDiagramCanvas: document.getElementById("rollDiagramCanvas"),
   rollDiagramWrap: document.getElementById("rollDiagramWrap"),
   rollDiagramEmpty: document.getElementById("rollDiagramEmpty"),
@@ -300,6 +955,35 @@ const els = {
   closeCloudProjectsBtn: document.getElementById("closeCloudProjectsBtn"),
   cloudProjectsList: document.getElementById("cloudProjectsList"),
   cloudProjectSearch: document.getElementById("cloudProjectSearch"),
+  earthStructSuggestWallBtn: document.getElementById("earthStructSuggestWallBtn"),
+  earthStructAddWallBtn: document.getElementById("earthStructAddWallBtn"),
+  earthStructAddDrainBtn: document.getElementById("earthStructAddDrainBtn"),
+  earthStructSuggestBtn: document.getElementById("earthStructSuggestBtn"),
+  retainingWallTableBody: document.getElementById("retainingWallTableBody"),
+  drainTableBody: document.getElementById("drainTableBody"),
+  earthStructWallTotal: document.getElementById("earthStructWallTotal"),
+  earthStructDrainTotal: document.getElementById("earthStructDrainTotal"),
+  earthStructItemCount: document.getElementById("earthStructItemCount"),
+  earthStructDrainSummaryBody: document.getElementById("earthStructDrainSummaryBody"),
+  est1110AutoPanel: document.getElementById("est1110AutoPanel"),
+  est1110SurveyType: document.getElementById("est1110SurveyType"),
+  est1110RouteLength: document.getElementById("est1110RouteLength"),
+  est1110Rate: document.getElementById("est1110Rate"),
+  est1130AutoPanel: document.getElementById("est1130AutoPanel"),
+  est1130RefreshBtn: document.getElementById("est1130RefreshBtn"),
+  est1130OpenStructuresBtn: document.getElementById("est1130OpenStructuresBtn"),
+  est1130EarthworkTotal: document.getElementById("est1130EarthworkTotal"),
+  est1130WallingTotal: document.getElementById("est1130WallingTotal"),
+  est1130DrainTotal: document.getElementById("est1130DrainTotal"),
+  est1130SoilPct: document.getElementById("est1130SoilPct"),
+  est1130SoftRockPct: document.getElementById("est1130SoftRockPct"),
+  est1130HardBlastPct: document.getElementById("est1130HardBlastPct"),
+  est1130HardChiselPct: document.getElementById("est1130HardChiselPct"),
+  est1130ReusableSpoilPct: document.getElementById("est1130ReusableSpoilPct"),
+  est1130LeadKm: document.getElementById("est1130LeadKm"),
+  est1130CbrTests: document.getElementById("est1130CbrTests"),
+  est1130TrolleyRefuges: document.getElementById("est1130TrolleyRefuges"),
+  est1130PortableFencingLength: document.getElementById("est1130PortableFencingLength"),
   pwayTableBody: document.getElementById('pwayTableBody'),
   pwayAddRowBtn: document.getElementById('pwayAddRowBtn'),
   pwayPullStationsBtn: document.getElementById('pwayPullStationsBtn'),
@@ -799,6 +1483,20 @@ function updateDashboard() {
   const reusablePct = parseLooseNumber(els.pctReusableSpoil?.value, 60);
   const reusableSpoil = cutTotal * (safeNum(reusablePct, 60) / 100);
   const netBalance = reusableSpoil - fillTotal;
+  const coreImportCount = ["levels", "curves", "bridges", "loops"].filter((k) => uploads[k]).length;
+  const hasCoreInputs = coreImportCount === 4;
+  const hasAnyImport = active && (rawRows.length > 0 || coreImportCount > 0 || Boolean(uploads.kml));
+  const hasCalc = calcRows.length > 0;
+  const hasMappedReview = hasCalc && Boolean(uploads.kml);
+
+  function setWorkflowStep(key, statusText, descText, tone) {
+    const card = document.getElementById(`workflowStep${key}`);
+    const status = document.getElementById(`workflow${key}Status`);
+    const desc = document.getElementById(`workflow${key}Desc`);
+    if (card) card.dataset.state = tone || "pending";
+    if (status) status.textContent = statusText;
+    if (desc) desc.textContent = descText;
+  }
 
   if (!calcRows || calcRows.length === 0) {
     if (dashChRange) dashChRange.textContent = "0.000 to 0.000";
@@ -828,7 +1526,7 @@ function updateDashboard() {
   }
   if (heroText) {
     if (!active) {
-      heroText.textContent = "Create or open a project to begin importing levels, structures, loops, and map alignment.";
+      heroText.textContent = "Create or open a project, import corridor inputs, calculate the model, review outputs, and export a report-ready package.";
     } else if (!state.project.verified) {
       heroText.textContent = uploads.kml
         ? "Project is active with mapped alignment. Complete review and verify before export."
@@ -837,11 +1535,77 @@ function updateDashboard() {
       heroText.textContent = uploads.kml
         ? "Project is verified and geographically mapped. Review chainage hotspots, alerts, and export readiness."
         : "Project is verified. Add KML/KMZ alignment to unlock full corridor intelligence and station mapping.";
-    }
+      }
+  }
+
+  if (!active) {
+    setWorkflowStep("Import", "Pending", "Create or open a project, then import levels and the supporting corridor datasets.", "pending");
+    setWorkflowStep("Inputs", "Pending", "Bridges, curves, stations, and map readiness will appear here after import.", "pending");
+    setWorkflowStep("Calculate", "Pending", "Run Verify after the level file and design inputs are ready.", "pending");
+    setWorkflowStep("Review", "Pending", "Table, charts, roll diagram, and diagnostic minimap unlock after calculation.", "pending");
+    setWorkflowStep("Estimate", "Pending", "Estimates, earthwork structures, and land acquisition build from calculated outputs.", "pending");
+    setWorkflowStep("Export", "Pending", "Export stays locked until the project is verified.", "pending");
+  } else {
+    setWorkflowStep(
+      "Import",
+      hasAnyImport ? "Loaded" : "Workspace Ready",
+      hasAnyImport
+        ? `${coreImportCount}/4 core inputs loaded${uploads.kml ? " with mapped alignment." : ". Add KML/KMZ to complete geographic setup."}`
+        : "Project is active. Import levels first, then add bridges, curves, stations, and map alignment.",
+      hasAnyImport ? (hasCoreInputs ? "success" : "info") : "warning",
+    );
+    setWorkflowStep(
+      "Inputs",
+      hasCoreInputs ? (uploads.kml ? "Ready" : "Core Ready") : (coreImportCount > 0 ? "In Progress" : "Pending"),
+      hasCoreInputs
+        ? (uploads.kml
+          ? "Bridge, curve, station, and map inputs are ready for corridor calculation."
+          : "Core design inputs are loaded. Add KML/KMZ if you want map-led review and suggestions.")
+        : `Complete bridge, curve, station, and P-Way inputs before relying on downstream quantities. ${coreImportCount}/4 core lists loaded.`,
+      hasCoreInputs ? (uploads.kml ? "success" : "info") : (coreImportCount > 0 ? "warning" : "pending"),
+    );
+    setWorkflowStep(
+      "Calculate",
+      state.project?.verified ? "Verified" : (hasCalc ? "Calculated" : (uploads.levels ? "Ready" : "Pending")),
+      state.project?.verified
+        ? "The chainage-wise model is verified and ready for downstream review and delivery."
+        : hasCalc
+          ? "Calculation output exists. Re-run Verify whenever inputs change."
+          : uploads.levels
+            ? "Run Verify to generate chainage-wise earthwork results."
+            : "Import level data before running the corridor calculation.",
+      state.project?.verified ? "success" : (hasCalc ? "info" : (uploads.levels ? "warning" : "pending")),
+    );
+    setWorkflowStep(
+      "Review",
+      hasMappedReview ? "Mapped" : (hasCalc ? "Ready" : "Pending"),
+      hasMappedReview
+        ? "Review table output, charts, roll diagram, minimap, and alignment map together."
+        : hasCalc
+          ? "Earthwork Table, Graphs, and Roll Diagram are ready. Add KML/KMZ for map review."
+          : "Calculated rows are required before the review tools can populate.",
+      hasMappedReview ? "success" : (hasCalc ? "info" : "pending"),
+    );
+    setWorkflowStep(
+      "Estimate",
+      hasCalc ? "Ready" : "Waiting",
+      hasCalc
+        ? "Open Estimates, Earthwork Structures, and Land Acquisition to prepare BOQ-ready quantities."
+        : "Finish calculation first so quantity automation can feed the estimate modules.",
+      hasCalc ? "success" : "warning",
+    );
+    setWorkflowStep(
+      "Export",
+      state.project?.verified ? "Ready" : "Blocked",
+      state.project?.verified
+        ? "The project is verified and can be packaged into a report-ready deliverable."
+        : "Run Verify before exporting the project as a formal deliverable.",
+      state.project?.verified ? "success" : "warning",
+    );
   }
 
   if (healthGrid) {
-    const importCount = ["levels", "curves", "bridges", "loops"].filter((k) => uploads[k]).length;
+    const importCount = coreImportCount;
     healthGrid.innerHTML = [
       ["Project", projectName, active ? (state.project.verified ? "Verified workspace" : "Draft workspace") : "No workspace loaded", active ? (state.project.verified ? "success" : "warning") : "danger"],
       ["Core Inputs", `${importCount}/4 loaded`, uploads.kml ? "KML/KMZ alignment loaded" : "KML/KMZ optional", importCount === 4 ? "success" : (importCount > 0 ? "warning" : "danger")],
@@ -1022,6 +1786,34 @@ function updateDashboard() {
         </div>
       `).join("")
       : `<div class="mission-list-empty">No critical design alerts. The current dataset is complete enough for review and export.</div>`;
+  }
+  updateTopbarSummary();
+}
+
+function updateTopbarSummary() {
+  const active = Boolean(state.project?.active);
+  const projectName = String(state.project?.profile?.corridorName || state.project?.name || "").trim();
+  const uploads = state.project?.uploads || {};
+  const savedAt = state.meta?.lastSavedAt ? new Date(state.meta.lastSavedAt) : null;
+
+  if (els.topbarProjectName) {
+    els.topbarProjectName.textContent = active ? (projectName || "Unnamed Project") : "No Active Project";
+  }
+  if (els.projectMeta) {
+    els.projectMeta.textContent = active ? "Earthwork Calculations Workspace" : "Earthwork Calculations";
+  }
+
+  if (els.topbarProjectState) {
+    els.topbarProjectState.textContent = !active ? "Draft" : (state.project?.verified ? "Verified" : "Needs Review");
+    els.topbarProjectState.dataset.tone = !active ? "neutral" : (state.project?.verified ? "success" : "warning");
+  }
+  if (els.topbarMapState) {
+    els.topbarMapState.textContent = uploads.kml ? "Mapped" : "No Map";
+    els.topbarMapState.dataset.tone = uploads.kml ? "info" : "neutral";
+  }
+  if (els.topbarSaveState) {
+    els.topbarSaveState.textContent = savedAt ? "Saved" : "Local";
+    els.topbarSaveState.dataset.tone = savedAt ? "success" : "neutral";
   }
 }
 
@@ -2863,6 +3655,347 @@ function syncLAZonesFromTable() {
   state.laZones = zones;
 }
 
+function notifyEstimateViewsChanged() {
+  if (typeof window.renderEstGrid === "function") window.renderEstGrid();
+  if (typeof window.renderAbstract === "function") window.renderAbstract();
+}
+
+function renderEarthworkStructuresPage() {
+  ensureEarthworkStructuresState();
+  if (!els.retainingWallTableBody || !els.drainTableBody) return;
+
+  const { retainingWalls, drains } = state.earthworkStructures;
+
+  if (!retainingWalls.length) {
+    els.retainingWallTableBody.innerHTML = '<tr><td colspan="9" class="muted" style="text-align:center; padding:24px;">No retaining wall entries yet.</td></tr>';
+  } else {
+    els.retainingWallTableBody.innerHTML = "";
+    retainingWalls.forEach((row, index) => {
+      const length = getStructureLength(row);
+      const qty = getEffectiveRetainingWallQty(row);
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${index + 1}</td>
+        <td><input type="number" step="0.001" class="est-qty-input" value="${Number.isFinite(parseChainage(row.fromCh)) ? parseChainage(row.fromCh) : ""}" style="width:100%;" /></td>
+        <td><input type="number" step="0.001" class="est-qty-input" value="${Number.isFinite(parseChainage(row.toCh)) ? parseChainage(row.toCh) : ""}" style="width:100%;" /></td>
+        <td>
+          <select class="est-unit-input" style="width:100%;">
+            ${STRUCTURE_SIDES.map((side) => `<option value="${side}"${side === row.side ? " selected" : ""}>${side}</option>`).join("")}
+          </select>
+        </td>
+        <td>
+          <select class="est-desc-input" style="width:100%;">
+            ${RETAINING_WALL_TYPES.map((item) => `<option value="${item.key}"${item.key === row.wallType ? " selected" : ""}>${item.label}</option>`).join("")}
+          </select>
+        </td>
+        <td style="text-align:right;">${r3(length)}</td>
+        <td style="text-align:right; font-weight:600;">${r3(qty)}</td>
+        <td><input type="text" class="est-desc-input" value="${escapeHtml(row.remarks || "")}" title="${escapeHtml(row.remarks || "")}" placeholder="Remarks..." style="width:100%;" /></td>
+        <td><button class="btn btn-secondary icon-btn-sm" type="button" title="Delete" style="color:var(--red);"><i class="ri-delete-bin-line"></i></button></td>
+      `;
+
+      const [fromInput, toInput] = tr.querySelectorAll('input[type="number"]');
+      const sideSelect = tr.querySelector("select");
+      const typeSelect = tr.querySelectorAll("select")[1];
+      const remarksInput = tr.querySelector('input[type="text"]');
+      const deleteBtn = tr.querySelector("button");
+
+      fromInput.addEventListener("change", (e) => {
+        row.fromCh = e.target.value === "" ? null : parseFloat(e.target.value);
+        renderEarthworkStructuresPage();
+        notifyEstimateViewsChanged();
+        saveState();
+      });
+      toInput.addEventListener("change", (e) => {
+        row.toCh = e.target.value === "" ? null : parseFloat(e.target.value);
+        renderEarthworkStructuresPage();
+        notifyEstimateViewsChanged();
+        saveState();
+      });
+      sideSelect.addEventListener("change", (e) => {
+        row.side = e.target.value;
+        renderEarthworkStructuresPage();
+        notifyEstimateViewsChanged();
+        saveState();
+      });
+      typeSelect.addEventListener("change", (e) => {
+        row.wallType = e.target.value;
+        notifyEstimateViewsChanged();
+        saveState();
+      });
+      remarksInput.addEventListener("input", (e) => {
+        row.remarks = e.target.value;
+        saveState();
+      });
+      deleteBtn.addEventListener("click", () => {
+        state.earthworkStructures.retainingWalls.splice(index, 1);
+        renderEarthworkStructuresPage();
+        notifyEstimateViewsChanged();
+        saveState();
+      });
+
+      els.retainingWallTableBody.appendChild(tr);
+    });
+  }
+
+  if (!drains.length) {
+    els.drainTableBody.innerHTML = '<tr><td colspan="10" class="muted" style="text-align:center; padding:24px;">No drain entries yet.</td></tr>';
+  } else {
+    els.drainTableBody.innerHTML = "";
+    drains.forEach((row, index) => {
+      const length = getStructureLength(row);
+      const qty = getEffectiveDrainQty(row);
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${index + 1}</td>
+        <td><input type="number" step="0.001" class="est-qty-input" value="${Number.isFinite(parseChainage(row.fromCh)) ? parseChainage(row.fromCh) : ""}" style="width:100%;" /></td>
+        <td><input type="number" step="0.001" class="est-qty-input" value="${Number.isFinite(parseChainage(row.toCh)) ? parseChainage(row.toCh) : ""}" style="width:100%;" /></td>
+        <td>
+          <select class="est-unit-input" style="width:100%;">
+            ${STRUCTURE_SIDES.map((side) => `<option value="${side}"${side === row.side ? " selected" : ""}>${side}</option>`).join("")}
+          </select>
+        </td>
+        <td>
+          <select class="est-desc-input" style="width:100%;">
+            ${DRAIN_TYPE_OPTIONS.map((item) => `<option value="${item.key}"${item.key === row.drainType ? " selected" : ""}>${item.label}</option>`).join("")}
+          </select>
+        </td>
+        <td><input type="number" min="1" step="1" class="est-qty-input" value="${Math.max(1, Math.round(safeNum(row.runs, 1)))}" style="width:80px; text-align:center;" /></td>
+        <td style="text-align:right;">${r3(length)}</td>
+        <td style="text-align:right; font-weight:600;">${r3(qty)}</td>
+        <td><input type="text" class="est-desc-input" value="${escapeHtml(row.remarks || "")}" title="${escapeHtml(row.remarks || "")}" placeholder="Remarks..." style="width:100%;" /></td>
+        <td><button class="btn btn-secondary icon-btn-sm" type="button" title="Delete" style="color:var(--red);"><i class="ri-delete-bin-line"></i></button></td>
+      `;
+
+      const numberInputs = tr.querySelectorAll('input[type="number"]');
+      const fromInput = numberInputs[0];
+      const toInput = numberInputs[1];
+      const runsInput = numberInputs[2];
+      const sideSelect = tr.querySelector("select");
+      const typeSelect = tr.querySelectorAll("select")[1];
+      const remarksInput = tr.querySelector('input[type="text"]');
+      const deleteBtn = tr.querySelector("button");
+
+      fromInput.addEventListener("change", (e) => {
+        row.fromCh = e.target.value === "" ? null : parseFloat(e.target.value);
+        renderEarthworkStructuresPage();
+        notifyEstimateViewsChanged();
+        saveState();
+      });
+      toInput.addEventListener("change", (e) => {
+        row.toCh = e.target.value === "" ? null : parseFloat(e.target.value);
+        renderEarthworkStructuresPage();
+        notifyEstimateViewsChanged();
+        saveState();
+      });
+      sideSelect.addEventListener("change", (e) => {
+        row.side = e.target.value;
+        renderEarthworkStructuresPage();
+        notifyEstimateViewsChanged();
+        saveState();
+      });
+      typeSelect.addEventListener("change", (e) => {
+        row.drainType = e.target.value;
+        notifyEstimateViewsChanged();
+        saveState();
+      });
+      runsInput.addEventListener("change", (e) => {
+        row.runs = Math.max(1, Math.round(parseFloat(e.target.value) || 1));
+        renderEarthworkStructuresPage();
+        notifyEstimateViewsChanged();
+        saveState();
+      });
+      remarksInput.addEventListener("input", (e) => {
+        row.remarks = e.target.value;
+        saveState();
+      });
+      deleteBtn.addEventListener("click", () => {
+        state.earthworkStructures.drains.splice(index, 1);
+        renderEarthworkStructuresPage();
+        notifyEstimateViewsChanged();
+        saveState();
+      });
+
+      els.drainTableBody.appendChild(tr);
+    });
+  }
+
+  const wallQty = retainingWalls.reduce((sum, row) => sum + getEffectiveRetainingWallQty(row), 0);
+  const drainQty = drains.reduce((sum, row) => sum + getEffectiveDrainQty(row), 0);
+  if (els.earthStructWallTotal) els.earthStructWallTotal.textContent = `${r3(wallQty)} RM`;
+  if (els.earthStructDrainTotal) els.earthStructDrainTotal.textContent = `${r3(drainQty)} RM`;
+  if (els.earthStructItemCount) els.earthStructItemCount.textContent = String(retainingWalls.length + drains.length);
+  if (els.earthStructDrainSummaryBody) {
+    const summaryRows = getDrainSummaryRows(drains);
+    const hasDrainSummary = summaryRows.some((row) => row.total > 0.0001);
+    if (!hasDrainSummary) {
+      els.earthStructDrainSummaryBody.innerHTML = '<tr><td colspan="5" class="muted" style="text-align:center; padding:24px;">No drain entries yet.</td></tr>';
+    } else {
+      els.earthStructDrainSummaryBody.innerHTML = summaryRows.map((row) => `
+        <tr>
+          <td>${escapeHtml(row.label)}</td>
+          <td style="text-align:right;">${r3(row.Left)}</td>
+          <td style="text-align:right;">${r3(row.Right)}</td>
+          <td style="text-align:right;">${r3(row.Both)}</td>
+          <td style="text-align:right; font-weight:600;">${r3(row.total)}</td>
+        </tr>
+      `).join("");
+    }
+  }
+}
+
+function hydrate1110Controls() {
+  const surveyType = derive1110SurveyType();
+  const routeLengthKm = getMainLineRouteLengthM() / 1000;
+  const rate = surveyType === "new_line" ? 300000 : 240000;
+  if (els.est1110SurveyType) els.est1110SurveyType.value = surveyType;
+  if (els.est1110RouteLength) els.est1110RouteLength.textContent = `${r3(routeLengthKm)} km`;
+  if (els.est1110Rate) els.est1110Rate.textContent = `₹${rate.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / km`;
+}
+
+function build1110EstimateRows() {
+  const surveyType = derive1110SurveyType();
+  const routeLengthKm = getMainLineRouteLengthM() / 1000;
+  const rate = surveyType === "new_line" ? 300000 : 240000;
+  const existingRows = Array.isArray(state.estimates?.["1110"]) ? state.estimates["1110"] : [];
+  const previous = existingRows.find((row) => row?.autoKey === "preliminary_survey") || {};
+
+  return [{
+    autoKey: "preliminary_survey",
+    sequence: 1,
+    sor: previous.sor || "",
+    larRefId: previous.larRefId || "",
+    code: previous.code || "NS Item",
+    desc: previous.desc || "Preliminary survey expenses",
+    qty: Math.max(0, routeLengthKm),
+    unit: previous.unit || "Km",
+    rate: Number.isFinite(previous.rate) ? previous.rate : rate,
+    stores: Number.isFinite(previous.stores) ? previous.stores : 0,
+    autoBasis: "Quantity derived from total main line route length",
+  }];
+}
+
+function sync1110EstimateRows() {
+  const rows = build1110EstimateRows();
+  if (!state.estimates || typeof state.estimates !== "object") state.estimates = {};
+  state.estimates["1110"] = rows;
+  return rows;
+}
+
+function get1130Settings() {
+  return {
+    soilPct: safeNum(state.settings?.est1130SoilPct, 40),
+    softRockPct: safeNum(state.settings?.est1130SoftRockPct, 28),
+    hardBlastPct: safeNum(state.settings?.est1130HardBlastPct, 8),
+    hardChiselPct: safeNum(state.settings?.est1130HardChiselPct, 24),
+    reusableSpoilPct: safeNum(state.settings?.est1130ReusableSpoilPct, 60),
+    leadKm: safeNum(state.settings?.est1130LeadKm, 3),
+    cbrTests: Math.max(0, Math.round(safeNum(state.settings?.est1130CbrTests, 0))),
+    trolleyRefuges: Math.max(0, Math.round(safeNum(state.settings?.est1130TrolleyRefuges, 0))),
+    portableFencingLength: Math.max(0, safeNum(state.settings?.est1130PortableFencingLength, 0)),
+  };
+}
+
+function hydrate1130AssumptionControls() {
+  if (els.est1130SoilPct) els.est1130SoilPct.value = String(safeNum(state.settings?.est1130SoilPct, 40));
+  if (els.est1130SoftRockPct) els.est1130SoftRockPct.value = String(safeNum(state.settings?.est1130SoftRockPct, 28));
+  if (els.est1130HardBlastPct) els.est1130HardBlastPct.value = String(safeNum(state.settings?.est1130HardBlastPct, 8));
+  if (els.est1130HardChiselPct) els.est1130HardChiselPct.value = String(safeNum(state.settings?.est1130HardChiselPct, 24));
+  if (els.est1130ReusableSpoilPct) els.est1130ReusableSpoilPct.value = String(safeNum(state.settings?.est1130ReusableSpoilPct, 60));
+  if (els.est1130LeadKm) els.est1130LeadKm.value = String(safeNum(state.settings?.est1130LeadKm, 3));
+  if (els.est1130CbrTests) els.est1130CbrTests.value = String(Math.max(0, Math.round(safeNum(state.settings?.est1130CbrTests, 0))));
+  if (els.est1130TrolleyRefuges) els.est1130TrolleyRefuges.value = String(Math.max(0, Math.round(safeNum(state.settings?.est1130TrolleyRefuges, 0))));
+  if (els.est1130PortableFencingLength) els.est1130PortableFencingLength.value = String(Math.max(0, safeNum(state.settings?.est1130PortableFencingLength, 0)));
+}
+
+function build1130EstimateRows() {
+  ensureEarthworkStructuresState();
+  const settings = get1130Settings();
+  const existingRows = Array.isArray(state.estimates?.["1130"]) ? state.estimates["1130"] : [];
+  const existingByKey = new Map(existingRows.filter((row) => row?.autoKey).map((row) => [row.autoKey, row]));
+  const rows = Array.isArray(state.calcRows) ? state.calcRows : [];
+  const totalLengthM = rows.reduce((sum, row) => sum + (safeNum(row?.ewDiff, 0) > 0 ? safeNum(row.ewDiff, 0) : 0), 0);
+  const rawFillTotal = rows.reduce((sum, row) => sum + safeNum(row?.fillVol, 0), 0);
+  const rawCutTotal = rows.reduce((sum, row) => sum + safeNum(row?.cutVol, 0), 0);
+  const blanketTotal = rows.reduce((sum, row) => sum + safeNum(row?.blanketingVol, 0), 0);
+  const turfing100Sqm = rows.reduce((sum, row) => sum + safeNum(row?.turfingSqM, 0), 0) / 100;
+  const fillLenM = rows.reduce((sum, row) => sum + (safeNum(row?.bank, 0) > 0 ? safeNum(row?.ewDiff, 0) : 0), 0);
+  const cutLenM = rows.reduce((sum, row) => sum + (String(row?.type || "").toUpperCase() === "CUTTING" ? safeNum(row?.ewDiff, 0) : 0), 0);
+  const topWidthFill = safeNum(state.settings?.formationWidthFill, 7.85);
+  const bottomWidthCut = safeNum(state.settings?.cuttingWidth, 12.05);
+  const clearingQty = (((fillLenM * topWidthFill) + (cutLenM * bottomWidthCut)) / 100);
+  const benchingQty = fillLenM / 1000;
+  const splitTotal = Math.max(settings.soilPct + settings.softRockPct + settings.hardBlastPct + settings.hardChiselPct, 0.001);
+  const cutSoilQty = rawCutTotal * (settings.soilPct / splitTotal);
+  const cutSoftQty = rawCutTotal * (settings.softRockPct / splitTotal);
+  const cutBlastQty = rawCutTotal * (settings.hardBlastPct / splitTotal);
+  const cutChiselQty = rawCutTotal * (settings.hardChiselPct / splitTotal);
+  const reusableSpoilQty = cutSoilQty * (settings.reusableSpoilPct / 100);
+  const contractorFillQty = Math.max(rawFillTotal - reusableSpoilQty, 0);
+  const extraLeadKm = Math.max(settings.leadKm - 2, 0);
+  const extraLeadQty = Math.max(cutSoilQty - reusableSpoilQty, 0) * extraLeadKm;
+
+  const wallTotals = { rw_3m: 0, rw_4m: 0 };
+  state.earthworkStructures.retainingWalls.forEach((row) => {
+    const key = getRetainingWallTypeMeta(row?.wallType).key;
+    wallTotals[key] = (wallTotals[key] || 0) + getEffectiveRetainingWallQty(row);
+  });
+
+  const drainTotals = { side_drain: 0, yard_drain: 0, catchwater_drain: 0, berm_drain: 0 };
+  state.earthworkStructures.drains.forEach((row) => {
+    const key = getDrainTypeMeta(row?.drainType).key;
+    drainTotals[key] = (drainTotals[key] || 0) + getEffectiveDrainQty(row);
+  });
+
+  const specs = [
+    { autoKey: "ew_clearing", section: "earthwork", code: "011010", desc: "Preparation of foundation for embankment by clearing, grubbing, stripping top soil etc.", unit: "100 Sqm", rate: 537.37, qty: clearingQty, basis: "Formation footprint from fill and cut lengths" },
+    { autoKey: "ew_benching", section: "earthwork", code: "011020", desc: "Benching of existing embankment manually in steps of 30 cm height for doubling/tripling works in running line", unit: "Km", rate: 122817.77, qty: benchingQty, basis: "Applied over total filling length" },
+    { autoKey: "ew_fill_sq3", section: "earthwork", code: "NS Item", desc: "Earthwork with contractor's earth in embankment in all locations with earth of approved quality as per approved Railways specifications", unit: "Cum", rate: 538.181826, qty: contractorFillQty, basis: "Net fill after deducting reusable cut soil" },
+    { autoKey: "ew_compaction_cut", section: "earthwork", code: "DSR 16.2", desc: "Extra for compaction of earthwork in embankment for reusable cut soils", unit: "Cum", rate: 18.739385, qty: reusableSpoilQty, basis: "Reusable cut soil placed in embankment" },
+    { autoKey: "ew_blanket", section: "earthwork", code: "012040", desc: "Providing blanketing on top of formation", unit: "Cum", rate: 859.69, qty: blanketTotal, basis: "Summed from calculated cross-sections" },
+    { autoKey: "ew_cut_soil", section: "earthwork", code: "012011", desc: "Earthwork in cutting in formation in all soils", unit: "Cum", rate: 98.7, qty: cutSoilQty, basis: "Cut split by soil percentage" },
+    { autoKey: "ew_cut_soft", section: "earthwork", code: "012012", desc: "Earthwork in cutting in soft rock not requiring blasting", unit: "Cum", rate: 238.57, qty: cutSoftQty, basis: "Cut split by soft rock percentage" },
+    { autoKey: "ew_cut_blast", section: "earthwork", code: "012013", desc: "Earthwork in hard rock with blasting", unit: "Cum", rate: 359.06, qty: cutBlastQty, basis: "Cut split by hard blast percentage" },
+    { autoKey: "ew_cut_chisel", section: "earthwork", code: "012014", desc: "Earthwork in hard rock with hammer / chisel / pavement breaker etc.", unit: "Cum", rate: 952.04, qty: cutChiselQty, basis: "Cut split by hard chisel percentage" },
+    { autoKey: "ew_extra_lead", section: "earthwork", code: "012015", desc: `Extra for leading of cut spoil beyond original lead of 2 km`, unit: "Cum-Km", rate: 4.91, qty: extraLeadQty, basis: `Extra lead applied for ${r3(extraLeadKm)} km beyond free lead` },
+    { autoKey: "ew_turfing", section: "earthwork", code: "013023", desc: "Turfing / planting including lead, lift and watering until properly rooted", unit: "100 Sqm", rate: 7109.8, qty: turfing100Sqm, basis: "Derived from embankment turfing area" },
+    { autoKey: "ew_cbr", section: "earthwork", code: "021100", desc: "Conducting determination of California Bearing Ratio as per IS 2720", unit: "Each", rate: 1410.92, qty: settings.cbrTests, basis: "Project assumption" },
+    { autoKey: "ew_refuge", section: "earthwork", code: "211130", desc: "Providing and fixing trolley refuge of size 3.0m x 3.0m on cess", unit: "Each", rate: 4135.77, qty: settings.trolleyRefuges, basis: "Project assumption" },
+    { autoKey: "ew_fencing", section: "earthwork", code: "013041", desc: "Providing portable fencing along running track", unit: "Metre", rate: 198.4, qty: settings.portableFencingLength, basis: "Project assumption" },
+    { autoKey: "wall_3m", section: "walling", code: "RA-1130/1", desc: "Retaining wall (3.00 mt high)", unit: "RM", rate: 48780.6384568, qty: wallTotals.rw_3m, basis: "Summed from retaining wall entries" },
+    { autoKey: "wall_4m", section: "walling", code: "RA-1130/2", desc: "Retaining wall (4.00 mt high)", unit: "RM", rate: 68632.83194375626, qty: wallTotals.rw_4m, basis: "Summed from retaining wall entries" },
+    { autoKey: "drain_side", section: "drains", code: "RA-1130/3", desc: "Providing Precast Side Drains in Cutting (0.6 m x 0.6 m)", unit: "RM", rate: 8058, qty: drainTotals.side_drain, basis: "Summed from drain entries" },
+    { autoKey: "drain_yard", section: "drains", code: "RA-1130/3", desc: "Providing Precast Yard Drains (0.6 m x 0.6 m)", unit: "RM", rate: 8058, qty: drainTotals.yard_drain, basis: "Summed from drain entries" },
+    { autoKey: "drain_catchwater", section: "drains", code: "RA-1130/4", desc: "Providing CC Lined Catchwater Drain in Cutting", unit: "RM", rate: 1305, qty: drainTotals.catchwater_drain, basis: "Summed from drain entries" },
+    { autoKey: "drain_berm", section: "drains", code: "RA-1130/5", desc: "Providing CC Lined Berm Drain in Cutting", unit: "RM", rate: 1089, qty: drainTotals.berm_drain, basis: "Summed from drain entries" },
+  ];
+
+  return specs.map((spec, index) => {
+    const previous = existingByKey.get(spec.autoKey) || {};
+    return {
+      autoKey: spec.autoKey,
+      section: spec.section,
+      sequence: index + 1,
+      sor: previous.sor || "",
+      larRefId: previous.larRefId || "",
+      code: previous.code || spec.code,
+      desc: previous.desc || spec.desc,
+      qty: Math.max(0, safeNum(spec.qty, 0)),
+      unit: previous.unit || spec.unit,
+      rate: Number.isFinite(previous.rate) ? previous.rate : spec.rate,
+      stores: Number.isFinite(previous.stores) ? previous.stores : 0,
+      autoBasis: spec.basis,
+    };
+  });
+}
+
+function sync1130EstimateRows() {
+  const rows = build1130EstimateRows();
+  if (!state.estimates || typeof state.estimates !== "object") state.estimates = {};
+  state.estimates["1130"] = rows;
+  return rows;
+}
+
 function calculateLandAcquisition() {
   const rows = state.calcRows;
   if (!rows || rows.length < 2) return [];
@@ -3244,6 +4377,14 @@ function recalculate() {
   renderSideView();
   updateEstimates();
   updateDashboard();
+  renderEarthworkStructuresPage();
+
+  if (state.activeWorkPage === "estimates" && typeof window.renderEstGrid === "function") {
+    window.renderEstGrid();
+  }
+  if (state.activeWorkPage === "estimates" && typeof window.renderAbstract === "function") {
+    window.renderAbstract();
+  }
 
   if (state.kmlData && typeof drawAlignmentMap === "function") {
     requestAnimationFrame(() => drawAlignmentMap());
@@ -3350,6 +4491,12 @@ function setWorkPage(pageName) {
   els.workPageButtons.forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.workPageBtn === selected);
   });
+  const activeButton = els.workPageButtons.find((btn) => btn.dataset.workPageBtn === selected) || null;
+  if (els.workNav) {
+    els.workNav.querySelectorAll(".work-nav-section").forEach((section) => {
+      section.classList.toggle("active", Boolean(activeButton && section.contains(activeButton)));
+    });
+  }
   els.workPages.forEach((page) => {
     page.classList.toggle("active", page.dataset.workPage === selected);
   });
@@ -3361,6 +4508,9 @@ function setWorkPage(pageName) {
   }
   if (selected === "pway") {
     renderPwayGrid();
+  }
+  if (selected === "earthwork-structures") {
+    renderEarthworkStructuresPage();
   }
   if (selected === "graphs" && state.calcRows.length) {
     requestAnimationFrame(() => renderCharts());
@@ -3429,9 +4579,7 @@ function applyProjectGate() {
   if (els.saveProjectBtn) els.saveProjectBtn.disabled = !active;
   if (els.saveAsProjectBtn) els.saveAsProjectBtn.disabled = !active;
   if (els.resetProjectBtn) els.resetProjectBtn.disabled = !active;
-  if (els.projectMeta) {
-    els.projectMeta.textContent = "Earthwork Calculations";
-  }
+  updateTopbarSummary();
 }
 
 function collectProjectPayload() {
@@ -3454,6 +4602,7 @@ function collectProjectPayload() {
     importMappings: state.importMappings,
     kmlData: state.kmlData,
     stationPlans: state.stationPlans,
+    earthworkStructures: state.earthworkStructures,
     veState: state.veState,
   };
 }
@@ -3517,6 +4666,12 @@ function loadProjectFromPayload(data, options = {}) {
   }));
   state.kmlData = data?.kmlData && Array.isArray(data.kmlData?.points) ? data.kmlData : null;
   state.stationPlans = data?.stationPlans && typeof data.stationPlans === "object" ? data.stationPlans : {};
+  state.earthworkStructures = data?.earthworkStructures && typeof data.earthworkStructures === "object"
+    ? {
+        retainingWalls: Array.isArray(data.earthworkStructures?.retainingWalls) ? data.earthworkStructures.retainingWalls : [],
+        drains: Array.isArray(data.earthworkStructures?.drains) ? data.earthworkStructures.drains : [],
+      }
+    : { retainingWalls: [], drains: [] };
   state.calcOverrides = Array.isArray(data?.calcOverrides) ? data.calcOverrides : [];
   state.pwayRows = Array.isArray(data?.pwayRows) ? data.pwayRows : [];
   state.slopeZones = Array.isArray(data?.slopeZones) ? data.slopeZones : [];
@@ -3531,6 +4686,7 @@ function loadProjectFromPayload(data, options = {}) {
   renderBridgeInputs();
   renderCurveInputs();
   renderLoopInputs();
+  renderEarthworkStructuresPage();
   recalculate();
   updateWizardUI();
   applyProjectGate();
@@ -3632,6 +4788,7 @@ function resetForNewProject() {
   state.loopPlatformRows = [];
   state.kmlData = null;
   state.stationPlans = {};
+  state.earthworkStructures = { retainingWalls: [], drains: [] };
   state.projectFileHandle = null;
   state.supabaseProjectId = null;
   state.settings = { ...state.seedDefaultSettings };
@@ -3643,6 +4800,7 @@ function resetForNewProject() {
   if (els.kmlImportInput) els.kmlImportInput.value = "";
   if (els.projectImportInput) els.projectImportInput.value = "";
   renderBridgeInputs();
+  renderEarthworkStructuresPage();
   recalculate();
   updateWizardUI();
   applyProjectGate();
@@ -7264,6 +8422,15 @@ function bindEvents() {
     if (!btn) return;
     const action = btn.dataset.overviewAction;
     if (action === "create") els.createProjectBtn?.click();
+    if (action === "edit") {
+      if (state.project?.active) {
+        updateWizardUI();
+        applyProjectGate();
+        els.projectWizardModal?.showModal();
+      } else {
+        els.createProjectBtn?.click();
+      }
+    }
     if (action === "open") els.importProjectBtn?.click();
     if (action === "import") els.importBtn?.click();
     if (action === "verify") document.getElementById("verifyCalcBtn")?.click();
@@ -7274,6 +8441,33 @@ function bindEvents() {
       setWorkPage("alignment-map");
     }
     if (action === "export") els.openExportModalBtn?.click();
+  });
+
+  document.addEventListener("click", (e) => {
+    const navBtn = e.target.closest("[data-workflow-nav]");
+    if (navBtn) {
+      setWorkPage(navBtn.dataset.workflowNav || "overview");
+      return;
+    }
+    const actionBtn = e.target.closest("[data-workflow-action]");
+    if (!actionBtn) return;
+    const action = actionBtn.dataset.workflowAction;
+    if (action === "import") els.importBtn?.click();
+    if (action === "verify") document.getElementById("verifyCalcBtn")?.click();
+    if (action === "export") els.openExportModalBtn?.click();
+  });
+
+  document.addEventListener("click", (e) => {
+    const moreMenu = document.querySelector(".topbar-more-menu");
+    if (!moreMenu) return;
+    const menuButton = e.target.closest(".topbar-more-panel button");
+    if (menuButton) {
+      moreMenu.removeAttribute("open");
+      return;
+    }
+    if (!moreMenu.contains(e.target)) {
+      moreMenu.removeAttribute("open");
+    }
   });
 
   if (els.createProjectBtn && els.projectWizardModal) {
@@ -9094,6 +10288,7 @@ function saveState() {
     snapshots: state.snapshots,
     kmlData: state.kmlData,
     stationPlans: state.stationPlans,
+    earthworkStructures: state.earthworkStructures,
     pwayRows: state.pwayRows,
     supabaseProjectId: state.supabaseProjectId
   };
@@ -9178,6 +10373,7 @@ async function saveToSupabase() {
       { type: 'snapshots', data: state.snapshots || [] },
       { type: 'kml', data: state.kmlData },
       { type: 'station_plans', data: state.stationPlans || {} },
+      { type: 'earthwork_structures', data: state.earthworkStructures || { retainingWalls: [], drains: [] } },
       { type: 'pway', data: state.pwayRows || [] }
     ];
 
@@ -9281,6 +10477,7 @@ async function loadFromSupabase(projectId) {
       if (part.data_type === 'snapshots') state.snapshots = part.data;
       if (part.data_type === 'kml') state.kmlData = part.data;
       if (part.data_type === 'station_plans') state.stationPlans = part.data;
+      if (part.data_type === 'earthwork_structures') state.earthworkStructures = part.data || { retainingWalls: [], drains: [] };
       if (part.data_type === 'lar_references') {
         state.larReferences.push(...(part.data || []));
       }
@@ -9292,6 +10489,7 @@ async function loadFromSupabase(projectId) {
     });
 
     renderLarRefs();
+    renderEarthworkStructuresPage();
     if (typeof window.renderEstGrid === 'function') window.renderEstGrid();
     if (typeof window.renderAbstract === 'function') window.renderAbstract();
 
@@ -9337,10 +10535,17 @@ function loadStoredState() {
     if (data.snapshots) { state.snapshots.length = 0; state.snapshots.push(...data.snapshots); }
     if (data.kmlData) state.kmlData = data.kmlData;
     if (data.stationPlans) Object.assign(state.stationPlans, data.stationPlans);
+    if (data.earthworkStructures) {
+      state.earthworkStructures = {
+        retainingWalls: Array.isArray(data.earthworkStructures?.retainingWalls) ? data.earthworkStructures.retainingWalls : [],
+        drains: Array.isArray(data.earthworkStructures?.drains) ? data.earthworkStructures.drains : [],
+      };
+    }
     if (data.pwayRows) { state.pwayRows.length = 0; state.pwayRows.push(...data.pwayRows); }
     if (data.supabaseProjectId) state.supabaseProjectId = data.supabaseProjectId;
     
     renderLarRefs();
+    renderEarthworkStructuresPage();
     
     // If we have a supabase ID but maybe some data is missing locally, we could sync here
     // But for now just trust the local storage if it exists.
@@ -9404,6 +10609,218 @@ let camOffsetY = 2.5; // Default low front view
 let camOffsetZ = 0;
 let isIsoCam = false;
 let currentLookAhead = 15;
+let viewer3dHotspotCursor = -1;
+
+function get3DViewerActiveOptions() {
+  return {
+    terrain: document.getElementById("viewer3dTerrainToggle")?.checked ?? true,
+    earthwork: document.getElementById("viewer3dEarthworkToggle")?.checked ?? true,
+    structures: document.getElementById("viewer3dStructuresToggle")?.checked ?? true,
+    labels: document.getElementById("viewer3dLabelsToggle")?.checked ?? true,
+    boundary: document.getElementById("viewer3dBoundaryToggle")?.checked ?? true,
+    ewStructures: document.getElementById("viewer3dEWStructuresToggle")?.checked ?? true,
+  };
+}
+
+function get3DViewerRowSpacingM() {
+  if (!Array.isArray(state.calcRows) || state.calcRows.length < 2) return 10;
+  return Math.max(0.1, Math.abs(safeNum(state.calcRows[1]?.chainage) - safeNum(state.calcRows[0]?.chainage)));
+}
+
+function get3DViewerRowIndexFromFlyZ() {
+  if (!Array.isArray(state.calcRows) || !state.calcRows.length) return 0;
+  const idx = Math.floor(Math.abs(flyZ) / flyStep);
+  return Math.max(0, Math.min(idx, state.calcRows.length - 1));
+}
+
+function findNearestCalcRowIndexByChainage(chainage) {
+  if (!Array.isArray(state.calcRows) || !state.calcRows.length || !Number.isFinite(chainage)) return 0;
+  let bestIdx = 0;
+  let bestDiff = Infinity;
+  for (let i = 0; i < state.calcRows.length; i += 1) {
+    const diff = Math.abs(safeNum(state.calcRows[i]?.chainage) - chainage);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
+function compute3DEnvelopeForRow(row, standardTc = 5.3, formationW = 7.85) {
+  const activeLayout = buildStationSequenceLayout(row?.chainage, "", standardTc, { useRanges: true });
+  const trackItems = activeLayout
+    ? activeLayout.trackItems.map((item) => ({ ...item, offset: activeLayout.offsetByItem.get(item) }))
+    : [{ order: 0, isMain: true, offset: 0, side: "", row: {} }];
+  const platformItems = activeLayout ? activeLayout.platformItems : [];
+
+  let minX = -formationW / 2;
+  let maxX = formationW / 2;
+  trackItems.forEach((track) => {
+    minX = Math.min(minX, safeNum(track.offset) - 2.5);
+    maxX = Math.max(maxX, safeNum(track.offset) + 2.5);
+  });
+  platformItems.forEach((platform) => {
+    const pfW = parseFloat(platform.row?.pfWidth) || 6.0;
+    const isLeft = platform.side === "Left";
+    const refTrack = trackItems.find((track) => track.side === platform.side) || trackItems.find((track) => track.isMain) || trackItems[0];
+    const pfEdgeDistance = 2.8;
+    const refOffset = safeNum(refTrack?.offset, 0);
+    const cx = refOffset + (isLeft ? -(pfEdgeDistance + (pfW / 2)) : (pfEdgeDistance + (pfW / 2)));
+    minX = Math.min(minX, cx - (pfW / 2));
+    maxX = Math.max(maxX, cx + (pfW / 2));
+  });
+
+  return {
+    activeLayout,
+    trackItems,
+    platformItems,
+    minX,
+    maxX,
+    currentFormationW: maxX - minX,
+    centerOffset: (minX + maxX) / 2,
+  };
+}
+
+function find3DBridgeAtChainage(chainage) {
+  return (state.bridgeRows || []).find((bridge) => {
+    const start = parseChainage(bridge?.startChainage);
+    const end = parseChainage(bridge?.endChainage);
+    return Number.isFinite(start) && Number.isFinite(end) && chainage >= start && chainage <= end;
+  }) || null;
+}
+
+function get3DContextSummary(row, envelope) {
+  const chainage = safeNum(row?.chainage, NaN);
+  const bridge = find3DBridgeAtChainage(chainage);
+  const spacing = Math.max(25, get3DViewerRowSpacingM() * 2);
+  const curve = (state.curveRows || []).find((item) => Math.abs(safeNum(item?.chainage, Infinity) - chainage) <= spacing) || null;
+  const walls = (state.earthworkStructures?.retainingWalls || []).filter((item) => {
+    const from = Math.min(parseChainage(item?.fromCh), parseChainage(item?.toCh));
+    const to = Math.max(parseChainage(item?.fromCh), parseChainage(item?.toCh));
+    return Number.isFinite(from) && Number.isFinite(to) && chainage >= from && chainage <= to;
+  });
+  const drains = (state.earthworkStructures?.drains || []).filter((item) => {
+    const from = Math.min(parseChainage(item?.fromCh), parseChainage(item?.toCh));
+    const to = Math.max(parseChainage(item?.fromCh), parseChainage(item?.toCh));
+    return Number.isFinite(from) && Number.isFinite(to) && chainage >= from && chainage <= to;
+  });
+  const stationNames = Array.from(new Set([
+    ...(envelope?.trackItems || []).map((item) => String(item?.row?.station || "").trim()),
+    ...(envelope?.platformItems || []).map((item) => String(item?.row?.station || "").trim()),
+  ].filter(Boolean)));
+
+  const labels = [];
+  if (bridge) labels.push(/tunnel/i.test(String(bridge.bridgeCategory || "")) ? "Tunnel" : "Bridge");
+  if (curve) labels.push(`Curve${curve.radius ? ` R=${r3(curve.radius)} m` : ""}`);
+  if (stationNames.length) labels.push(`Station: ${stationNames[0]}`);
+  if (walls.length) labels.push(`${walls.length} retaining wall${walls.length > 1 ? "s" : ""}`);
+  if (drains.length) labels.push(`${drains.length} drain run${drains.length > 1 ? "s" : ""}`);
+
+  return {
+    bridge,
+    curve,
+    walls,
+    drains,
+    stationName: stationNames[0] || "",
+    contextText: labels.join(" | ") || "Open corridor",
+  };
+}
+
+function update3DHUD(row, idx) {
+  if (!row) return;
+  const formationW = parseFloat(state.settings.visual?.formationWidthFill || 7.85);
+  const standardTc = parseFloat(state.settings.visual?.minTc || 5.3);
+  const envelope = compute3DEnvelopeForRow(row, standardTc, formationW);
+  const context = get3DContextSummary(row, envelope);
+  const hudCh = document.getElementById("flyHudChainage");
+  const hudGl = document.getElementById("flyHudGL");
+  const hudPl = document.getElementById("flyHudPL");
+  const hudType = document.getElementById("flyHudType");
+  const hudCut = document.getElementById("flyHudCut");
+  const hudFill = document.getElementById("flyHudFill");
+  const hudWidth = document.getElementById("flyHudWidth");
+  const hudContext = document.getElementById("flyHudContext");
+  const hudIndex = document.getElementById("flyHudIndex");
+  const hotspotLabel = document.getElementById("flyHotspotLabel");
+
+  if (hudCh) hudCh.textContent = formatReportChainage(row.chainage);
+  if (hudGl) hudGl.textContent = safeNum(row.groundLevel, 0).toFixed(3);
+  if (hudPl) hudPl.textContent = safeNum(row.proposedLevel, 0).toFixed(3);
+  if (hudType) hudType.textContent = (row.bank > Math.max(0.01, row.cut)) ? "Fill" : ((row.cut > Math.max(0.01, row.bank)) ? "Cut" : "Level");
+  if (hudCut) hudCut.textContent = `${r3(safeNum(row.cut, 0))} m`;
+  if (hudFill) hudFill.textContent = `${r3(safeNum(row.bank, 0))} m`;
+  if (hudWidth) hudWidth.textContent = `${r3(safeNum(envelope.currentFormationW, formationW))} m`;
+  if (hudContext) hudContext.textContent = context.contextText;
+  if (hudIndex) hudIndex.textContent = `${idx + 1} / ${state.calcRows.length}`;
+  if (hotspotLabel) {
+    hotspotLabel.textContent = context.stationName || context.contextText;
+  }
+}
+
+function focus3DCameraAtIndex(idx) {
+  if (!viewer3dCamera || !Array.isArray(state.calcRows) || !state.calcRows.length) return;
+  const bounded = Math.max(0, Math.min(idx, state.calcRows.length - 1));
+  const row = state.calcRows[bounded];
+  if (!row) return;
+  const lookAheadIdx = Math.min(bounded + currentLookAhead, state.calcRows.length - 1);
+  const aheadRow = state.calcRows[lookAheadIdx] || row;
+  viewer3dCamera.position.set(camOffsetX, (row.proposedLevel / 10) + camOffsetY, (-bounded * flyStep) + camOffsetZ);
+  const lookTarget = new THREE.Vector3(0, aheadRow.proposedLevel / 10, isIsoCam ? ((-bounded * flyStep) - 20) : ((-bounded * flyStep) - 60));
+  viewer3dCamera.lookAt(lookTarget);
+  if (viewer3dControls) {
+    viewer3dControls.target.copy(lookTarget);
+    viewer3dControls.update();
+  }
+}
+
+function jump3DToChainage(chainage, options = {}) {
+  if (!Number.isFinite(chainage) || !Array.isArray(state.calcRows) || !state.calcRows.length) return;
+  const idx = findNearestCalcRowIndexByChainage(chainage);
+  flyZ = -idx * flyStep;
+  if (options.pause) {
+    flying = false;
+    const playBtn = document.getElementById("playFlyBtn");
+    if (playBtn) playBtn.innerHTML = '<i class="ri-play-fill" style="margin-right:4px;"></i> Simulate';
+  }
+  focus3DCameraAtIndex(idx);
+  update3DHUD(state.calcRows[idx], idx);
+}
+
+function collect3DHotspots() {
+  if (!Array.isArray(state.calcRows) || !state.calcRows.length) return [];
+  const hotspots = [];
+  const seen = new Set();
+
+  function pushHotspot(chainage, label) {
+    if (!Number.isFinite(chainage)) return;
+    const idx = findNearestCalcRowIndexByChainage(chainage);
+    if (seen.has(idx)) return;
+    seen.add(idx);
+    hotspots.push({ idx, label });
+  }
+
+  let prevCutHot = false;
+  let prevFillHot = false;
+  state.calcRows.forEach((row) => {
+    const cutHot = safeNum(row.cut, 0) > 8;
+    const fillHot = safeNum(row.bank, 0) > 8;
+    if (cutHot && !prevCutHot) pushHotspot(safeNum(row.chainage), `Critical cut @ ${formatReportChainage(row.chainage)}`);
+    if (fillHot && !prevFillHot) pushHotspot(safeNum(row.chainage), `Critical fill @ ${formatReportChainage(row.chainage)}`);
+    prevCutHot = cutHot;
+    prevFillHot = fillHot;
+  });
+
+  (state.bridgeRows || []).forEach((bridge) => pushHotspot(parseChainage(bridge?.startChainage), `${bridge?.bridgeCategory || "Bridge"} @ ${formatReportChainage(parseChainage(bridge?.startChainage))}`));
+  (state.earthworkStructures?.retainingWalls || []).forEach((wall) => pushHotspot(parseChainage(wall?.fromCh), `Retaining wall @ ${formatReportChainage(parseChainage(wall?.fromCh))}`));
+  (state.earthworkStructures?.drains || []).forEach((drain) => pushHotspot(parseChainage(drain?.fromCh), `Drain @ ${formatReportChainage(parseChainage(drain?.fromCh))}`));
+
+  const groupedStations = typeof getGroupedStations === "function" ? getGroupedStations() : [];
+  groupedStations.forEach((station) => pushHotspot(Number.isFinite(station?.csb) ? station.csb : parseChainage(station?.loopStartCh), `${station?.station || "Station"} yard`));
+
+  hotspots.sort((a, b) => a.idx - b.idx);
+  return hotspots.slice(0, 40);
+}
 
 function init3DViewer() {
    const container = document.getElementById("threeContainer");
@@ -9417,17 +10834,22 @@ function init3DViewer() {
    viewer3dCamera.position.set(20, 30, 100);
 
    viewer3dRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+   viewer3dRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
    viewer3dRenderer.setSize(container.clientWidth, container.clientHeight);
+   viewer3dRenderer.shadowMap.enabled = true;
    container.appendChild(viewer3dRenderer.domElement);
 
    viewer3dControls = new THREE.OrbitControls(viewer3dCamera, viewer3dRenderer.domElement);
    viewer3dControls.enableDamping = true;
    viewer3dControls.dampingFactor = 0.05;
 
-   const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+   const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
    viewer3dScene.add(ambientLight);
-   const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
-   dirLight.position.set(100, 200, 100);
+   const hemiLight = new THREE.HemisphereLight(0x93c5fd, 0x3f6212, 0.9);
+   viewer3dScene.add(hemiLight);
+   const dirLight = new THREE.DirectionalLight(0xfff7ed, 1.15);
+   dirLight.position.set(140, 220, 120);
+   dirLight.castShadow = true;
    viewer3dScene.add(dirLight);
 
    // Decorative sky sphere (glow effect)
@@ -9461,15 +10883,7 @@ function init3DViewer() {
         const idx = Math.floor(Math.abs(flyZ) / flyStep);
         const row = state.calcRows[idx];
         if (row) {
-           // Update HUD
-           const hudCh = document.getElementById("flyHudChainage");
-           if (hudCh) hudCh.textContent = formatReportChainage(row.chainage);
-           const hudGl = document.getElementById("flyHudGL");
-           if (hudGl) hudGl.textContent = (row.groundLevel || 0).toFixed(3);
-           const hudPl = document.getElementById("flyHudPL");
-           if (hudPl) hudPl.textContent = (row.proposedLevel || 0).toFixed(3);
-           const hudType = document.getElementById("flyHudType");
-           if (hudType) hudType.textContent = (row.bank > Math.max(0.01, row.cut)) ? "Fill" : ((row.cut > Math.max(0.01, row.bank)) ? "Cut" : "Level");
+           update3DHUD(row, idx);
 
            if (flying) {
               const targetY = (row.proposedLevel / 10) + camOffsetY;
@@ -9507,362 +10921,414 @@ function init3DViewer() {
 }
 
 function generate3DMesh() {
-   // Clear old meshes properly
+   if (!viewer3dScene) return;
    const oldTrack = viewer3dScene.getObjectByName('trackCorridor');
    if (oldTrack) viewer3dScene.remove(oldTrack);
-   
+
    if (state.calcRows.length === 0) {
-      // Add a placeholder message/grid if no data
       const helper = new THREE.GridHelper(200, 20, 0x3b82f6, 0x1e293b);
       helper.name = 'trackCorridor';
       viewer3dScene.add(helper);
       return;
    }
-   
-    const trackGroup = new THREE.Group();
-    trackGroup.name = 'trackCorridor';
-    
-    // --- Materials ---
-    const groundMat = new THREE.MeshLambertMaterial({ color: 0x64748b, side: THREE.DoubleSide, opacity: 0.9, transparent: true });
-    const bankMat = new THREE.MeshLambertMaterial({ color: 0x4ade80, side: THREE.DoubleSide });
-    const cutMat = new THREE.MeshLambertMaterial({ color: 0xf87171, side: THREE.DoubleSide });
-    const trackMat = new THREE.MeshPhongMaterial({ color: 0x334155, shininess: 20 });
-    const railMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.9, roughness: 0.1 });
-    const tunnelMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, side: THREE.DoubleSide, roughness: 0.8 });
-    const textMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    
-    // --- Configuration ---
-    let zPos = 0;
-    const maxDisplay = Math.min(state.calcRows.length, 2500); // 25km typical limit
-    const formationW = parseFloat(state.settings.visual?.formationWidthFill || 7.85);
-    const standardTc = parseFloat(state.settings.visual?.minTc || 5.3);
 
-    // Track points for continuous ground generation
-    const pointsGL = [];
-    const pointsPL = [];
-    
-    // --- 1. Pre-collect geometric paths ---
-    for(let i=0; i < maxDisplay; i++) {
-        const row = state.calcRows[i];
-        pointsPL.push(new THREE.Vector3(0, row.proposedLevel / 10, -i * flyStep));
-        pointsGL.push(new THREE.Vector3(0, row.groundLevel / 10, -i * flyStep));
-    }
+   const options = get3DViewerActiveOptions();
+   const trackGroup = new THREE.Group();
+   trackGroup.name = 'trackCorridor';
 
-    // --- 2. Generate Smooth Ground Level Surface ---
-    if (pointsGL.length > 1) {
-        const verts = [];
-        const indices = [];
-        const halfW = 120;
-        for (let i = 0; i < pointsGL.length; i++) {
-            const z = pointsGL[i].z;
-            const y = pointsGL[i].y;
-            verts.push(-halfW, y, z);
-            verts.push(halfW, y, z);
-        }
-        for (let i = 0; i < pointsGL.length - 1; i++) {
-            const a = i * 2;
-            const b = i * 2 + 1;
-            const c = (i + 1) * 2;
-            const d = (i + 1) * 2 + 1;
-            indices.push(a, b, d);
-            indices.push(a, d, c);
-        }
-        const groundGeo = new THREE.BufferGeometry();
-        groundGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-        groundGeo.setIndex(indices);
-        groundGeo.computeVertexNormals();
-        const landMat = new THREE.MeshLambertMaterial({ color: 0x4d7c36, side: THREE.DoubleSide, opacity: 0.95, transparent: false });
-        const glMesh = new THREE.Mesh(groundGeo, landMat);
-        trackGroup.add(glMesh);
-    }
+   const terrainGroup = new THREE.Group();
+   const corridorGroup = new THREE.Group();
+   const earthworkGroup = new THREE.Group();
+   const structuresGroup = new THREE.Group();
+   const labelsGroup = new THREE.Group();
+   const boundaryGroup = new THREE.Group();
+   const overlayGroup = new THREE.Group();
+   trackGroup.add(terrainGroup, corridorGroup, earthworkGroup, structuresGroup, labelsGroup, boundaryGroup, overlayGroup);
 
-    // --- 3. Process each chainage station ---
-    zPos = 0;
-    let lastRenderedKm = -1;
-    
-    // Arrays for smooth continuous surfaces
-    const fillVerts = []; const fillInds = [];
-    const cutVerts = []; const cutInds = [];
-    let prevFillNode = null;
-    let prevCutNode = null;
+   const landMat = new THREE.MeshStandardMaterial({ color: 0x587d39, side: THREE.DoubleSide, roughness: 0.98, metalness: 0.02 });
+   const basePlaneMat = new THREE.MeshStandardMaterial({ color: 0x17231a, side: THREE.DoubleSide, roughness: 1 });
+   const bankMat = new THREE.MeshStandardMaterial({ color: 0x4ade80, side: THREE.DoubleSide, roughness: 0.95, metalness: 0.02 });
+   const cutMat = new THREE.MeshStandardMaterial({ color: 0xb91c1c, side: THREE.DoubleSide, roughness: 0.92, metalness: 0.02 });
+   const ballastMat = new THREE.MeshStandardMaterial({ color: 0x52525b, roughness: 0.95, metalness: 0.04 });
+   const formationMat = new THREE.MeshStandardMaterial({ color: 0x374151, roughness: 0.82, metalness: 0.05 });
+   const railMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.9, roughness: 0.15 });
+   const sleeperMat = new THREE.MeshStandardMaterial({ color: 0x4b5563, roughness: 0.85 });
+   const platformMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.75 });
+   const tunnelMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, side: THREE.DoubleSide, roughness: 0.8 });
+   const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7, metalness: 0.1 });
+   const retainingWallMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.8 });
+   const drainMatByType = {
+     side_drain: new THREE.MeshStandardMaterial({ color: 0x60a5fa, roughness: 0.75 }),
+     yard_drain: new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.75 }),
+     catchwater_drain: new THREE.MeshStandardMaterial({ color: 0x06b6d4, roughness: 0.75 }),
+     berm_drain: new THREE.MeshStandardMaterial({ color: 0xa855f7, roughness: 0.75 }),
+   };
 
-    for(let i=0; i < maxDisplay; i++) {
-       const row = state.calcRows[i];
-       const yPos = row.proposedLevel / 10;
-       const glYPos = row.groundLevel / 10;
-       
-       // --- Query active layouts for this exact chainage ---
-       const activeLayout = buildStationSequenceLayout(row.chainage, "", standardTc, { useRanges: true });
-       const tracks = activeLayout ? activeLayout.trackItems.map(item => ({...item, offset: activeLayout.offsetByItem.get(item)})) : [{ order: 0, isMain: true, offset: 0 }];
-       const platforms = activeLayout ? activeLayout.platformItems : [];
+   const maxDisplay = Math.min(state.calcRows.length, 2500);
+   const formationW = parseFloat(state.settings.visual?.formationWidthFill || 7.85);
+   const standardTc = parseFloat(state.settings.visual?.minTc || 5.3);
+   const laSettings = getLASettings();
+   const pointsGL = [];
+   const leftBoundaryPoints = [];
+   const rightBoundaryPoints = [];
+   let lastRenderedKm = -1;
+   let prevFillNode = null;
+   let prevCutNode = null;
+   const fillVerts = [];
+   const fillInds = [];
+   const cutVerts = [];
+   const cutInds = [];
 
-       // Dynamically determine formation width for loops/platforms
-       let minX = -formationW/2;
-       let maxX = formationW/2;
-       tracks.forEach(tr => {
-           minX = Math.min(minX, tr.offset - 2.5);
-           maxX = Math.max(maxX, tr.offset + 2.5);
-       });
-       platforms.forEach(pf => {
-           const pfW = parseFloat(pf.row.pfWidth) || 6.0;
-           const isLeft = pf.side === "Left";
-           const refTrack = tracks.find(t => t.side === pf.side) || tracks.find(t => t.isMain) || tracks[0];
-           const pfEdgeDistance = 2.8;
-           let cx = refTrack.offset + (isLeft ? -(pfEdgeDistance + pfW/2) : (pfEdgeDistance + pfW/2));
-           minX = Math.min(minX, cx - pfW/2);
-           maxX = Math.max(maxX, cx + pfW/2);
-       });
-       const currentFormationW = maxX - minX;
-       const centerOffset = (minX + maxX) / 2;
+   if (options.terrain) {
+     const corridorLength = Math.max(maxDisplay * flyStep, 100);
+     const basePlane = new THREE.Mesh(new THREE.PlaneGeometry(360, corridorLength), basePlaneMat);
+     basePlane.rotation.x = -Math.PI / 2;
+     basePlane.position.set(0, -10.5, -(corridorLength / 2) + (flyStep / 2));
+     terrainGroup.add(basePlane);
+   }
 
-       // --- Query Bridges & Tunnels for Deduction Check ---
-       const bridgeInRange = state.bridgeRows.find(b => {
-           const start = parseChainage(b.startChainage);
-           const end = parseChainage(b.endChainage);
-           return row.chainage >= start && row.chainage <= end;
-       });
-       const isTunnel = bridgeInRange ? (bridgeInRange.bridgeCategory || "").toLowerCase() === "tunnel" : false;
+   for (let i = 0; i < maxDisplay; i += 1) {
+     const row = state.calcRows[i];
+     const yPos = safeNum(row.proposedLevel, 0) / 10;
+     const glYPos = safeNum(row.groundLevel, 0) / 10;
+     const zPos = -i * flyStep;
+     const envelope = compute3DEnvelopeForRow(row, standardTc, formationW);
+     const tracks = envelope.trackItems;
+     const platforms = envelope.platformItems;
+     const currentFormationW = envelope.currentFormationW;
+     const centerOffset = envelope.centerOffset;
+     const bridgeInRange = find3DBridgeAtChainage(row.chainage);
+     const isTunnel = bridgeInRange ? /tunnel/i.test(String(bridgeInRange.bridgeCategory || "")) : false;
 
-       // a) Main Formation Bed (widened for loops)
-       if (!bridgeInRange || isTunnel) {
-           const trackGeo = new THREE.BoxGeometry(currentFormationW, 0.5, flyStep);
-           const trackMesh = new THREE.Mesh(trackGeo, trackMat);
-           trackMesh.position.set(centerOffset, yPos, zPos);
-           trackGroup.add(trackMesh);
+     pointsGL.push(new THREE.Vector3(0, glYPos, zPos));
+
+     if (options.boundary) {
+       let toeWidth = currentFormationW;
+       if (safeNum(row.bank, 0) > 0.001) {
+         toeWidth = safeNum(row.fillBottom, currentFormationW);
+       } else if (safeNum(row.cut, 0) > 0.001) {
+         toeWidth = safeNum(row.cutBottom, currentFormationW);
        }
+       const laWidth = toeWidth + (2 * laSettings.offsetFromToe);
+       leftBoundaryPoints.push(new THREE.Vector3(centerOffset - (laWidth / 2), glYPos + 0.2, zPos));
+       rightBoundaryPoints.push(new THREE.Vector3(centerOffset + (laWidth / 2), glYPos + 0.2, zPos));
+     }
 
-       // b) Smooth Embankment / Cutting (dynamically sized & continuous)
-       const sf = 2.0;
-       if (!bridgeInRange) {
-           if (row.bank > 0.1) {
-              const lT = new THREE.Vector3(centerOffset - currentFormationW/2, yPos - 0.25, zPos);
-              const lB = new THREE.Vector3(centerOffset - currentFormationW/2 - (row.bank * sf), Math.min(yPos - 0.25, glYPos), zPos);
-              const rT = new THREE.Vector3(centerOffset + currentFormationW/2, yPos - 0.25, zPos);
-              const rB = new THREE.Vector3(centerOffset + currentFormationW/2 + (row.bank * sf), Math.min(yPos - 0.25, glYPos), zPos);
-              
-              if (prevFillNode) {
-                 const p = prevFillNode;
-                 // Left Slope
-                 fillVerts.push(p.lB.x, p.lB.y, p.lB.z,   lB.x, lB.y, lB.z,   lT.x, lT.y, lT.z,   p.lT.x, p.lT.y, p.lT.z);
-                 let vL = fillVerts.length/3 - 4;
-                 fillInds.push(vL, vL+1, vL+2, vL, vL+2, vL+3);
-                 // Right Slope
-                 fillVerts.push(p.rT.x, p.rT.y, p.rT.z,   rT.x, rT.y, rT.z,   rB.x, rB.y, rB.z,   p.rB.x, p.rB.y, p.rB.z);
-                 let vR = fillVerts.length/3 - 4;
-                 fillInds.push(vR, vR+1, vR+2, vR, vR+2, vR+3);
-              }
-              prevFillNode = { lT, lB, rT, rB };
-           } else {
-              prevFillNode = null;
-           }
+     if (!bridgeInRange || isTunnel) {
+       const ballast = new THREE.Mesh(new THREE.BoxGeometry(currentFormationW + 1.4, 0.55, flyStep), ballastMat);
+       ballast.position.set(centerOffset, yPos + 0.05, zPos);
+       corridorGroup.add(ballast);
 
-           if (row.cut > 0.1) {
-              const lB = new THREE.Vector3(centerOffset - currentFormationW/2 - 2, yPos + 0.25, zPos);
-              const lT = new THREE.Vector3(centerOffset - currentFormationW/2 - 2 - (row.cut * sf), Math.max(yPos + 0.25, glYPos), zPos);
-              const rB = new THREE.Vector3(centerOffset + currentFormationW/2 + 2, yPos + 0.25, zPos);
-              const rT = new THREE.Vector3(centerOffset + currentFormationW/2 + 2 + (row.cut * sf), Math.max(yPos + 0.25, glYPos), zPos);
-              
-              if (prevCutNode) {
-                 const p = prevCutNode;
-                 // Left Slope
-                 cutVerts.push(p.lT.x, p.lT.y, p.lT.z,   lT.x, lT.y, lT.z,   lB.x, lB.y, lB.z,   p.lB.x, p.lB.y, p.lB.z);
-                 let vL = cutVerts.length/3 - 4;
-                 cutInds.push(vL, vL+1, vL+2, vL, vL+2, vL+3);
-                 // Right Slope
-                 cutVerts.push(p.rB.x, p.rB.y, p.rB.z,   rB.x, rB.y, rB.z,   rT.x, rT.y, rT.z,   p.rT.x, p.rT.y, p.rT.z);
-                 let vR = cutVerts.length/3 - 4;
-                 cutInds.push(vR, vR+1, vR+2, vR, vR+2, vR+3);
-              }
-              prevCutNode = { lT, lB, rT, rB };
-           } else {
-              prevCutNode = null;
-           }
+       const formation = new THREE.Mesh(new THREE.BoxGeometry(currentFormationW, 0.22, flyStep), formationMat);
+       formation.position.set(centerOffset, yPos + 0.34, zPos);
+       corridorGroup.add(formation);
+     }
+
+     if (options.earthwork && !bridgeInRange) {
+       const slopeFactor = 2.0;
+       if (safeNum(row.bank, 0) > 0.1) {
+         const lT = new THREE.Vector3(centerOffset - (currentFormationW / 2), yPos - 0.25, zPos);
+         const lB = new THREE.Vector3(centerOffset - (currentFormationW / 2) - (row.bank * slopeFactor), Math.min(yPos - 0.25, glYPos), zPos);
+         const rT = new THREE.Vector3(centerOffset + (currentFormationW / 2), yPos - 0.25, zPos);
+         const rB = new THREE.Vector3(centerOffset + (currentFormationW / 2) + (row.bank * slopeFactor), Math.min(yPos - 0.25, glYPos), zPos);
+         if (prevFillNode) {
+           const p = prevFillNode;
+           fillVerts.push(p.lB.x, p.lB.y, p.lB.z, lB.x, lB.y, lB.z, lT.x, lT.y, lT.z, p.lT.x, p.lT.y, p.lT.z);
+           let vL = (fillVerts.length / 3) - 4;
+           fillInds.push(vL, vL + 1, vL + 2, vL, vL + 2, vL + 3);
+           fillVerts.push(p.rT.x, p.rT.y, p.rT.z, rT.x, rT.y, rT.z, rB.x, rB.y, rB.z, p.rB.x, p.rB.y, p.rB.z);
+           let vR = (fillVerts.length / 3) - 4;
+           fillInds.push(vR, vR + 1, vR + 2, vR, vR + 2, vR + 3);
+         }
+         prevFillNode = { lT, lB, rT, rB };
        } else {
-           prevFillNode = null;
-           prevCutNode = null;
+         prevFillNode = null;
        }
 
-       // c) Render Rails for all active tracks
-       tracks.forEach(tr => {
-           const cx = tr.offset;
-           const railL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, flyStep), railMat);
-           railL.position.set(cx - 0.835, yPos + 0.35, zPos);
-           trackGroup.add(railL);
-           const railR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, flyStep), railMat);
-           railR.position.set(cx + 0.835, yPos + 0.35, zPos);
-           trackGroup.add(railR);
-       });
-
-       // d) Render Platforms & Station Names
-       let renderedStationBoard = false;
-       platforms.forEach(pf => {
-           const pfW = parseFloat(pf.row.pfWidth) || 6.0;
-           const isLeft = pf.side === "Left";
-           const refTrack = tracks.find(t => t.side === pf.side) || tracks.find(t => t.isMain) || tracks[0];
-           const pfEdgeDistance = 2.8; // Distance from track center to platform edge
-           
-           let cx = refTrack.offset;
-           cx += isLeft ? -(pfEdgeDistance + pfW/2) : (pfEdgeDistance + pfW/2);
-
-           const pfGeo = new THREE.BoxGeometry(pfW, 0.8, flyStep);
-           const pfMesh = new THREE.Mesh(pfGeo, new THREE.MeshStandardMaterial({color: 0x94a3b8}));
-           pfMesh.position.set(cx, yPos + 0.4, zPos);
-           trackGroup.add(pfMesh);
-
-           // Render Station Board once per station area (roughly)
-           if (!renderedStationBoard && i % 10 === 0) { // Place board periodically along platform
-               const stName = pf.row.station || "Station";
-               const c = document.createElement('canvas');
-               c.width = 512;
-               c.height = 128;
-               const ctx = c.getContext('2d');
-               ctx.fillStyle = '#facc15';
-               ctx.fillRect(0, 0, 512, 128);
-               ctx.fillStyle = '#0f172a';
-               ctx.font = 'bold 64px sans-serif';
-               ctx.textAlign = 'center';
-               ctx.textBaseline = 'middle';
-               ctx.fillText(stName.toUpperCase(), 256, 64);
-               ctx.lineWidth = 10;
-               ctx.strokeStyle = '#0f172a';
-               ctx.strokeRect(0, 0, 512, 128);
-               
-               const btex = new THREE.CanvasTexture(c);
-               const bMat = new THREE.MeshBasicMaterial({ map: btex });
-               const bGeo = new THREE.BoxGeometry(8, 2, 0.2); // Perpendicular to track
-               const bMesh = new THREE.Mesh(bGeo, bMat);
-               
-               const boardOffset = cx; // Center on platform
-               bMesh.position.set(boardOffset, yPos + 3, zPos);
-               trackGroup.add(bMesh);
-
-               const pGeo = new THREE.BoxGeometry(0.2, 3, 0.2);
-               const pMat = new THREE.MeshBasicMaterial({ color: 0x334155 });
-               const post1 = new THREE.Mesh(pGeo, pMat);
-               post1.position.set(boardOffset - 3.5, yPos + 1.5, zPos);
-               const post2 = new THREE.Mesh(pGeo, pMat);
-               post2.position.set(boardOffset + 3.5, yPos + 1.5, zPos);
-               trackGroup.add(post1); trackGroup.add(post2);
-
-               renderedStationBoard = true;
-           }
-       });
-
-       // e) Render Bridges & Tunnels
-       if (bridgeInRange) {
-           if (isTunnel) {
-               // Render Tunnel Tube with proper opening
-               // dynamically calculate tunnel width if there are loops
-               const currentFormationW = typeof centerOffset !== 'undefined' && maxX ? (maxX - minX) : formationW;
-               const cO = typeof centerOffset !== 'undefined' ? centerOffset : 0;
-               const rw = currentFormationW / 2 + 2;
-               const rh = 7.5; // height
-               
-               const tShape = new THREE.Shape();
-               tShape.moveTo(-rw - 0.5, -0.5);
-               tShape.lineTo(rw + 0.5, -0.5);
-               tShape.lineTo(rw + 0.5, rh/2);
-               tShape.absarc(0, rh/2, rw + 0.5, 0, Math.PI, false);
-               tShape.lineTo(-rw - 0.5, -0.5);
-               
-               const hole = new THREE.Path();
-               hole.moveTo(rw, -0.2);
-               hole.lineTo(rw, rh/2);
-               hole.absarc(0, rh/2, rw, 0, Math.PI, true);
-               hole.lineTo(-rw, -0.2);
-               tShape.holes.push(hole);
-
-               const extrudeSettings = { depth: flyStep + 0.1, bevelEnabled: false };
-               const tGeo = new THREE.ExtrudeGeometry(tShape, extrudeSettings);
-               const tMesh = new THREE.Mesh(tGeo, tunnelMat);
-               tMesh.position.set(cO, yPos, zPos); 
-               trackGroup.add(tMesh);
-           } else {
-               // Render Bridge Deck
-               const currentFormationW = typeof centerOffset !== 'undefined' && maxX ? (maxX - minX) : formationW;
-               const cO = typeof centerOffset !== 'undefined' ? centerOffset : 0;
-               const bGeo = new THREE.BoxGeometry(currentFormationW + 2, 2, flyStep + 0.1);
-               const bMesh = new THREE.Mesh(bGeo, new THREE.MeshStandardMaterial({ color: 0x475569 }));
-               bMesh.position.set(cO, yPos - 1.25, zPos);
-               trackGroup.add(bMesh);
-           }
+       if (safeNum(row.cut, 0) > 0.1) {
+         const lB = new THREE.Vector3(centerOffset - (currentFormationW / 2) - 2, yPos + 0.25, zPos);
+         const lT = new THREE.Vector3(centerOffset - (currentFormationW / 2) - 2 - (row.cut * slopeFactor), Math.max(yPos + 0.25, glYPos), zPos);
+         const rB = new THREE.Vector3(centerOffset + (currentFormationW / 2) + 2, yPos + 0.25, zPos);
+         const rT = new THREE.Vector3(centerOffset + (currentFormationW / 2) + 2 + (row.cut * slopeFactor), Math.max(yPos + 0.25, glYPos), zPos);
+         if (prevCutNode) {
+           const p = prevCutNode;
+           cutVerts.push(p.lT.x, p.lT.y, p.lT.z, lT.x, lT.y, lT.z, lB.x, lB.y, lB.z, p.lB.x, p.lB.y, p.lB.z);
+           let vL = (cutVerts.length / 3) - 4;
+           cutInds.push(vL, vL + 1, vL + 2, vL, vL + 2, vL + 3);
+           cutVerts.push(p.rB.x, p.rB.y, p.rB.z, rB.x, rB.y, rB.z, rT.x, rT.y, rT.z, p.rT.x, p.rT.y, p.rT.z);
+           let vR = (cutVerts.length / 3) - 4;
+           cutInds.push(vR, vR + 1, vR + 2, vR, vR + 2, vR + 3);
+         }
+         prevCutNode = { lT, lB, rT, rB };
+       } else {
+         prevCutNode = null;
        }
+     } else {
+       prevFillNode = null;
+       prevCutNode = null;
+     }
 
-       // f) Render KM Chainage Markers
-       const currentKm = Math.floor(row.chainage / 1000);
+     tracks.forEach((track) => {
+       const cx = safeNum(track.offset, 0);
+       if (i % 2 === 0) {
+         const sleeper = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.12, 0.42), sleeperMat);
+         sleeper.position.set(cx, yPos + 0.22, zPos);
+         corridorGroup.add(sleeper);
+       }
+       const railL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, flyStep), railMat);
+       railL.position.set(cx - 0.835, yPos + 0.42, zPos);
+       corridorGroup.add(railL);
+       const railR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, flyStep), railMat);
+       railR.position.set(cx + 0.835, yPos + 0.42, zPos);
+       corridorGroup.add(railR);
+     });
+
+     platforms.forEach((platform, platformIdx) => {
+       const pfW = parseFloat(platform.row?.pfWidth) || 6.0;
+       const isLeft = platform.side === "Left";
+       const refTrack = tracks.find((track) => track.side === platform.side) || tracks.find((track) => track.isMain) || tracks[0];
+       const pfEdgeDistance = 2.8;
+       const cx = safeNum(refTrack?.offset, 0) + (isLeft ? -(pfEdgeDistance + (pfW / 2)) : (pfEdgeDistance + (pfW / 2)));
+
+       const platformMesh = new THREE.Mesh(new THREE.BoxGeometry(pfW, 0.8, flyStep), platformMat);
+       platformMesh.position.set(cx, yPos + 0.4, zPos);
+       corridorGroup.add(platformMesh);
+
+       if (options.labels && i % 12 === 0 && platformIdx === 0) {
+         const stationName = String(platform.row?.station || "Station").trim() || "Station";
+         const canvas = document.createElement('canvas');
+         canvas.width = 512;
+         canvas.height = 128;
+         const ctx = canvas.getContext('2d');
+         ctx.fillStyle = '#facc15';
+         ctx.fillRect(0, 0, 512, 128);
+         ctx.fillStyle = '#0f172a';
+         ctx.font = 'bold 64px sans-serif';
+         ctx.textAlign = 'center';
+         ctx.textBaseline = 'middle';
+         ctx.fillText(stationName.toUpperCase(), 256, 64);
+         ctx.lineWidth = 10;
+         ctx.strokeStyle = '#0f172a';
+         ctx.strokeRect(0, 0, 512, 128);
+         const texture = new THREE.CanvasTexture(canvas);
+         const board = new THREE.Mesh(new THREE.BoxGeometry(8, 2, 0.2), new THREE.MeshBasicMaterial({ map: texture }));
+         board.position.set(cx, yPos + 3, zPos);
+         labelsGroup.add(board);
+         const postGeo = new THREE.BoxGeometry(0.2, 3, 0.2);
+         const postMat = new THREE.MeshBasicMaterial({ color: 0x334155 });
+         const post1 = new THREE.Mesh(postGeo, postMat);
+         post1.position.set(cx - 3.5, yPos + 1.5, zPos);
+         const post2 = new THREE.Mesh(postGeo, postMat);
+         post2.position.set(cx + 3.5, yPos + 1.5, zPos);
+         labelsGroup.add(post1);
+         labelsGroup.add(post2);
+       }
+     });
+
+     if (options.structures && bridgeInRange) {
+       if (isTunnel) {
+         const rw = currentFormationW / 2 + 2;
+         const rh = 7.5;
+         const tShape = new THREE.Shape();
+         tShape.moveTo(-rw - 0.5, -0.5);
+         tShape.lineTo(rw + 0.5, -0.5);
+         tShape.lineTo(rw + 0.5, rh / 2);
+         tShape.absarc(0, rh / 2, rw + 0.5, 0, Math.PI, false);
+         tShape.lineTo(-rw - 0.5, -0.5);
+         const hole = new THREE.Path();
+         hole.moveTo(rw, -0.2);
+         hole.lineTo(rw, rh / 2);
+         hole.absarc(0, rh / 2, rw, 0, Math.PI, true);
+         hole.lineTo(-rw, -0.2);
+         tShape.holes.push(hole);
+         const tunnelGeo = new THREE.ExtrudeGeometry(tShape, { depth: flyStep + 0.1, bevelEnabled: false });
+         const tunnelMesh = new THREE.Mesh(tunnelGeo, tunnelMat);
+         tunnelMesh.position.set(centerOffset, yPos, zPos);
+         structuresGroup.add(tunnelMesh);
+       } else {
+         const bridgeDeck = new THREE.Mesh(new THREE.BoxGeometry(currentFormationW + 2, 2, flyStep + 0.1), bridgeMat);
+         bridgeDeck.position.set(centerOffset, yPos - 1.25, zPos);
+         structuresGroup.add(bridgeDeck);
+       }
+     }
+
+     if (options.labels) {
+       const currentKm = Math.floor(safeNum(row.chainage, 0) / 1000);
        if (currentKm > lastRenderedKm || i === 0 || i === maxDisplay - 1) {
-           if (i !== 0 || currentKm >= 0) {
-               // Dynamic canvas text for proper km markers
-               const canvas = document.createElement('canvas');
-               canvas.width = 256;
-               canvas.height = 128;
-               const ctx = canvas.getContext('2d');
-               ctx.fillStyle = '#facc15';
-               ctx.fillRect(0, 0, 256, 128);
-               ctx.fillStyle = '#0f172a';
-               ctx.font = 'bold 54px sans-serif';
-               ctx.textAlign = 'center';
-               ctx.textBaseline = 'middle';
-               ctx.fillText(`KM ${currentKm}`, 128, 64);
-               ctx.lineWidth = 10;
-               ctx.strokeStyle = '#0f172a';
-               ctx.strokeRect(0, 0, 256, 128);
-               
-               const tex = new THREE.CanvasTexture(canvas);
-               const boardMat = new THREE.MeshBasicMaterial({ map: tex });
-               const boardGeo = new THREE.BoxGeometry(5, 3, 0.2);
-               const board = new THREE.Mesh(boardGeo, boardMat);
-               board.position.set(formationW / 2 + 5, yPos + 5, zPos);
-               trackGroup.add(board);
-               
-               const postGeo = new THREE.BoxGeometry(0.4, 5, 0.4);
-               const postMat = new THREE.MeshBasicMaterial({ color: 0x334155 });
-               const post = new THREE.Mesh(postGeo, postMat);
-               post.position.set(formationW / 2 + 5, yPos + 2.5, zPos);
-               trackGroup.add(post);
-               
-               lastRenderedKm = currentKm;
-           }
+         if (i !== 0 || currentKm >= 0) {
+           const canvas = document.createElement('canvas');
+           canvas.width = 256;
+           canvas.height = 128;
+           const ctx = canvas.getContext('2d');
+           ctx.fillStyle = '#facc15';
+           ctx.fillRect(0, 0, 256, 128);
+           ctx.fillStyle = '#0f172a';
+           ctx.font = 'bold 54px sans-serif';
+           ctx.textAlign = 'center';
+           ctx.textBaseline = 'middle';
+           ctx.fillText(`KM ${currentKm}`, 128, 64);
+           ctx.lineWidth = 10;
+           ctx.strokeStyle = '#0f172a';
+           ctx.strokeRect(0, 0, 256, 128);
+           const tex = new THREE.CanvasTexture(canvas);
+           const board = new THREE.Mesh(new THREE.BoxGeometry(5, 3, 0.2), new THREE.MeshBasicMaterial({ map: tex }));
+           board.position.set(centerOffset + (currentFormationW / 2) + 5, yPos + 5, zPos);
+           labelsGroup.add(board);
+           const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, 5, 0.4), new THREE.MeshBasicMaterial({ color: 0x334155 }));
+           post.position.set(centerOffset + (currentFormationW / 2) + 5, yPos + 2.5, zPos);
+           labelsGroup.add(post);
+           lastRenderedKm = currentKm;
+         }
        }
-       
-       zPos -= flyStep;
-    }
-    
-    // Add generated continuous meshes to scene
-    if (fillVerts.length > 0) {
-        const fillGeo = new THREE.BufferGeometry();
-        fillGeo.setAttribute('position', new THREE.Float32BufferAttribute(fillVerts, 3));
-        fillGeo.setIndex(fillInds);
-        fillGeo.computeVertexNormals();
-        trackGroup.add(new THREE.Mesh(fillGeo, bankMat));
-    }
-    if (cutVerts.length > 0) {
-        const cutGeo = new THREE.BufferGeometry();
-        cutGeo.setAttribute('position', new THREE.Float32BufferAttribute(cutVerts, 3));
-        cutGeo.setIndex(cutInds);
-        cutGeo.computeVertexNormals();
-        trackGroup.add(new THREE.Mesh(cutGeo, cutMat));
-    }
+     }
+   }
 
-    viewer3dScene.add(trackGroup);
+   if (options.terrain && pointsGL.length > 1) {
+     const verts = [];
+     const indices = [];
+     const halfW = 120;
+     for (let i = 0; i < pointsGL.length; i += 1) {
+       const z = pointsGL[i].z;
+       const y = pointsGL[i].y;
+       verts.push(-halfW, y, z);
+       verts.push(halfW, y, z);
+     }
+     for (let i = 0; i < pointsGL.length - 1; i += 1) {
+       const a = i * 2;
+       const b = (i * 2) + 1;
+       const c = (i + 1) * 2;
+       const d = ((i + 1) * 2) + 1;
+       indices.push(a, b, d);
+       indices.push(a, d, c);
+     }
+     const groundGeo = new THREE.BufferGeometry();
+     groundGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+     groundGeo.setIndex(indices);
+     groundGeo.computeVertexNormals();
+     terrainGroup.add(new THREE.Mesh(groundGeo, landMat));
+   }
+
+   if (options.earthwork && fillVerts.length > 0) {
+     const fillGeo = new THREE.BufferGeometry();
+     fillGeo.setAttribute('position', new THREE.Float32BufferAttribute(fillVerts, 3));
+     fillGeo.setIndex(fillInds);
+     fillGeo.computeVertexNormals();
+     earthworkGroup.add(new THREE.Mesh(fillGeo, bankMat));
+   }
+   if (options.earthwork && cutVerts.length > 0) {
+     const cutGeo = new THREE.BufferGeometry();
+     cutGeo.setAttribute('position', new THREE.Float32BufferAttribute(cutVerts, 3));
+     cutGeo.setIndex(cutInds);
+     cutGeo.computeVertexNormals();
+     earthworkGroup.add(new THREE.Mesh(cutGeo, cutMat));
+   }
+
+   if (options.boundary && leftBoundaryPoints.length > 1 && rightBoundaryPoints.length > 1) {
+     const leftGeo = new THREE.BufferGeometry().setFromPoints(leftBoundaryPoints);
+     const rightGeo = new THREE.BufferGeometry().setFromPoints(rightBoundaryPoints);
+     const boundaryMat = new THREE.LineBasicMaterial({ color: 0xf59e0b });
+     boundaryGroup.add(new THREE.Line(leftGeo, boundaryMat));
+     boundaryGroup.add(new THREE.Line(rightGeo, boundaryMat));
+   }
+
+   if (options.ewStructures) {
+     const renderOffsetsForSide = (side, edgeX, extra = 0) => {
+       if (String(side || "").toLowerCase() === "both") {
+         return [edgeX - extra, edgeX + extra];
+       }
+       if (String(side || "").toLowerCase() === "left") return [edgeX - extra];
+       return [edgeX + extra];
+     };
+
+     (state.earthworkStructures?.retainingWalls || []).forEach((wall) => {
+       const fromIdx = findNearestCalcRowIndexByChainage(parseChainage(wall?.fromCh));
+       const toIdx = findNearestCalcRowIndexByChainage(parseChainage(wall?.toCh));
+       const startIdx = Math.max(0, Math.min(fromIdx, toIdx));
+       const endIdx = Math.max(0, Math.max(fromIdx, toIdx));
+       const midIdx = Math.round((startIdx + endIdx) / 2);
+       const row = state.calcRows[midIdx];
+       if (!row) return;
+       const envelope = compute3DEnvelopeForRow(row, standardTc, formationW);
+       const depth = Math.max(flyStep, ((endIdx - startIdx) + 1) * flyStep);
+       const zCenter = -((startIdx + endIdx) / 2) * flyStep;
+       const wallHeight = String(wall?.wallType || "").includes("4") ? 1.1 : 0.8;
+       const edge = envelope.centerOffset;
+       const halfWidth = envelope.currentFormationW / 2;
+       const baseY = (safeNum(row.proposedLevel, 0) / 10) + (wallHeight / 2) - 0.2;
+
+       if (String(wall?.side || "").toLowerCase() === "both") {
+         [-1, 1].forEach((dir) => {
+           const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.45, wallHeight, depth), retainingWallMat);
+           mesh.position.set(edge + (dir * (halfWidth + 1.2)), baseY, zCenter);
+           overlayGroup.add(mesh);
+         });
+       } else {
+         const dir = String(wall?.side || "").toLowerCase() === "left" ? -1 : 1;
+         const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.45, wallHeight, depth), retainingWallMat);
+         mesh.position.set(edge + (dir * (halfWidth + 1.2)), baseY, zCenter);
+         overlayGroup.add(mesh);
+       }
+     });
+
+     (state.earthworkStructures?.drains || []).forEach((drain) => {
+       const fromIdx = findNearestCalcRowIndexByChainage(parseChainage(drain?.fromCh));
+       const toIdx = findNearestCalcRowIndexByChainage(parseChainage(drain?.toCh));
+       const startIdx = Math.max(0, Math.min(fromIdx, toIdx));
+       const endIdx = Math.max(0, Math.max(fromIdx, toIdx));
+       const midIdx = Math.round((startIdx + endIdx) / 2);
+       const row = state.calcRows[midIdx];
+       if (!row) return;
+       const envelope = compute3DEnvelopeForRow(row, standardTc, formationW);
+       const depth = Math.max(flyStep, ((endIdx - startIdx) + 1) * flyStep);
+       const zCenter = -((startIdx + endIdx) / 2) * flyStep;
+       const halfWidth = envelope.currentFormationW / 2;
+       const baseX = envelope.centerOffset;
+       const drainType = getDrainTypeMeta(drain?.drainType).key;
+       const drainMat = drainMatByType[drainType] || drainMatByType.side_drain;
+       let sideOffset = 1.6;
+       if (drainType === "catchwater_drain") sideOffset = 4.5;
+       if (drainType === "berm_drain") sideOffset = 3.2;
+       if (drainType === "yard_drain") sideOffset = 2.2;
+       const baseY = (safeNum(row.groundLevel, 0) / 10) + 0.12;
+
+       if (String(drain?.side || "").toLowerCase() === "both") {
+         [-1, 1].forEach((dir) => {
+           const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.14, depth), drainMat);
+           mesh.position.set(baseX + (dir * (halfWidth + sideOffset)), baseY, zCenter);
+           overlayGroup.add(mesh);
+         });
+       } else {
+         const dir = String(drain?.side || "").toLowerCase() === "left" ? -1 : 1;
+         const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.14, depth), drainMat);
+         mesh.position.set(baseX + (dir * (halfWidth + sideOffset)), baseY, zCenter);
+         overlayGroup.add(mesh);
+       }
+     });
+   }
+
+   viewer3dScene.add(trackGroup);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-   const viewerBtn = document.getElementById("viewer3dBtn");
-   if(viewerBtn) {
-       viewerBtn.addEventListener('click', () => {
-           document.getElementById("viewer3dModal").showModal();
-           setTimeout(() => {
-               init3DViewer();
-               generate3DMesh();
-           }, 150);
-       });
-   }
+   const open3dViewer = () => {
+       viewer3dHotspotCursor = -1;
+       document.getElementById("viewer3dModal").showModal();
+       setTimeout(() => {
+           init3DViewer();
+           generate3DMesh();
+           focus3DCameraAtIndex(get3DViewerRowIndexFromFlyZ());
+           update3DHUD(state.calcRows[get3DViewerRowIndexFromFlyZ()], get3DViewerRowIndexFromFlyZ());
+       }, 150);
+   };
+   document.querySelectorAll('[data-open-3d="true"]').forEach((btn) => {
+       btn.addEventListener('click', open3dViewer);
+   });
    document.getElementById("close3dBtn")?.addEventListener('click', () => {
        document.getElementById("viewer3dModal").close();
        if (animationId) cancelAnimationFrame(animationId);
        viewer3dScene = null; // Reset for next open
        flying = false;
+       viewer3dHotspotCursor = -1;
        document.getElementById("playFlyBtn").innerHTML = '<i class="ri-play-fill" style="margin-right:4px;"></i> Simulate';
    });
    
@@ -9875,15 +11341,7 @@ document.addEventListener("DOMContentLoaded", () => {
        if (flying && flyZ === 0) {
            // Fresh start, check if user provided a starting chainage
            const startCh = parseFloat(document.getElementById("flyStartChainage")?.value);
-           if (!isNaN(startCh) && state.calcRows.length > 0) {
-               // Find index closest to this chainage
-               const baseCh = state.calcRows[0].chainage;
-               const offsetCh = startCh - baseCh;
-               if (offsetCh > 0) {
-                   const rowsCount = Math.floor(offsetCh / (state.calcRows[1].chainage - state.calcRows[0].chainage));
-                   flyZ = -(Math.min(rowsCount, state.calcRows.length - 1)) * flyStep;
-               }
-           }
+           if (!isNaN(startCh) && state.calcRows.length > 0) jump3DToChainage(startCh);
        }
    });
 
@@ -9892,15 +11350,7 @@ document.addEventListener("DOMContentLoaded", () => {
    startOverBtn?.addEventListener('click', function() {
        const startCh = parseFloat(document.getElementById("flyStartChainage")?.value);
        flyZ = 0;
-       if (!isNaN(startCh) && state.calcRows.length > 0) {
-           const baseCh = state.calcRows[0].chainage;
-           const offsetCh = startCh - baseCh;
-           if (offsetCh > 0) {
-               const spacing = Math.max(0.1, state.calcRows[1].chainage - state.calcRows[0].chainage);
-               const rowsCount = Math.floor(offsetCh / spacing);
-               flyZ = -(Math.min(rowsCount, state.calcRows.length - 1)) * flyStep;
-           }
-       }
+       if (!isNaN(startCh) && state.calcRows.length > 0) jump3DToChainage(startCh, { pause: true });
        if (document.getElementById("flyStationFlash")) {
            document.getElementById("flyStationFlash").dataset.lastStation = "";
            document.getElementById("flyStationFlash").style.display = "none";
@@ -9949,6 +11399,31 @@ document.addEventListener("DOMContentLoaded", () => {
                   }
               }
            }
+       });
+   });
+
+   document.getElementById("jump3dBtn")?.addEventListener("click", () => {
+       const startCh = parseFloat(document.getElementById("flyStartChainage")?.value);
+       if (!isNaN(startCh)) jump3DToChainage(startCh, { pause: true });
+   });
+
+   document.getElementById("next3dHotspotBtn")?.addEventListener("click", () => {
+       const hotspots = collect3DHotspots();
+       if (!hotspots.length) {
+           const label = document.getElementById("flyHotspotLabel");
+           if (label) label.textContent = "No hotspots found";
+           return;
+       }
+       viewer3dHotspotCursor = (viewer3dHotspotCursor + 1) % hotspots.length;
+       const hotspot = hotspots[viewer3dHotspotCursor];
+       jump3DToChainage(safeNum(state.calcRows[hotspot.idx]?.chainage), { pause: true });
+       const label = document.getElementById("flyHotspotLabel");
+       if (label) label.textContent = hotspot.label;
+   });
+
+   document.querySelectorAll('[data-viewer3d-toggle]').forEach((toggle) => {
+       toggle.addEventListener('change', () => {
+           if (viewer3dScene) generate3DMesh();
        });
    });
 
@@ -10010,6 +11485,17 @@ async function init() {
     laDefaultRate: 2500,
     laSolatiumPct: 100,
     laMultiplierFactor: 1.0,
+    est1110SurveyType: "",
+    // --- 1130 Estimation Assumptions ---
+    est1130SoilPct: 40,
+    est1130SoftRockPct: 28,
+    est1130HardBlastPct: 8,
+    est1130HardChiselPct: 24,
+    est1130ReusableSpoilPct: 60,
+    est1130LeadKm: 3,
+    est1130CbrTests: 0,
+    est1130TrolleyRefuges: 0,
+    est1130PortableFencingLength: 0,
   };
   state.defaultSettings = { ...visualLayerDefaults };
   state.seedDefaultSettings = { ...state.defaultSettings };
@@ -11668,7 +13154,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── State ─────────────────────────────────────────────────────────────
   let sorSources = []; // { id, source_key, display_name }
   let activeSourceId = null;
-  let currentPlanHead = '1130';
+  let currentPlanHead = '1110';
 
   // Seed initial estimates if empty
   if (!state.estimates || Object.keys(state.estimates).length === 0) {
@@ -11681,7 +13167,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Use state.estimates and state.larReferences directly
 
   const PLAN_HEAD_MAP = {
-    '1110': '1110 - Preliminary Expenses',
+    '1110': '1110 - Preliminary Survey Expenses',
     '1120': '1120 - Land',
     '1130': '1130 - Earthwork & Drains',
     '1140': '1140 - P-Way & Crossings',
@@ -11758,6 +13244,102 @@ document.addEventListener('DOMContentLoaded', () => {
   loadLarBankSources();
   renderEstGrid();
   renderLarRefs();
+  renderEarthworkStructuresPage();
+
+  if (els.earthStructAddWallBtn) {
+    els.earthStructAddWallBtn.addEventListener('click', () => {
+      ensureEarthworkStructuresState();
+      state.earthworkStructures.retainingWalls.push(createEmptyRetainingWallRow(state.earthworkStructures.retainingWalls.length));
+      renderEarthworkStructuresPage();
+      notifyEstimateViewsChanged();
+      saveState();
+    });
+  }
+
+  if (els.earthStructSuggestWallBtn) {
+    els.earthStructSuggestWallBtn.addEventListener('click', async () => {
+      const btn = els.earthStructSuggestWallBtn;
+      const previousHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="ri-loader-4-line" style="animation:spin 1s linear infinite;"></i> Analysing Map...';
+      try {
+        ensureEarthworkStructuresState();
+        const manualWalls = state.earthworkStructures.retainingWalls.filter((row) => !isAutoSuggestedRetainingWall(row));
+        const autoWalls = await buildSuggestedRetainingWallRowsFromMap();
+        state.earthworkStructures.retainingWalls = [...manualWalls, ...autoWalls];
+        renderEarthworkStructuresPage();
+        notifyEstimateViewsChanged();
+        saveState();
+        const warningText = autoWalls.warning ? `\n\nNote: ${autoWalls.warning}` : '';
+        alert(autoWalls.length
+          ? `Suggested ${autoWalls.length} retaining wall segment${autoWalls.length === 1 ? "" : "s"} from nearby mapped constraints. Review each segment before using it in estimates.${warningText}`
+          : `No retaining wall candidates were found from the current map constraints and earthwork heights.${warningText}`);
+      } catch (error) {
+        console.error('Retaining wall suggestion error:', error);
+        alert(error?.message || 'Failed to analyse map constraints for retaining walls.');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = previousHtml;
+      }
+    });
+  }
+
+  if (els.earthStructAddDrainBtn) {
+    els.earthStructAddDrainBtn.addEventListener('click', () => {
+      ensureEarthworkStructuresState();
+      state.earthworkStructures.drains.push(createEmptyDrainRow(state.earthworkStructures.drains.length));
+      renderEarthworkStructuresPage();
+      notifyEstimateViewsChanged();
+      saveState();
+    });
+  }
+
+  if (els.earthStructSuggestBtn) {
+    els.earthStructSuggestBtn.addEventListener('click', () => {
+      ensureEarthworkStructuresState();
+      const manualDrains = state.earthworkStructures.drains.filter((row) => !String(row.remarks || "").startsWith("Auto-detected"));
+      state.earthworkStructures.drains = [...manualDrains, ...buildSuggestedDrainRows()];
+      renderEarthworkStructuresPage();
+      notifyEstimateViewsChanged();
+      saveState();
+    });
+  }
+
+  document.querySelectorAll('[data-est1110-setting]').forEach((input) => {
+    input.addEventListener('change', (event) => {
+      const key = event.target.getAttribute('data-est1110-setting');
+      if (!key) return;
+      state.settings[key] = String(event.target.value || "").trim();
+      renderEstGrid();
+      renderAbstract();
+      saveState();
+    });
+  });
+
+  document.querySelectorAll('[data-est1130-setting]').forEach((input) => {
+    input.addEventListener('change', (event) => {
+      const key = event.target.getAttribute('data-est1130-setting');
+      if (!key) return;
+      state.settings[key] = parseFloat(event.target.value) || 0;
+      renderEstGrid();
+      renderAbstract();
+      saveState();
+    });
+  });
+
+  if (els.est1130RefreshBtn) {
+    els.est1130RefreshBtn.addEventListener('click', () => {
+      renderEstGrid();
+      renderAbstract();
+      saveState();
+    });
+  }
+
+  if (els.est1130OpenStructuresBtn) {
+    els.est1130OpenStructuresBtn.addEventListener('click', () => {
+      setWorkPage('earthwork-structures');
+    });
+  }
 
   // Listeners moved to main bindEvents for reliability
   
@@ -12275,9 +13857,106 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ── Estimate Grid ─────────────────────────────────────────────────────
+  function update1130SummaryCards(rows) {
+    const totals = rows.reduce((acc, row) => {
+      const amount = safeNum(row.qty, 0) * safeNum(row.rate, 0);
+      acc[row.section] = (acc[row.section] || 0) + amount;
+      return acc;
+    }, { earthwork: 0, walling: 0, drains: 0 });
+    const fmt = (value) => '\u20b9' + safeNum(value, 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (els.est1130EarthworkTotal) els.est1130EarthworkTotal.textContent = fmt(totals.earthwork);
+    if (els.est1130WallingTotal) els.est1130WallingTotal.textContent = fmt(totals.walling);
+    if (els.est1130DrainTotal) els.est1130DrainTotal.textContent = fmt(totals.drains);
+  }
+
+  function create1130EstTR(row, idx) {
+    const tr = document.createElement('tr');
+    tr.dataset.autoKey = row.autoKey || "";
+    const cash = safeNum(row.qty, 0) * safeNum(row.rate, 0);
+    tr.innerHTML = `<td>${idx + 1}.0</td>` +
+      `<td><select class="est-sor-select" style="padding:4px;border-radius:4px;border:1px solid var(--stroke);background:rgba(0,0,0,0.2);color:var(--text);font-size:0.85rem;width:100%;">${buildSorOptionsHTML()}</select></td>` +
+      `<td><select class="est-lar-ref-select" style="padding:4px;border-radius:4px;border:1px solid var(--stroke);background:rgba(0,0,0,0.2);color:var(--text);font-size:0.85rem;width:100%;">${buildLarOptionsHTML()}</select></td>` +
+      `<td><input type="text" class="est-code-input" value="${row.code || ''}" style="width:100%;" /></td>` +
+      `<td><div><input type="text" class="est-desc-input" value="${(row.desc || '').replace(/"/g, '&quot;')}" style="width:100%;" /></div><div style="margin-top:4px;font-size:0.72rem;color:var(--muted);">${escapeHtml(row.autoBasis || 'Auto quantity')}</div></td>` +
+      `<td style="text-align:right;"><input type="number" class="est-qty-input" style="text-align:right;width:100%;background:rgba(255,255,255,0.04);" value="${safeNum(row.qty, 0)}" disabled /></td>` +
+      `<td style="text-align:center;"><input type="text" class="est-unit-input" value="${row.unit || ''}" style="text-align:center;width:100%;" /></td>` +
+      `<td style="text-align:right;"><input type="number" class="est-rate-input est-calc-trigger" style="text-align:right;width:100%;" value="${safeNum(row.rate, 0)}" step="0.01" /></td>` +
+      `<td style="text-align:right;" class="est-cash-cell">${cash.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>` +
+      `<td style="text-align:right;" class="est-stores-cell">0.00</td>` +
+      `<td style="text-align:right;" class="est-total-cell">${cash.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>` +
+      `<td><span class="muted" style="font-size:0.75rem;">AUTO</span></td>`;
+
+    const sorSel = tr.querySelector('.est-sor-select');
+    if (row.sor) sorSel.value = row.sor;
+    sorSel.addEventListener('change', () => { row.sor = sorSel.value; saveState(); });
+
+    const larRefSel = tr.querySelector('.est-lar-ref-select');
+    if (row.larRefId) larRefSel.value = row.larRefId;
+    larRefSel.addEventListener('change', () => { row.larRefId = larRefSel.value; saveState(); });
+
+    tr.querySelector('.est-code-input').addEventListener('input', (e) => { row.code = e.target.value; saveState(); });
+    tr.querySelector('.est-desc-input').addEventListener('input', (e) => { row.desc = e.target.value; saveState(); });
+    tr.querySelector('.est-unit-input').addEventListener('input', (e) => { row.unit = e.target.value; saveState(); });
+    tr.querySelector('.est-rate-input').addEventListener('input', (e) => {
+      row.rate = parseFloat(e.target.value) || 0;
+      recalcPlanHead();
+      saveState();
+    });
+
+    return tr;
+  }
+
+  function render1130AutoGrid(gridBody, rows) {
+    gridBody.innerHTML = '';
+    if (!rows.length) {
+      gridBody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:32px;">No auto-generated 1130 items yet. Recalculate the project and add structures.</td></tr>';
+      updatePlanHeadTotals(0, 0);
+      update1130SummaryCards([]);
+      return;
+    }
+
+    let currentSection = '';
+    rows.forEach((row, idx) => {
+      if (row.section !== currentSection) {
+        currentSection = row.section;
+        const sectionTr = document.createElement('tr');
+        sectionTr.innerHTML = `<td colspan="12" style="background:rgba(var(--primary-rgb), 0.10); color:var(--text); font-weight:700; letter-spacing:0.02em;">${EST1130_SECTION_LABELS[row.section] || row.section}</td>`;
+        gridBody.appendChild(sectionTr);
+      }
+      gridBody.appendChild(create1130EstTR(row, idx));
+    });
+    recalcPlanHead();
+    update1130SummaryCards(rows);
+  }
+
   function renderEstGrid() {
     const gridBody = document.getElementById('estGridBody');
     if (!gridBody) return;
+    const addRowBtn = document.getElementById('estAddRowBtn');
+    if (currentPlanHead === '1110') {
+      if (addRowBtn) addRowBtn.style.display = 'none';
+      if (els.est1110AutoPanel) els.est1110AutoPanel.style.display = 'flex';
+      if (els.est1130AutoPanel) els.est1130AutoPanel.style.display = 'none';
+      hydrate1110Controls();
+      const rows = sync1110EstimateRows();
+      gridBody.innerHTML = '';
+      rows.forEach((row, idx) => { gridBody.appendChild(create1130EstTR(row, idx)); });
+      recalcPlanHead();
+      return;
+    }
+    if (currentPlanHead === '1130') {
+      if (addRowBtn) addRowBtn.style.display = 'none';
+      if (els.est1110AutoPanel) els.est1110AutoPanel.style.display = 'none';
+      if (els.est1130AutoPanel) els.est1130AutoPanel.style.display = 'flex';
+      hydrate1130AssumptionControls();
+      const rows = sync1130EstimateRows();
+      render1130AutoGrid(gridBody, rows);
+      return;
+    }
+
+    if (addRowBtn) addRowBtn.style.display = 'inline-flex';
+    if (els.est1110AutoPanel) els.est1110AutoPanel.style.display = 'none';
+    if (els.est1130AutoPanel) els.est1130AutoPanel.style.display = 'none';
     const rows = state.estimates[currentPlanHead] || [];
     gridBody.innerHTML = '';
     
@@ -12391,6 +14070,25 @@ document.addEventListener('DOMContentLoaded', () => {
   function recalcPlanHead() {
     const gridBody = document.getElementById('estGridBody');
     if (!gridBody) return;
+    if (AUTO_EST_PLAN_HEADS.has(currentPlanHead)) {
+      const rows = state.estimates[currentPlanHead] || [];
+      const rowMap = new Map(rows.map((row) => [row.autoKey, row]));
+      let totalCash = 0;
+      Array.from(gridBody.querySelectorAll('tr')).forEach((tr) => {
+        if (!tr.dataset.autoKey) return;
+        const row = rowMap.get(tr.dataset.autoKey);
+        if (!row) return;
+        const cash = safeNum(row.qty, 0) * safeNum(row.rate, 0);
+        const cc = tr.querySelector('.est-cash-cell');
+        const tc = tr.querySelector('.est-total-cell');
+        if (cc) cc.textContent = cash.toLocaleString('en-IN', {minimumFractionDigits: 2});
+        if (tc) tc.textContent = cash.toLocaleString('en-IN', {minimumFractionDigits: 2});
+        totalCash += cash;
+      });
+      updatePlanHeadTotals(totalCash, 0);
+      if (currentPlanHead === '1130') update1130SummaryCards(rows);
+      return;
+    }
     const rows = state.estimates[currentPlanHead] || [];
     let totalCash = 0;
     
@@ -12419,6 +14117,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function addEstRow(sor, code, desc, unit, rate) {
+    if (AUTO_EST_PLAN_HEADS.has(currentPlanHead)) {
+      const planHeadLabel = PLAN_HEAD_MAP[currentPlanHead] || currentPlanHead;
+      alert(`${planHeadLabel} is auto-generated from project calculations and settings. Edit the auto fields and rates instead of adding manual rows.`);
+      return;
+    }
     const row = { 
       sor: sor || '', 
       larRefId: '',
@@ -12444,6 +14147,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (estAddRowBtn) { estAddRowBtn.addEventListener('click', () => addEstRow()); }
 
   function renderAbstract() {
+    sync1110EstimateRows();
+    sync1130EstimateRows();
     const body = document.getElementById('estAbstractBody');
     if (!body) return;
     body.innerHTML = '';
@@ -12645,7 +14350,7 @@ document.addEventListener('DOMContentLoaded', () => {
     els.pwayPullStationsBtn.addEventListener('click', () => {
       const stations = getGroupedStations();
       if (stations.size === 0) {
-        alert('No stations found in Station & Loops tab. Please add stations there first.');
+        alert('No stations found in Stations & Yards tab. Please add stations there first.');
         return;
       }
       if (confirm(`This will pull ${stations.size} stations from your data. Continue?`)) {

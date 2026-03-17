@@ -480,7 +480,7 @@ function drawAlignmentMap() {
     if (!state.kmlData || !state.kmlData.points || !state.kmlData.points.length) {
         document.getElementById("alignmentMapContainer").style.display = "none";
         document.getElementById("alignmentMapEmpty").style.display = "flex";
-        updateMapLegend(0);
+        updateMapLegend(0, false);
         return;
     }
 
@@ -492,6 +492,7 @@ function drawAlignmentMap() {
 
     const points = state.kmlData.points;
     const path = points.map(p => [p.lat, p.lng]);
+    const startChOffset = (state.calcRows && state.calcRows.length) ? _safeNum(state.calcRows[0].chainage) : 0;
 
     // Base Alignment Polyline
     L.polyline(path, {
@@ -500,12 +501,7 @@ function drawAlignmentMap() {
         opacity: 0.8
     }).addTo(mapItems);
 
-    const bounds = L.latLngBounds(path);
-    if (bounds.isValid()) {
-        alignmentMap.fitBounds(bounds, { padding: [50, 50] });
-    }
-
-    const startChOffset = (state.calcRows && state.calcRows.length) ? _safeNum(state.calcRows[0].chainage) : 0;
+    const hasLandBoundary = drawLandBoundaryOverlay(points, startChOffset);
     const showMapStations = state.settings?.showMapStations !== false;
     const showMapBridges = state.settings?.showMapBridges !== false;
     const showMapCurves = state.settings?.showMapCurves !== false;
@@ -661,7 +657,12 @@ function drawAlignmentMap() {
     });
     }
 
-    updateMapLegend(Object.keys(state.stationPlans || {}).length);
+    const bounds = mapItems.getBounds();
+    if (bounds.isValid()) {
+        alignmentMap.fitBounds(bounds, { padding: [50, 50] });
+    }
+
+    updateMapLegend(Object.keys(state.stationPlans || {}).length, hasLandBoundary);
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────
@@ -694,6 +695,178 @@ function getLatLngFromChainage(targetCh, points) {
     return { lat: p1.lat + ratio * (p2.lat - p1.lat), lng: p1.lng + ratio * (p2.lng - p1.lng) };
 }
 
+function drawLandBoundaryOverlay(points, startChOffset) {
+    const segments = buildLandBoundarySegments(points, startChOffset);
+    if (!segments.length) return false;
+
+    segments.forEach((segment) => {
+        const left = segment.left.map((pt) => [pt.lat, pt.lng]);
+        const right = segment.right.map((pt) => [pt.lat, pt.lng]);
+
+        if (left.length > 2 && right.length > 2) {
+            L.polygon([...left, ...right.slice().reverse()], {
+                color: '#f97316',
+                weight: 1,
+                opacity: 0.18,
+                fillColor: '#f97316',
+                fillOpacity: 0.08,
+                interactive: false,
+            }).addTo(mapItems);
+        }
+
+        if (left.length > 1) {
+            L.polyline(left, {
+                color: '#fb923c',
+                weight: 2,
+                opacity: 0.78,
+                dashArray: '8 6',
+                interactive: false,
+            }).addTo(mapItems);
+        }
+
+        if (right.length > 1) {
+            L.polyline(right, {
+                color: '#fb923c',
+                weight: 2,
+                opacity: 0.78,
+                dashArray: '8 6',
+                interactive: false,
+            }).addTo(mapItems);
+        }
+    });
+
+    return true;
+}
+
+function buildLandBoundarySegments(points, startChOffset) {
+    const rows = Array.isArray(state.calcRows) ? state.calcRows : [];
+    if (rows.length < 2 || !points || points.length < 2) return [];
+
+    const bridges = Array.isArray(state.bridgeRows) ? state.bridgeRows : [];
+    const laSettings = getMapLASettings();
+    const sampleWindow = getTypicalChainageStep(rows);
+    const segments = [];
+    let currentSegment = null;
+
+    const flushSegment = () => {
+        if (!currentSegment) return;
+        if (currentSegment.left.length > 1 && currentSegment.right.length > 1) {
+            segments.push(currentSegment);
+        }
+        currentSegment = null;
+    };
+
+    rows.forEach((row) => {
+        const chainageAbs = _safeNum(row?.chainage, NaN);
+        if (!Number.isFinite(chainageAbs)) {
+            flushSegment();
+            return;
+        }
+
+        const alignmentCh = chainageAbs - startChOffset;
+        const center = getLatLngFromChainage(alignmentCh, points);
+        const tangent = getAlignmentTangentAtChainage(alignmentCh, points, sampleWindow);
+        const halfWidth = getLandBoundaryHalfWidth(row, chainageAbs, bridges, laSettings);
+
+        if (!center || !tangent || !(halfWidth > 0)) {
+            flushSegment();
+            return;
+        }
+
+        if (!currentSegment) {
+            currentSegment = { left: [], right: [] };
+        }
+
+        currentSegment.left.push(offsetLatLng(center, tangent, halfWidth));
+        currentSegment.right.push(offsetLatLng(center, tangent, -halfWidth));
+    });
+
+    flushSegment();
+    return segments;
+}
+
+function getMapLASettings() {
+    if (typeof getLASettings === "function") {
+        return getLASettings();
+    }
+    return {
+        offsetFromToe: _safeNum(state.settings?.laOffsetFromToe, 10),
+        bridgeExtraWidth: _safeNum(state.settings?.laBridgeExtraWidth, 5),
+    };
+}
+
+function getLandBoundaryHalfWidth(row, chainageAbs, bridges, laSettings) {
+    const bridge = (bridges || []).find((item) => chainageAbs >= _safeNum(item?.startChainage, NaN) && chainageAbs <= _safeNum(item?.endChainage, NaN));
+    const bridgeCategories = typeof LA_BRIDGE_LAND_CATEGORIES !== "undefined"
+        ? LA_BRIDGE_LAND_CATEGORIES
+        : ["Major", "ROB", "RUB", "Viaduct"];
+
+    if (bridge) {
+        const category = String(bridge.bridgeCategory || "").trim();
+        if (/tunnel/i.test(category)) return 0;
+        if (bridgeCategories.some((item) => item.toLowerCase() === category.toLowerCase()) ||
+            /\brob\b/i.test(String(bridge.bridgeNo || "")) ||
+            /\brub\b/i.test(String(bridge.bridgeNo || ""))) {
+            const bridgeWidth = _safeNum(state.settings?.formationWidthFill, 7.85);
+            return (bridgeWidth + (2 * _safeNum(laSettings?.bridgeExtraWidth, 5))) / 2;
+        }
+    }
+
+    const topWidth = _safeNum(row?.topWidth, _safeNum(state.settings?.formationWidthFill, 7.85));
+    const fillBottom = _safeNum(row?.fillBottom, topWidth);
+    const cutBottom = _safeNum(row?.cutBottom, _safeNum(topWidth, _safeNum(state.settings?.cuttingWidth, topWidth)));
+    const toeWidth = row?.bank > 0.001
+        ? fillBottom
+        : row?.cut > 0.001
+            ? cutBottom
+            : topWidth;
+
+    return (toeWidth / 2) + _safeNum(laSettings?.offsetFromToe, 10);
+}
+
+function getTypicalChainageStep(rows) {
+    if (!Array.isArray(rows) || rows.length < 2) return 5;
+    for (let i = 1; i < rows.length; i++) {
+        const prev = _safeNum(rows[i - 1]?.chainage, NaN);
+        const next = _safeNum(rows[i]?.chainage, NaN);
+        const delta = Math.abs(next - prev);
+        if (delta > 0.001) {
+            return Math.max(2, Math.min(25, delta / 2));
+        }
+    }
+    return 5;
+}
+
+function getAlignmentTangentAtChainage(targetCh, points, sampleWindow = 5) {
+    if (!points || points.length < 2) return null;
+    const minCh = points[0].ch;
+    const maxCh = points[points.length - 1].ch;
+    const prev = getLatLngFromChainage(Math.max(minCh, targetCh - sampleWindow), points);
+    const next = getLatLngFromChainage(Math.min(maxCh, targetCh + sampleWindow), points);
+    if (!prev || !next) return null;
+
+    const metersPerDegLat = 111320;
+    const metersPerDegLng = Math.max(Math.cos(((prev.lat + next.lat) / 2) * Math.PI / 180) * metersPerDegLat, 1e-6);
+    const east = (next.lng - prev.lng) * metersPerDegLng;
+    const north = (next.lat - prev.lat) * metersPerDegLat;
+    const length = Math.hypot(east, north);
+    if (!length) return null;
+
+    return { east: east / length, north: north / length };
+}
+
+function offsetLatLng(point, tangent, offsetMeters) {
+    const metersPerDegLat = 111320;
+    const metersPerDegLng = Math.max(Math.cos(point.lat * Math.PI / 180) * metersPerDegLat, 1e-6);
+    const normalEast = -tangent.north;
+    const normalNorth = tangent.east;
+
+    return {
+        lat: point.lat + ((normalNorth * offsetMeters) / metersPerDegLat),
+        lng: point.lng + ((normalEast * offsetMeters) / metersPerDegLng),
+    };
+}
+
 function escapeHtml(value) {
     return String(value || "")
         .replace(/&/g, "&amp;")
@@ -707,13 +880,14 @@ function escapeHtmlAttr(value) {
     return escapeHtml(value);
 }
 
-function updateMapLegend(stationPlanCount) {
+function updateMapLegend(stationPlanCount, hasLandBoundary) {
     const noteEl = document.getElementById("alignmentMapLegendNote");
     if (!noteEl) return;
+    const boundaryNote = hasLandBoundary ? " Orange dashed lines show the land acquisition boundary." : "";
     if (stationPlanCount > 0) {
-        noteEl.textContent = `${stationPlanCount} station plan${stationPlanCount === 1 ? "" : "s"} mapped. Station labels are shown once per station at CSB.`;
+        noteEl.textContent = `${stationPlanCount} station plan${stationPlanCount === 1 ? "" : "s"} mapped. Station labels are shown once per station at CSB.${boundaryNote}`;
     } else {
-        noteEl.textContent = "Station locations are shown after KML import. Station labels are shown once per station at CSB.";
+        noteEl.textContent = `Station locations are shown after KML import. Station labels are shown once per station at CSB.${boundaryNote}`;
     }
 }
 
