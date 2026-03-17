@@ -1445,45 +1445,74 @@
               <thead style="position: sticky; top: 0; background: var(--bg-primary); z-index: 1;">
                 <tr>
                    <th rowspan="2" style="width: 50px;">S.No</th>
-                   <th rowspan="2">Station / Segment</th>
-                   <th colspan="6" style="text-align: center; background: rgba(255,255,255,0.03);">Track Length (m)</th>
-                   <th colspan="3" style="text-align: center; background: rgba(255,255,255,0.05);">Turnouts (Nos)</th>
-                   <th colspan="3" style="text-align: center; background: rgba(255,255,255,0.03);">Ancillary (Nos)</th>
-                   <th rowspan="2" style="text-align: right; width: 100px;">Total (m)</th>
-                   <th rowspan="2" style="width: 50px;"></th>
+                   <th rowspan="2" style="width: 150px;">Stations</th>
+                   <th rowspan="2" style="width: 90px; font-size: 0.8rem;">Type of<br>Station</th>
+                   <!-- Main Yard Track -->
+                   <th colspan="8" style="text-align: center; background: rgba(255,255,255,0.03);">Main Section Track Lengths</th>
+                   <th rowspan="2" style="background: rgba(255,255,255,0.06); width: 80px; text-align: right;">Total<br>(m)</th>
+                   
+                   <!-- Main Turnouts & Ancillary -->
+                   <th colspan="7" style="text-align: center; background: rgba(255,255,255,0.05);">Main Section Turnouts & Ancillary</th>
+                   
+                   <!-- Private/Yard -->
+                   <th colspan="6" style="text-align: center; background: rgba(255,255,255,0.03);">Holding Yard / Private</th>
+                   <th rowspan="2" style="width: 40px;"></th>
                 </tr>
                 <tr>
                    <th style="font-size: 0.75rem;">Mainline</th>
-                   <th style="font-size: 0.75rem;">Pax Loop</th>
-                   <th style="font-size: 0.75rem;">Goods Loop</th>
-                   <th style="font-size: 0.75rem;">X-Over</th>
-                   <th style="font-size: 0.75rem;">Sidings</th>
+                   <th style="font-size: 0.75rem;">Passenger<br>Loop</th>
+                   <th style="font-size: 0.75rem;">X Over</th>
+                   <th style="font-size: 0.75rem;">Connecting<br>Track</th>
+                   <th style="font-size: 0.75rem;">No. of<br>Loops</th>
+                   <th style="font-size: 0.75rem;">Goods<br>Loop</th>
                    <th style="font-size: 0.75rem;">OSL</th>
-                   <th style="font-size: 0.71rem;">1 in 12</th>
-                   <th style="font-size: 0.71rem;">1 in 8.5</th>
-                   <th style="font-size: 0.71rem;">1 in 16</th>
-                   <th style="font-size: 0.71rem;">SEJ</th>
+                   <th style="font-size: 0.75rem;">Sidings</th>
+                   
+                   <th style="font-size: 0.71rem;">SEJ's</th>
+                   <th style="font-size: 0.71rem;">1:8.5 T/O</th>
+                   <th style="font-size: 0.71rem;">1:12 T/O</th>
+                   <th style="font-size: 0.71rem;">1:16 T/O</th>
                    <th style="font-size: 0.71rem;">DS</th>
                    <th style="font-size: 0.71rem;">BS</th>
+                   <th style="font-size: 0.71rem;">Sand<br>Hump</th>
+                   
+                   <th style="font-size: 0.71rem;">Track<br>(m)</th>
+                   <th style="font-size: 0.71rem;">1:8.5 T/O</th>
+                   <th style="font-size: 0.71rem;">1:12 T/O</th>
+                   <th style="font-size: 0.71rem;">DS</th>
+                   <th style="font-size: 0.71rem;">Buffer<br>Stop</th>
+                   <th style="font-size: 0.71rem;">Sand<br>Hump</th>
                 </tr>
               </thead>
               <tbody id="pwayTableBody"></tbody>
               <tfoot>
                 <tr style="background: rgba(var(--primary-rgb), 0.1); font-weight: 600;">
-                  <td colspan="2">GRAND TOTAL</td>
-                  <td id="pwayTotalMainline" style="text-align: right;">0.00</td>
-                  <td id="pwayTotalPaxLoop" style="text-align: right;">0.00</td>
-                  <td id="pwayTotalGoodsLoop" style="text-align: right;">0.00</td>
-                  <td id="pwayTotalXOver" style="text-align: right;">0.00</td>
-                  <td id="pwayTotalSidings" style="text-align: right;">0.00</td>
-                  <td id="pwayTotalOSL" style="text-align: right;">0.00</td>
-                  <td id="pwayTotalTO12" style="text-align: center;">0</td>
-                  <td id="pwayTotalTO85" style="text-align: center;">0</td>
-                  <td id="pwayTotalTO16" style="text-align: center;">0</td>
-                  <td id="pwayTotalSEJ" style="text-align: center;">0</td>
-                  <td id="pwayTotalDS" style="text-align: center;">0</td>
-                  <td id="pwayTotalBS" style="text-align: center;">0</td>
-                  <td id="pwayGrandTotal" style="text-align: right; color: var(--primary);">0.00</td>
+                  <td colspan="3" style="text-align: right;">GRAND TOTAL</td>
+                  <!-- track sums -->
+                  <td id="pwayTot_mainline" style="text-align: right; padding: 12px 4px;">0.00</td>
+                  <td id="pwayTot_paxLoop" style="text-align: right; padding: 12px 4px;">0.00</td>
+                  <td id="pwayTot_xover" style="text-align: right; padding: 12px 4px;">0.00</td>
+                  <td id="pwayTot_connecting" style="text-align: right; padding: 12px 4px;">0.00</td>
+                  <td id="pwayTot_noOfLoops" style="text-align: right; padding: 12px 4px;">0</td>
+                  <td id="pwayTot_goodsLoop" style="text-align: right; padding: 12px 4px;">0.00</td>
+                  <td id="pwayTot_osl" style="text-align: right; padding: 12px 4px;">0.00</td>
+                  <td id="pwayTot_sidings" style="text-align: right; padding: 12px 4px;">0.00</td>
+                  <td id="pwayTot_totalTrack" style="text-align: right; background: rgba(255,255,255,0.06); color: var(--primary); padding: 12px 4px;">0.00</td>
+                  <!-- eq sums -->
+                  <td id="pwayTot_sej" style="text-align: center; padding: 12px 4px;">0</td>
+                  <td id="pwayTot_to85" style="text-align: center; padding: 12px 4px;">0</td>
+                  <td id="pwayTot_to12" style="text-align: center; padding: 12px 4px;">0</td>
+                  <td id="pwayTot_to16" style="text-align: center; padding: 12px 4px;">0</td>
+                  <td id="pwayTot_ds" style="text-align: center; padding: 12px 4px;">0</td>
+                  <td id="pwayTot_bs" style="text-align: center; padding: 12px 4px;">0</td>
+                  <td id="pwayTot_sandHump" style="text-align: center; padding: 12px 4px;">0</td>
+                  <!-- yard sums -->
+                  <td id="pwayTot_yardTrack" style="text-align: right; padding: 12px 4px;">0.00</td>
+                  <td id="pwayTot_yardTo85" style="text-align: center; padding: 12px 4px;">0</td>
+                  <td id="pwayTot_yardTo12" style="text-align: center; padding: 12px 4px;">0</td>
+                  <td id="pwayTot_yardDs" style="text-align: center; padding: 12px 4px;">0</td>
+                  <td id="pwayTot_yardBs" style="text-align: center; padding: 12px 4px;">0</td>
+                  <td id="pwayTot_yardSandHump" style="text-align: center; padding: 12px 4px;">0</td>
                   <td></td>
                 </tr>
               </tfoot>

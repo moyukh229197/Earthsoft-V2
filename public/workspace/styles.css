@@ -4777,7 +4777,7 @@ td:first-child {
 
 .pway-grid input.est-qty-input {
   width: 100%;
-  min-width: 60px;
+  min-width: 40px;
   background: transparent;
   border: none;
   color: var(--text);

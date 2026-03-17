@@ -12477,35 +12477,57 @@ document.addEventListener('DOMContentLoaded', () => {
     rows.forEach((row, idx) => {
       const tr = document.createElement('tr');
       const total = (Number(row.mainline) || 0) + (Number(row.paxLoop) || 0) + (Number(row.goodsLoop) || 0) + 
-                    (Number(row.xover) || 0) + (Number(row.sidings) || 0) + (Number(row.osl) || 0);
+                    (Number(row.xover) || 0) + (Number(row.sidings) || 0) + (Number(row.osl) || 0) + (Number(row.connecting) || 0);
       
       tr.innerHTML = `
         <td>${idx + 1}</td>
         <td><input type="text" class="est-desc-input pway-station" value="${row.station || ''}" /></td>
+        <td><input type="text" class="est-desc-input pway-chainage" value="${row.chainage || ''}" /></td>
         <td><input type="number" class="est-qty-input pway-mainline" value="${row.mainline || 0}" step="0.001" /></td>
-        <td><input type="number" class="est-qty-input pway-paxloop" value="${row.paxLoop || 0}" step="0.001" /></td>
-        <td><input type="number" class="est-qty-input pway-goodsloop" value="${row.goodsLoop || 0}" step="0.001" /></td>
+        <td><input type="number" class="est-qty-input pway-paxLoop" value="${row.paxLoop || 0}" step="0.001" /></td>
         <td><input type="number" class="est-qty-input pway-xover" value="${row.xover || 0}" step="0.001" /></td>
-        <td><input type="number" class="est-qty-input pway-sidings" value="${row.sidings || 0}" step="0.001" /></td>
+        <td><input type="number" class="est-qty-input pway-connecting" value="${row.connecting || 0}" step="0.001" /></td>
+        <td><input type="number" class="est-qty-input pway-noOfLoops" value="${row.noOfLoops || 0}" /></td>
+        <td><input type="number" class="est-qty-input pway-goodsLoop" value="${row.goodsLoop || 0}" step="0.001" /></td>
         <td><input type="number" class="est-qty-input pway-osl" value="${row.osl || 0}" step="0.001" /></td>
-        <td><input type="number" class="est-qty-input pway-to12" value="${row.to12 || 0}" /></td>
-        <td><input type="number" class="est-qty-input pway-to85" value="${row.to85 || 0}" /></td>
-        <td><input type="number" class="est-qty-input pway-to16" value="${row.to16 || 0}" /></td>
+        <td><input type="number" class="est-qty-input pway-sidings" value="${row.sidings || 0}" step="0.001" /></td>
+        
+        <td style="text-align: right; font-weight: 500;">${total.toFixed(2)}</td>
+        
         <td><input type="number" class="est-qty-input pway-sej" value="${row.sej || 0}" /></td>
+        <td><input type="number" class="est-qty-input pway-to85" value="${row.to85 || 0}" /></td>
+        <td><input type="number" class="est-qty-input pway-to12" value="${row.to12 || 0}" /></td>
+        <td><input type="number" class="est-qty-input pway-to16" value="${row.to16 || 0}" /></td>
         <td><input type="number" class="est-qty-input pway-ds" value="${row.ds || 0}" /></td>
         <td><input type="number" class="est-qty-input pway-bs" value="${row.bs || 0}" /></td>
-        <td style="text-align: right; font-weight: 500;">${total.toFixed(2)}</td>
+        <td><input type="number" class="est-qty-input pway-sandHump" value="${row.sandHump || 0}" /></td>
+        
+        <td><input type="number" class="est-qty-input pway-yardTrack" value="${row.yardTrack || 0}" step="0.001" /></td>
+        <td><input type="number" class="est-qty-input pway-yardTo85" value="${row.yardTo85 || 0}" /></td>
+        <td><input type="number" class="est-qty-input pway-yardTo12" value="${row.yardTo12 || 0}" /></td>
+        <td><input type="number" class="est-qty-input pway-yardDs" value="${row.yardDs || 0}" /></td>
+        <td><input type="number" class="est-qty-input pway-yardBs" value="${row.yardBs || 0}" /></td>
+        <td><input type="number" class="est-qty-input pway-yardSandHump" value="${row.yardSandHump || 0}" /></td>
+        
         <td><button class="btn btn-secondary icon-btn-sm pway-del-btn" title="Delete"><i class="ri-delete-bin-line"></i></button></td>
       `;
 
       tr.querySelector('.pway-station').addEventListener('input', (e) => { row.station = e.target.value; saveState(); });
-      ['mainline', 'paxloop', 'goodsloop', 'xover', 'sidings', 'osl', 'to12', 'to85', 'to16', 'sej', 'ds', 'bs'].forEach(key => {
+      tr.querySelector('.pway-chainage').addEventListener('input', (e) => { row.chainage = e.target.value; saveState(); });
+      
+      const numKeys = ['mainline', 'paxLoop', 'goodsLoop', 'xover', 'connecting', 'noOfLoops', 'sidings', 'osl', 
+                       'to12', 'to85', 'to16', 'sej', 'ds', 'bs', 'sandHump',
+                       'yardTrack', 'yardTo85', 'yardTo12', 'yardDs', 'yardBs', 'yardSandHump'];
+                       
+      numKeys.forEach(key => {
         tr.querySelector(`.pway-${key}`).addEventListener('input', (e) => {
-          row[key === 'paxloop' ? 'paxLoop' : key === 'goodsloop' ? 'goodsLoop' : key] = parseFloat(e.target.value) || 0;
+          row[key] = parseFloat(e.target.value) || 0;
           calcPwayGrandTotals();
           saveState();
-          tr.querySelector('td:nth-last-child(2)').textContent = ((Number(row.mainline) || 0) + (Number(row.paxLoop) || 0) + (Number(row.goodsLoop) || 0) + 
-                                                                  (Number(row.xover) || 0) + (Number(row.sidings) || 0) + (Number(row.osl) || 0)).toFixed(2);
+          tr.querySelector('td:nth-child(12)').textContent = (
+            (Number(row.mainline) || 0) + (Number(row.paxLoop) || 0) + (Number(row.goodsLoop) || 0) + 
+            (Number(row.xover) || 0) + (Number(row.sidings) || 0) + (Number(row.osl) || 0) + (Number(row.connecting) || 0)
+          ).toFixed(2);
         });
       });
 
@@ -12523,8 +12545,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function calcPwayGrandTotals() {
     const rows = state.pwayRows || [];
     const totals = {
-      mainline: 0, paxLoop: 0, goodsLoop: 0, xover: 0, sidings: 0, osl: 0,
-      to12: 0, to85: 0, to16: 0, sej: 0, ds: 0, bs: 0, grand: 0
+      mainline: 0, paxLoop: 0, goodsLoop: 0, xover: 0, connecting: 0, noOfLoops: 0, sidings: 0, osl: 0,
+      to12: 0, to85: 0, to16: 0, sej: 0, ds: 0, bs: 0, sandHump: 0, grand: 0,
+      yardTrack: 0, yardTo85: 0, yardTo12: 0, yardDs: 0, yardBs: 0, yardSandHump: 0
     };
 
     rows.forEach(r => {
@@ -12532,6 +12555,8 @@ document.addEventListener('DOMContentLoaded', () => {
       totals.paxLoop += Number(r.paxLoop) || 0;
       totals.goodsLoop += Number(r.goodsLoop) || 0;
       totals.xover += Number(r.xover) || 0;
+      totals.connecting += Number(r.connecting) || 0;
+      totals.noOfLoops += Number(r.noOfLoops) || 0;
       totals.sidings += Number(r.sidings) || 0;
       totals.osl += Number(r.osl) || 0;
       totals.to12 += Number(r.to12) || 0;
@@ -12540,39 +12565,72 @@ document.addEventListener('DOMContentLoaded', () => {
       totals.sej += Number(r.sej) || 0;
       totals.ds += Number(r.ds) || 0;
       totals.bs += Number(r.bs) || 0;
+      totals.sandHump += Number(r.sandHump) || 0;
+      totals.yardTrack += Number(r.yardTrack) || 0;
+      totals.yardTo85 += Number(r.yardTo85) || 0;
+      totals.yardTo12 += Number(r.yardTo12) || 0;
+      totals.yardDs += Number(r.yardDs) || 0;
+      totals.yardBs += Number(r.yardBs) || 0;
+      totals.yardSandHump += Number(r.yardSandHump) || 0;
     });
-    totals.grand = totals.mainline + totals.paxLoop + totals.goodsLoop + totals.xover + totals.sidings + totals.osl;
+    totals.grand = totals.mainline + totals.paxLoop + totals.goodsLoop + totals.xover + totals.sidings + totals.osl + totals.connecting;
 
-    if (document.getElementById('pwayTotalMainline')) document.getElementById('pwayTotalMainline').textContent = totals.mainline.toFixed(2);
-    if (document.getElementById('pwayTotalPaxLoop')) document.getElementById('pwayTotalPaxLoop').textContent = totals.paxLoop.toFixed(2);
-    if (document.getElementById('pwayTotalGoodsLoop')) document.getElementById('pwayTotalGoodsLoop').textContent = totals.goodsLoop.toFixed(2);
-    if (document.getElementById('pwayTotalXOver')) document.getElementById('pwayTotalXOver').textContent = totals.xover.toFixed(2);
-    if (document.getElementById('pwayTotalSidings')) document.getElementById('pwayTotalSidings').textContent = totals.sidings.toFixed(2);
-    if (document.getElementById('pwayTotalOSL')) document.getElementById('pwayTotalOSL').textContent = totals.osl.toFixed(2);
-    if (document.getElementById('pwayTotalTO12')) document.getElementById('pwayTotalTO12').textContent = totals.to12;
-    if (document.getElementById('pwayTotalTO85')) document.getElementById('pwayTotalTO85').textContent = totals.to85;
-    if (document.getElementById('pwayTotalTO16')) document.getElementById('pwayTotalTO16').textContent = totals.to16;
-    if (document.getElementById('pwayTotalSEJ')) document.getElementById('pwayTotalSEJ').textContent = totals.sej;
-    if (document.getElementById('pwayTotalDS')) document.getElementById('pwayTotalDS').textContent = totals.ds;
-    if (document.getElementById('pwayTotalBS')) document.getElementById('pwayTotalBS').textContent = totals.bs;
-    if (els.pwayGrandTotal) els.pwayGrandTotal.textContent = totals.grand.toFixed(2);
+    const setTotal = (id, val, isInt=false) => { 
+      const e = document.getElementById(id);
+      if(e) e.textContent = isInt ? val : val.toFixed(2);
+    };
+
+    setTotal('pwayTot_mainline', totals.mainline);
+    setTotal('pwayTot_paxLoop', totals.paxLoop);
+    setTotal('pwayTot_xover', totals.xover);
+    setTotal('pwayTot_connecting', totals.connecting);
+    setTotal('pwayTot_noOfLoops', totals.noOfLoops, true);
+    setTotal('pwayTot_goodsLoop', totals.goodsLoop);
+    setTotal('pwayTot_osl', totals.osl);
+    setTotal('pwayTot_sidings', totals.sidings);
+    setTotal('pwayTot_totalTrack', totals.grand);
+    
+    setTotal('pwayTot_sej', totals.sej, true);
+    setTotal('pwayTot_to85', totals.to85, true);
+    setTotal('pwayTot_to12', totals.to12, true);
+    setTotal('pwayTot_to16', totals.to16, true);
+    setTotal('pwayTot_ds', totals.ds, true);
+    setTotal('pwayTot_bs', totals.bs, true);
+    setTotal('pwayTot_sandHump', totals.sandHump, true);
+    
+    setTotal('pwayTot_yardTrack', totals.yardTrack);
+    setTotal('pwayTot_yardTo85', totals.yardTo85, true);
+    setTotal('pwayTot_yardTo12', totals.yardTo12, true);
+    setTotal('pwayTot_yardDs', totals.yardDs, true);
+    setTotal('pwayTot_yardBs', totals.yardBs, true);
+    setTotal('pwayTot_yardSandHump', totals.yardSandHump, true);
   }
 
   function addPwayRow(data = {}) {
     const row = {
       station: data.station || 'New Station',
+      chainage: data.chainage || '',
       mainline: Number(data.mainline) || 0,
       paxLoop: Number(data.paxLoop) || 0,
-      goodsLoop: Number(data.goodsLoop) || 0,
       xover: Number(data.xover) || 0,
-      sidings: Number(data.sidings) || 0,
+      connecting: Number(data.connecting) || 0,
+      noOfLoops: Number(data.noOfLoops) || 0,
+      goodsLoop: Number(data.goodsLoop) || 0,
       osl: Number(data.osl) || 0,
-      to12: Number(data.to12) || 0,
-      to85: Number(data.to85) || 0,
-      to16: Number(data.to16) || 0,
+      sidings: Number(data.sidings) || 0,
       sej: Number(data.sej) || 0,
+      to85: Number(data.to85) || 0,
+      to12: Number(data.to12) || 0,
+      to16: Number(data.to16) || 0,
       ds: Number(data.ds) || 0,
-      bs: Number(data.bs) || 0
+      bs: Number(data.bs) || 0,
+      sandHump: Number(data.sandHump) || 0,
+      yardTrack: Number(data.yardTrack) || 0,
+      yardTo85: Number(data.yardTo85) || 0,
+      yardTo12: Number(data.yardTo12) || 0,
+      yardDs: Number(data.yardDs) || 0,
+      yardBs: Number(data.yardBs) || 0,
+      yardSandHump: Number(data.yardSandHump) || 0
     };
     if (!state.pwayRows) state.pwayRows = [];
     state.pwayRows.push(row);
@@ -12639,7 +12697,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
         let headerRowIndex = -1;
-        let colMap = {};
+        let colMap = {
+          to85: [], to12: [], ds: [], bs: [], sandHump: [], track: []
+        };
         const keywords = ['mainline', 'main line', 'turnout', 'loop', 'track', 'siding', 'stations', 't/o'];
 
         for (let i = 0; i < Math.min(rows.length, 30); i++) {
@@ -12654,29 +12714,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
           if (hasStationHeader && hasKeyword) {
             headerRowIndex = i;
+            
+            // To handle duplicate columns, we track occurrences
             row.forEach((cell, idx) => {
               const val = String(cell || '').trim().toLowerCase();
+              if(!val) return;
               
               if ((val === 'stations' || val === 'station') && colMap.station === undefined) colMap.station = idx;
               if ((val === 's.no' || val === 'no' || val === 'sno') && colMap.sno === undefined) colMap.sno = idx;
+              if (val.includes('type of station') && colMap.chainage === undefined) colMap.chainage = idx;
               
-              // Map others (prefer first occurrence)
               if ((val.includes('mainline') || val.includes('main line')) && colMap.mainline === undefined) colMap.mainline = idx;
               if ((val.includes('passenger loop') || val.includes('pax loop')) && colMap.paxLoop === undefined) colMap.paxLoop = idx;
               if ((val.includes('goods looop') || val.includes('goods loop')) && colMap.goodsLoop === undefined) colMap.goodsLoop = idx;
               if ((val.includes('x over') || val.includes('x-over') || val.includes('crossover')) && colMap.xover === undefined) colMap.xover = idx;
-              
-              // Add Connecting track to sidings if sidings not found, or sum them later
               if (val.includes('connecting track') && colMap.connecting === undefined) colMap.connecting = idx;
+              if (val.includes('no of loops') && colMap.noOfLoops === undefined) colMap.noOfLoops = idx;
               if (val.includes('sidings') && colMap.sidings === undefined) colMap.sidings = idx;
               if (val.includes('osl') && colMap.osl === undefined) colMap.osl = idx;
               
-              if (val.includes('1 in 12') && colMap.to12 === undefined) colMap.to12 = idx;
-              if (val.includes('1 in 8.5') && colMap.to85 === undefined) colMap.to85 = idx;
-              if (val.includes('1 in 16') && colMap.to16 === undefined) colMap.to16 = idx;
-              if (val.includes('sej') && colMap.sej === undefined) colMap.sej = idx;
-              if (val.includes('ds') && colMap.ds === undefined) colMap.ds = idx;
-              if ((val.includes('bs') || val.includes('buffer')) && colMap.bs === undefined) colMap.bs = idx;
+              if (val.includes('sej')) colMap.sej = idx;
+              if (val.includes('1 in 16')) colMap.to16 = idx;
+              
+              if (val.includes('1 in 8.5')) colMap.to85.push(idx);
+              if (val.includes('1 in 12')) colMap.to12.push(idx);
+              if (val.includes('ds') || val.includes('derailing')) colMap.ds.push(idx);
+              if (val.includes('bs') || val.includes('buffer')) colMap.bs.push(idx);
+              if (val.includes('sand hump')) colMap.sandHump.push(idx);
+              if (val === 'track' || val === 'yard track') colMap.track.push(idx);
             });
             break;
           }
@@ -12703,21 +12768,40 @@ document.addEventListener('DOMContentLoaded', () => {
           // Skip summary row
           if (nameLower === 'total' || nameLower === 'grand total' || nameLower.includes('total:')) return;
 
+          // Pick values for duplicate arrays (first match typically main, second match yard)
+          const getVal = (arr, index) => arr.length > index ? row[arr[index]] : 0;
+          
           addPwayRow({
             station: String(stationName).trim(),
+            chainage: colMap.chainage !== undefined ? String(row[colMap.chainage] || '') : '',
+            
             mainline: parseFloat(row[colMap.mainline]) || 0,
-              paxLoop: parseFloat(row[colMap.paxLoop]) || 0,
-              goodsLoop: parseFloat(row[colMap.goodsLoop]) || 0,
-              xover: parseFloat(row[colMap.xover]) || 0,
-              sidings: (parseFloat(row[colMap.sidings]) || 0) + (parseFloat(row[colMap.connecting]) || 0),
-              osl: parseFloat(row[colMap.osl]) || 0,
-              to12: parseInt(row[colMap.to12]) || 0,
-              to85: parseInt(row[colMap.to85]) || 0,
-              to16: parseInt(row[colMap.to16]) || 0,
-              sej: parseInt(row[colMap.sej]) || 0,
-              ds: parseInt(row[colMap.ds]) || 0,
-              bs: parseInt(row[colMap.bs]) || 0
-            });
+            paxLoop: parseFloat(row[colMap.paxLoop]) || 0,
+            xover: parseFloat(row[colMap.xover]) || 0,
+            connecting: parseFloat(row[colMap.connecting]) || 0,
+            noOfLoops: parseInt(row[colMap.noOfLoops]) || 0,
+            goodsLoop: parseFloat(row[colMap.goodsLoop]) || 0,
+            osl: parseFloat(row[colMap.osl]) || 0,
+            sidings: parseFloat(row[colMap.sidings]) || 0,
+            
+            sej: parseInt(row[colMap.sej]) || 0,
+            to16: parseInt(row[colMap.to16]) || 0,
+            
+            // Primary matches
+            to85: parseInt(getVal(colMap.to85, 0)) || 0,
+            to12: parseInt(getVal(colMap.to12, 0)) || 0,
+            ds: parseInt(getVal(colMap.ds, 0)) || 0,
+            bs: parseInt(getVal(colMap.bs, 0)) || 0,
+            sandHump: parseInt(getVal(colMap.sandHump, 0)) || 0,
+            
+            // Yard / secondary matches
+            yardTrack: parseFloat(getVal(colMap.track, 0)) || 0,
+            yardTo85: parseInt(getVal(colMap.to85, 1)) || 0,
+            yardTo12: parseInt(getVal(colMap.to12, 1)) || 0,
+            yardDs: parseInt(getVal(colMap.ds, 1)) || 0,
+            yardBs: parseInt(getVal(colMap.bs, 1)) || 0,
+            yardSandHump: parseInt(getVal(colMap.sandHump, 1)) || 0,
+          });
             importedCount++;
         });
         alert(`Successfully imported ${importedCount} items from Excel.`);
@@ -12731,21 +12815,31 @@ document.addEventListener('DOMContentLoaded', () => {
     els.pwayExportExcelBtn.addEventListener('click', () => {
       const data = (state.pwayRows || []).map((r, i) => ({
         'S.No': i + 1,
-        'Station': r.station,
+        'Stations': r.station,
+        'Type of Station': r.chainage,
         'Mainline': r.mainline,
-        'Pax Loop': r.paxLoop,
-        'Goods Loop': r.goodsLoop,
-        'X-Over': r.xover,
-        'Sidings': r.sidings,
+        'Passenger Loop': r.paxLoop,
+        'X Over': r.xover,
+        'Connecting track': r.connecting,
+        'No of Loops': r.noOfLoops,
+        'Goods Looop': r.goodsLoop,
         'OSL': r.osl,
-        'TO 1 in 12': r.to12,
-        'TO 1 in 8.5': r.to85,
-        'TO 1 in 16': r.to16,
-        'SEJ': r.sej,
-        'DS': r.ds,
+        'Sidings': r.sidings,
+        'Total': (Number(r.mainline) || 0) + (Number(r.paxLoop) || 0) + (Number(r.goodsLoop) || 0) + 
+                 (Number(r.xover) || 0) + (Number(r.sidings) || 0) + (Number(r.osl) || 0) + (Number(r.connecting) || 0),
+        'SEJ\'s': r.sej,
+        '1 in 8.5 T/O ': r.to85,
+        '1 in 12 T/O ': r.to12,
+        '1 in 16 T/O': r.to16,
+        'DS ': r.ds,
         'BS': r.bs,
-        'Total Track': (Number(r.mainline) || 0) + (Number(r.paxLoop) || 0) + (Number(r.goodsLoop) || 0) + 
-                        (Number(r.xover) || 0) + (Number(r.sidings) || 0) + (Number(r.osl) || 0)
+        'Sand Hump ': r.sandHump,
+        'Track': r.yardTrack,
+        '1 in 8.5 T/O': r.yardTo85,
+        '1 in 12 T/O': r.yardTo12,
+        'DS': r.yardDs,
+        'Buffer Stop': r.yardBs,
+        'Sand Hump': r.yardSandHump
       }));
       const ws = XLSX.utils.json_to_sheet(data);
       const wb = XLSX.utils.book_new();
