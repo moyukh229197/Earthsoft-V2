@@ -331,7 +331,7 @@
       <section class="work-page active" data-work-page="overview">
         <section class="overview-mission">
           <article class="glass mission-hero">
-            <div>
+            <div class="mission-hero-copy">
               <p class="mission-kicker">Mission Control</p>
               <h2 id="overviewHeroTitle">No active project</h2>
               <p id="overviewHeroText" class="muted">Create or open a project to begin importing levels, structures, loops, and map alignment.</p>
@@ -340,20 +340,32 @@
                 <span id="topbarMapState" class="topbar-status-pill">No Map</span>
                 <span id="topbarSaveState" class="topbar-status-pill">Local</span>
               </div>
+              <div class="mission-hero-ribbon">
+                <span>Earthwork command center</span>
+                <span>Review-first workflow</span>
+                <span>Live delivery readiness</span>
+              </div>
             </div>
-            <div class="mission-actions">
-              <button class="btn btn-secondary" type="button" id="overviewLayoutToggleBtn" data-overview-action="layout-toggle">
-                <i class="ri-drag-move-2-line"></i>
-                <span>Customize Layout</span>
-              </button>
-              <button class="btn btn-secondary" type="button" id="overviewLayoutResetBtn" data-overview-action="layout-reset">
-                <i class="ri-layout-grid-line"></i>
-                <span>Reset Layout</span>
-              </button>
-              <button class="btn btn-secondary" type="button" data-overview-action="edit">
-                <i class="ri-edit-line"></i>
-                <span>Edit Project</span>
-              </button>
+            <div class="mission-hero-aside">
+              <div class="mission-hero-orbit" aria-hidden="true">
+                <span class="mission-orbit mission-orbit-a"></span>
+                <span class="mission-orbit mission-orbit-b"></span>
+                <span class="mission-core-dot"></span>
+              </div>
+              <div class="mission-actions">
+                <button class="btn btn-secondary" type="button" id="overviewLayoutToggleBtn" data-overview-action="layout-toggle">
+                  <i class="ri-drag-move-2-line"></i>
+                  <span>Customize Layout</span>
+                </button>
+                <button class="btn btn-secondary" type="button" id="overviewLayoutResetBtn" data-overview-action="layout-reset">
+                  <i class="ri-layout-grid-line"></i>
+                  <span>Reset Layout</span>
+                </button>
+                <button class="btn btn-secondary" type="button" data-overview-action="edit">
+                  <i class="ri-edit-line"></i>
+                  <span>Edit Project</span>
+                </button>
+              </div>
             </div>
           </article>
 
@@ -420,21 +432,25 @@
           </section>
 
           <section id="projectDashboard" class="mission-stats" data-overview-layout="dashboard">
-            <div class="glass-card mission-stat" data-overview-card="dash_chainage">
+            <div class="glass-card mission-stat mission-stat-chainage" data-overview-card="dash_chainage">
               <div class="mission-stat-label"><i class="ri-ruler-line"></i> Chainage Range</div>
               <div id="dashChRange" class="mission-stat-value">0.000 to 0.000</div>
+              <div class="mission-stat-meta">Start to end coverage across the active corridor.</div>
             </div>
-            <div class="glass-card mission-stat" data-overview-card="dash_length">
+            <div class="glass-card mission-stat mission-stat-length" data-overview-card="dash_length">
               <div class="mission-stat-label"><i class="ri-route-line"></i> Total Length</div>
               <div id="dashLength" class="mission-stat-value">0.000 km</div>
+              <div class="mission-stat-meta">Continuous analyzed alignment length.</div>
             </div>
-            <div class="glass-card mission-stat" data-overview-card="dash_points">
+            <div class="glass-card mission-stat mission-stat-points" data-overview-card="dash_points">
               <div class="mission-stat-label"><i class="ri-shape-line"></i> Data Points</div>
               <div id="dashPoints" class="mission-stat-value">0 Cross-Sections</div>
+              <div class="mission-stat-meta">Cross-sections currently driving the model.</div>
             </div>
-            <div class="glass-card mission-stat" data-overview-card="dash_structures">
+            <div class="glass-card mission-stat mission-stat-structures" data-overview-card="dash_structures">
               <div class="mission-stat-label"><i class="ri-building-line"></i> Structures</div>
               <div id="dashStructures" class="mission-stat-value">0 Bridges, 0 Curves</div>
+              <div class="mission-stat-meta">Bridge and curvature features in scope.</div>
             </div>
           </section>
 
@@ -1589,12 +1605,54 @@
             <input id="stationPlanImportInput" type="file" accept=".png,.jpg,.jpeg,.webp,.pdf,.PDF" hidden />
           </div>
         </header>
+        <div class="alignment-map-overlay-bar">
+          <label class="map-toggle-chip map-toggle-chip-master" title="Project the full corridor and structures onto the map">
+            <input id="mapPseudo3dEnabledToggle" type="checkbox" />
+            <span>Pseudo-3D Overlay</span>
+          </label>
+          <label class="map-toggle-chip">
+            <input id="mapOverlayTerrainToggle" type="checkbox" />
+            <span>Terrain</span>
+          </label>
+          <label class="map-toggle-chip">
+            <input id="mapOverlayCorridorToggle" type="checkbox" />
+            <span>Corridor</span>
+          </label>
+          <label class="map-toggle-chip">
+            <input id="mapOverlayEarthworkToggle" type="checkbox" />
+            <span>Earthwork</span>
+          </label>
+          <label class="map-toggle-chip">
+            <input id="mapOverlayStructuresToggle" type="checkbox" />
+            <span>Structures</span>
+          </label>
+          <label class="map-toggle-chip">
+            <input id="mapOverlayLabelsToggle" type="checkbox" />
+            <span>Labels</span>
+          </label>
+          <label class="map-toggle-chip">
+            <input id="mapOverlayBoundaryToggle" type="checkbox" />
+            <span>Boundary</span>
+          </label>
+          <label class="map-toggle-chip">
+            <input id="mapOverlayEWStructuresToggle" type="checkbox" />
+            <span>RW / Drains</span>
+          </label>
+        </div>
         <div class="card glass" style="margin-top:16px;padding:0;overflow:hidden;position:relative;">
           <aside id="alignmentMapLegend" class="map-legend" aria-label="Map legend">
             <div class="map-legend-title">Map Legend</div>
             <div class="map-legend-item">
               <span class="map-legend-swatch map-legend-line alignment"></span>
               <span>Alignment</span>
+            </div>
+            <div class="map-legend-item">
+              <span class="map-legend-swatch map-legend-line terrain"></span>
+              <span>Terrain Ribbon</span>
+            </div>
+            <div class="map-legend-item">
+              <span class="map-legend-swatch map-legend-line corridor"></span>
+              <span>Corridor / Track Deck</span>
             </div>
             <div class="map-legend-item">
               <span class="map-legend-swatch map-legend-line fill"></span>
@@ -1615,6 +1673,14 @@
             <div class="map-legend-item">
               <span class="map-legend-swatch map-legend-dot station"></span>
               <span>Stations</span>
+            </div>
+            <div class="map-legend-item">
+              <span class="map-legend-swatch map-legend-line wall"></span>
+              <span>Retaining Walls</span>
+            </div>
+            <div class="map-legend-item">
+              <span class="map-legend-swatch map-legend-line drain"></span>
+              <span>Drain Runs</span>
             </div>
             <div id="alignmentMapLegendNote" class="map-legend-note">Station locations are shown after KML import. Station labels are placed once per station at CSB.</div>
           </aside>

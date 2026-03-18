@@ -8,6 +8,68 @@ let baseLayers = {};
 let mapItems = null; // We'll use a FeatureGroup for easy clearing
 let pendingStationPlanTarget = "";
 let pendingStationPlanFile = null;
+const MAP_PSEUDO_3D_DEFAULTS = {
+    enabled: false,
+    terrain: true,
+    corridor: true,
+    earthwork: true,
+    structures: true,
+    labels: true,
+    boundary: true,
+    ewStructures: true,
+};
+
+function getMapPseudo3DSettings() {
+    const saved = state?.settings?.mapPseudo3d && typeof state.settings.mapPseudo3d === "object"
+        ? state.settings.mapPseudo3d
+        : {};
+    return {
+        enabled: saved.enabled === true,
+        terrain: saved.terrain !== false,
+        corridor: saved.corridor !== false,
+        earthwork: saved.earthwork !== false,
+        structures: saved.structures !== false,
+        labels: saved.labels !== false,
+        boundary: saved.boundary !== false,
+        ewStructures: saved.ewStructures !== false,
+    };
+}
+
+function syncMapPseudo3DControls() {
+    const settings = getMapPseudo3DSettings();
+    const mapping = {
+        mapPseudo3dEnabledToggle: "enabled",
+        mapOverlayTerrainToggle: "terrain",
+        mapOverlayCorridorToggle: "corridor",
+        mapOverlayEarthworkToggle: "earthwork",
+        mapOverlayStructuresToggle: "structures",
+        mapOverlayLabelsToggle: "labels",
+        mapOverlayBoundaryToggle: "boundary",
+        mapOverlayEWStructuresToggle: "ewStructures",
+    };
+
+    Object.entries(mapping).forEach(([id, key]) => {
+        const input = document.getElementById(id);
+        if (!input) return;
+        input.checked = Boolean(settings[key]);
+        if (key !== "enabled") {
+            input.disabled = !settings.enabled;
+            input.closest(".map-toggle-chip")?.classList.toggle("is-disabled", !settings.enabled);
+        }
+    });
+}
+
+function setMapPseudo3DSetting(key, value) {
+    state.settings = state.settings || {};
+    state.settings.mapPseudo3d = {
+        ...MAP_PSEUDO_3D_DEFAULTS,
+        ...getMapPseudo3DSettings(),
+        [key]: value,
+    };
+    syncMapPseudo3DControls();
+    saveState();
+    if (state.kmlData) drawAlignmentMap();
+}
 
 // Initialize UI and Event Listeners when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
@@ -23,6 +85,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const closeStationPlanModalBtn = document.getElementById("closeStationPlanModalBtn");
     const clearMapBtn = document.getElementById("clearMapBtn");
     const mapTypeSelect = document.getElementById("mapTypeSelect");
+    const mapPseudo3dEnabledToggle = document.getElementById("mapPseudo3dEnabledToggle");
+    const mapOverlayTerrainToggle = document.getElementById("mapOverlayTerrainToggle");
+    const mapOverlayCorridorToggle = document.getElementById("mapOverlayCorridorToggle");
+    const mapOverlayEarthworkToggle = document.getElementById("mapOverlayEarthworkToggle");
+    const mapOverlayStructuresToggle = document.getElementById("mapOverlayStructuresToggle");
+    const mapOverlayLabelsToggle = document.getElementById("mapOverlayLabelsToggle");
+    const mapOverlayBoundaryToggle = document.getElementById("mapOverlayBoundaryToggle");
+    const mapOverlayEWStructuresToggle = document.getElementById("mapOverlayEWStructuresToggle");
 
     if (importKmlBtn && kmlImportInput) {
         importKmlBtn.addEventListener("click", () => kmlImportInput.click());
@@ -77,6 +147,31 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+    if (mapPseudo3dEnabledToggle) {
+        mapPseudo3dEnabledToggle.addEventListener("change", (e) => setMapPseudo3DSetting("enabled", Boolean(e.target.checked)));
+    }
+    if (mapOverlayTerrainToggle) {
+        mapOverlayTerrainToggle.addEventListener("change", (e) => setMapPseudo3DSetting("terrain", Boolean(e.target.checked)));
+    }
+    if (mapOverlayCorridorToggle) {
+        mapOverlayCorridorToggle.addEventListener("change", (e) => setMapPseudo3DSetting("corridor", Boolean(e.target.checked)));
+    }
+    if (mapOverlayEarthworkToggle) {
+        mapOverlayEarthworkToggle.addEventListener("change", (e) => setMapPseudo3DSetting("earthwork", Boolean(e.target.checked)));
+    }
+    if (mapOverlayStructuresToggle) {
+        mapOverlayStructuresToggle.addEventListener("change", (e) => setMapPseudo3DSetting("structures", Boolean(e.target.checked)));
+    }
+    if (mapOverlayLabelsToggle) {
+        mapOverlayLabelsToggle.addEventListener("change", (e) => setMapPseudo3DSetting("labels", Boolean(e.target.checked)));
+    }
+    if (mapOverlayBoundaryToggle) {
+        mapOverlayBoundaryToggle.addEventListener("change", (e) => setMapPseudo3DSetting("boundary", Boolean(e.target.checked)));
+    }
+    if (mapOverlayEWStructuresToggle) {
+        mapOverlayEWStructuresToggle.addEventListener("change", (e) => setMapPseudo3DSetting("ewStructures", Boolean(e.target.checked)));
+    }
+    syncMapPseudo3DControls();
 
     // Initialize Leaflet Map
     initLeafletMap();
@@ -135,6 +230,20 @@ function initLeafletMap() {
     // Default to Hybrid
     alignmentMap.addLayer(baseLayers.hybrid);
     alignmentMap.getContainer().classList.add('leaflet-satellite-layer');
+
+    [
+        ["mapPseudo3dTerrainPane", 405],
+        ["mapPseudo3dEarthworkPane", 415],
+        ["mapPseudo3dCorridorPane", 425],
+        ["mapPseudo3dStructurePane", 435],
+        ["mapPseudo3dRailPane", 445],
+        ["mapPseudo3dLabelPane", 455],
+    ].forEach(([name, zIndex]) => {
+        if (!alignmentMap.getPane(name)) {
+            const pane = alignmentMap.createPane(name);
+            pane.style.zIndex = String(zIndex);
+        }
+    });
 
     mapItems = L.featureGroup().addTo(alignmentMap);
 
@@ -493,6 +602,7 @@ function drawAlignmentMap() {
     const points = state.kmlData.points;
     const path = points.map(p => [p.lat, p.lng]);
     const startChOffset = (state.calcRows && state.calcRows.length) ? _safeNum(state.calcRows[0].chainage) : 0;
+    const mapPseudo3DSettings = getMapPseudo3DSettings();
 
     // Base Alignment Polyline
     L.polyline(path, {
@@ -501,10 +611,14 @@ function drawAlignmentMap() {
         opacity: 0.8
     }).addTo(mapItems);
 
-    const hasLandBoundary = drawLandBoundaryOverlay(points, startChOffset);
+    const hasLandBoundary = mapPseudo3DSettings.boundary ? drawLandBoundaryOverlay(points, startChOffset) : false;
     const showMapStations = state.settings?.showMapStations !== false;
     const showMapBridges = state.settings?.showMapBridges !== false;
     const showMapCurves = state.settings?.showMapCurves !== false;
+
+    if (mapPseudo3DSettings.enabled) {
+        drawPseudo3DOverlay(points, startChOffset, mapPseudo3DSettings);
+    }
 
     // Earthwork Overlays
     if (state.calcRows && state.calcRows.length > 1) {
@@ -662,7 +776,425 @@ function drawAlignmentMap() {
         alignmentMap.fitBounds(bounds, { padding: [50, 50] });
     }
 
-    updateMapLegend(Object.keys(state.stationPlans || {}).length, hasLandBoundary);
+    updateMapLegend(Object.keys(state.stationPlans || {}).length, hasLandBoundary, mapPseudo3DSettings.enabled);
+}
+
+function drawPseudo3DOverlay(points, startChOffset, settings) {
+    const samples = buildPseudo3DSamples(points, startChOffset);
+    if (!samples.length) return;
+
+    if (settings.terrain) {
+        drawPseudo3DRibbon(samples, {
+            pane: "mapPseudo3dTerrainPane",
+            fillColor: "#587d39",
+            fillOpacity: 0.12,
+            color: "#587d39",
+            weight: 1,
+            opacity: 0.18,
+            xMin: (sample) => sample.centerOffset - (sample.currentFormationW / 2) - 18,
+            xMax: (sample) => sample.centerOffset + (sample.currentFormationW / 2) + 18,
+        });
+    }
+
+    if (settings.earthwork) {
+        drawPseudo3DEarthwork(samples, "fill");
+        drawPseudo3DEarthwork(samples, "cut");
+    }
+
+    if (settings.corridor) {
+        drawPseudo3DRibbon(samples, {
+            pane: "mapPseudo3dCorridorPane",
+            fillColor: "#475569",
+            fillOpacity: 0.42,
+            color: "#94a3b8",
+            weight: 1.5,
+            opacity: 0.58,
+            xMin: (sample) => sample.centerOffset - (sample.currentFormationW / 2) - 0.7,
+            xMax: (sample) => sample.centerOffset + (sample.currentFormationW / 2) + 0.7,
+        });
+        drawPseudo3DTrackRails(samples);
+        drawPseudo3DPlatforms(points, startChOffset);
+    }
+
+    if (settings.structures) {
+        drawPseudo3DBridgeAndTunnelOverlays(points, startChOffset);
+    }
+
+    if (settings.ewStructures) {
+        drawPseudo3DEarthworkStructures(points, startChOffset);
+    }
+
+    if (settings.labels) {
+        drawPseudo3DLabels(points, startChOffset);
+    }
+}
+
+function buildPseudo3DSamples(points, startChOffset) {
+    const rows = Array.isArray(state.calcRows) ? state.calcRows : [];
+    if (!rows.length || !points?.length) return [];
+
+    const standardTc = _safeNum(state.settings?.visual?.minTc, 5.3);
+    const formationW = _safeNum(state.settings?.visual?.formationWidthFill, 7.85);
+    const sampleWindow = getTypicalChainageStep(rows);
+    const stride = Math.max(1, Math.ceil(rows.length / 850));
+    const sampleIndexes = new Set([0, rows.length - 1]);
+
+    for (let i = 0; i < rows.length; i += stride) sampleIndexes.add(i);
+
+    const addChainageIndex = (value) => {
+        const parsed = _safeNum(value, NaN);
+        if (!Number.isFinite(parsed) || typeof findNearestCalcRowIndexByChainage !== "function") return;
+        sampleIndexes.add(findNearestCalcRowIndexByChainage(parsed));
+    };
+
+    (state.bridgeRows || []).forEach((row) => {
+        addChainageIndex(row?.startChainage);
+        addChainageIndex(row?.endChainage);
+    });
+    (state.earthworkStructures?.retainingWalls || []).forEach((row) => {
+        addChainageIndex(row?.fromCh);
+        addChainageIndex(row?.toCh);
+    });
+    (state.earthworkStructures?.drains || []).forEach((row) => {
+        addChainageIndex(row?.fromCh);
+        addChainageIndex(row?.toCh);
+    });
+    (state.loopPlatformRows || []).forEach((row) => {
+        addChainageIndex(row?.loopStartCh);
+        addChainageIndex(row?.loopEndCh);
+        addChainageIndex(row?.pfStartCh);
+        addChainageIndex(row?.pfEndCh);
+    });
+
+    return Array.from(sampleIndexes)
+        .sort((a, b) => a - b)
+        .map((index) => {
+            const row = rows[index];
+            if (!row) return null;
+            const chainageAbs = _safeNum(row.chainage, NaN);
+            if (!Number.isFinite(chainageAbs)) return null;
+            const alignmentCh = chainageAbs - startChOffset;
+            const center = getLatLngFromChainage(alignmentCh, points);
+            const tangent = getAlignmentTangentAtChainage(alignmentCh, points, sampleWindow);
+            if (!center || !tangent) return null;
+            const envelope = typeof compute3DEnvelopeForRow === "function"
+                ? compute3DEnvelopeForRow(row, standardTc, formationW)
+                : {
+                    trackItems: [{ order: 0, offset: 0, side: "", isMain: true, row: {} }],
+                    platformItems: [],
+                    minX: -(formationW / 2),
+                    maxX: formationW / 2,
+                    currentFormationW: formationW,
+                    centerOffset: 0,
+                };
+            return { index, row, chainageAbs, center, tangent, envelope, centerOffset: envelope.centerOffset, currentFormationW: envelope.currentFormationW };
+        })
+        .filter(Boolean);
+}
+
+function projectPseudo3DPoint(sample, x) {
+    return offsetLatLng(sample.center, sample.tangent, -x);
+}
+
+function drawPseudo3DRibbon(samples, options) {
+    const left = [];
+    const right = [];
+    samples.forEach((sample) => {
+        const xMin = options.xMin(sample);
+        const xMax = options.xMax(sample);
+        if (!Number.isFinite(xMin) || !Number.isFinite(xMax)) return;
+        left.push(projectPseudo3DPoint(sample, xMin));
+        right.push(projectPseudo3DPoint(sample, xMax));
+    });
+    if (left.length < 2 || right.length < 2) return;
+
+    L.polygon(
+        [...left, ...right.slice().reverse()].map((pt) => [pt.lat, pt.lng]),
+        {
+            pane: options.pane,
+            color: options.color,
+            weight: options.weight,
+            opacity: options.opacity,
+            fillColor: options.fillColor,
+            fillOpacity: options.fillOpacity,
+            interactive: false,
+        },
+    ).addTo(mapItems);
+}
+
+function buildContiguousSampleGroups(samples, predicate) {
+    const groups = [];
+    let current = [];
+    samples.forEach((sample) => {
+        if (predicate(sample)) {
+            current.push(sample);
+            return;
+        }
+        if (current.length > 1) groups.push(current);
+        current = [];
+    });
+    if (current.length > 1) groups.push(current);
+    return groups;
+}
+
+function drawPseudo3DEarthwork(samples, kind) {
+    const isFill = kind === "fill";
+    const groups = buildContiguousSampleGroups(samples, (sample) => isFill ? _safeNum(sample.row?.bank, 0) > 0.1 : _safeNum(sample.row?.cut, 0) > 0.1);
+    groups.forEach((group) => {
+        drawPseudo3DRibbon(group, {
+            pane: "mapPseudo3dEarthworkPane",
+            fillColor: isFill ? "#22c55e" : "#f43f5e",
+            fillOpacity: isFill ? 0.18 : 0.14,
+            color: isFill ? "#22c55e" : "#f43f5e",
+            weight: 1,
+            opacity: 0.28,
+            xMin: (sample) => sample.centerOffset - (_safeNum(isFill ? sample.row?.fillBottom : sample.row?.cutBottom, sample.currentFormationW) / 2),
+            xMax: (sample) => sample.centerOffset + (_safeNum(isFill ? sample.row?.fillBottom : sample.row?.cutBottom, sample.currentFormationW) / 2),
+        });
+    });
+}
+
+function drawPseudo3DTrackRails(samples) {
+    const railSegments = new Map();
+
+    samples.forEach((sample) => {
+        (sample.envelope?.trackItems || []).forEach((track) => {
+            const key = `${track.order}|${track.side || "center"}|${track.isMain ? "main" : "aux"}`;
+            const entry = railSegments.get(key) || { left: [], right: [] };
+            entry.left.push(projectPseudo3DPoint(sample, _safeNum(track.offset, 0) - 0.835));
+            entry.right.push(projectPseudo3DPoint(sample, _safeNum(track.offset, 0) + 0.835));
+            railSegments.set(key, entry);
+        });
+    });
+
+    railSegments.forEach((entry) => {
+        if (entry.left.length > 1) {
+            L.polyline(entry.left.map((pt) => [pt.lat, pt.lng]), {
+                pane: "mapPseudo3dRailPane",
+                color: "#e2e8f0",
+                weight: 1.35,
+                opacity: 0.95,
+                interactive: false,
+            }).addTo(mapItems);
+        }
+        if (entry.right.length > 1) {
+            L.polyline(entry.right.map((pt) => [pt.lat, pt.lng]), {
+                pane: "mapPseudo3dRailPane",
+                color: "#e2e8f0",
+                weight: 1.35,
+                opacity: 0.95,
+                interactive: false,
+            }).addTo(mapItems);
+        }
+    });
+}
+
+function drawPseudo3DPlatforms(points, startChOffset) {
+    const standardTc = _safeNum(state.settings?.visual?.minTc, 5.3);
+    (state.loopPlatformRows || []).forEach((platformRow) => {
+        const pfStartCh = _safeNum(platformRow?.pfStartCh, NaN);
+        const pfEndCh = _safeNum(platformRow?.pfEndCh, NaN);
+        const pfWidth = _safeNum(platformRow?.pfWidth, NaN);
+        if (!Number.isFinite(pfStartCh) || !Number.isFinite(pfEndCh) || !(pfWidth > 0)) return;
+
+        const midCh = (pfStartCh + pfEndCh) / 2;
+        const layout = typeof buildStationSequenceLayout === "function"
+            ? buildStationSequenceLayout(midCh, platformRow?.station || "", standardTc, { useRanges: true })
+            : null;
+        const trackItems = layout
+            ? layout.trackItems.map((item) => ({ ...item, offset: layout.offsetByItem.get(item) }))
+            : [{ offset: 0, side: "", isMain: true }];
+        const isLeft = String(platformRow?.side || "").toLowerCase() === "left";
+        const refTrack = trackItems.find((track) => track.side === platformRow?.side)
+            || trackItems.find((track) => track.isMain)
+            || trackItems[0];
+        const cx = _safeNum(refTrack?.offset, 0) + (isLeft ? -(2.8 + (pfWidth / 2)) : (2.8 + (pfWidth / 2)));
+        const xMin = cx - (pfWidth / 2);
+        const xMax = cx + (pfWidth / 2);
+        const polygon = buildPseudo3DSpanPolygon(points, startChOffset, pfStartCh, pfEndCh, xMin, xMax);
+        if (!polygon) return;
+        L.polygon(polygon, {
+            pane: "mapPseudo3dCorridorPane",
+            color: "#cbd5e1",
+            weight: 1,
+            opacity: 0.55,
+            fillColor: "#94a3b8",
+            fillOpacity: 0.32,
+            interactive: false,
+        }).addTo(mapItems);
+    });
+}
+
+function buildPseudo3DSpanPolygon(points, startChOffset, startCh, endCh, xMin, xMax) {
+    const chStart = Math.min(startCh, endCh);
+    const chEnd = Math.max(startCh, endCh);
+    const startSample = buildPseudo3DChainageSample(chStart, points, startChOffset);
+    const endSample = buildPseudo3DChainageSample(chEnd, points, startChOffset);
+    if (!startSample || !endSample) return null;
+    return [
+        [projectPseudo3DPoint(startSample, xMin).lat, projectPseudo3DPoint(startSample, xMin).lng],
+        [projectPseudo3DPoint(endSample, xMin).lat, projectPseudo3DPoint(endSample, xMin).lng],
+        [projectPseudo3DPoint(endSample, xMax).lat, projectPseudo3DPoint(endSample, xMax).lng],
+        [projectPseudo3DPoint(startSample, xMax).lat, projectPseudo3DPoint(startSample, xMax).lng],
+    ];
+}
+
+function buildPseudo3DChainageSample(chainageAbs, points, startChOffset) {
+    const alignmentCh = chainageAbs - startChOffset;
+    const center = getLatLngFromChainage(alignmentCh, points);
+    const tangent = getAlignmentTangentAtChainage(alignmentCh, points, getTypicalChainageStep(state.calcRows || []));
+    if (!center || !tangent) return null;
+    return { center, tangent };
+}
+
+function drawPseudo3DBridgeAndTunnelOverlays(points, startChOffset) {
+    const standardTc = _safeNum(state.settings?.visual?.minTc, 5.3);
+    const formationW = _safeNum(state.settings?.visual?.formationWidthFill, 7.85);
+    (state.bridgeRows || []).forEach((bridge) => {
+        const startCh = _safeNum(bridge?.startChainage, NaN);
+        const endCh = _safeNum(bridge?.endChainage, NaN);
+        if (!Number.isFinite(startCh) || !Number.isFinite(endCh)) return;
+        const midCh = (startCh + endCh) / 2;
+        const rowIndex = typeof findNearestCalcRowIndexByChainage === "function" ? findNearestCalcRowIndexByChainage(midCh) : 0;
+        const row = state.calcRows?.[rowIndex];
+        const envelope = row && typeof compute3DEnvelopeForRow === "function"
+            ? compute3DEnvelopeForRow(row, standardTc, formationW)
+            : { currentFormationW: formationW, centerOffset: 0 };
+        const width = _safeNum(envelope.currentFormationW, formationW) + 2;
+        const polygon = buildPseudo3DSpanPolygon(
+            points,
+            startChOffset,
+            startCh,
+            endCh,
+            _safeNum(envelope.centerOffset, 0) - (width / 2),
+            _safeNum(envelope.centerOffset, 0) + (width / 2),
+        );
+        if (!polygon) return;
+
+        const isTunnel = /tunnel/i.test(String(bridge?.bridgeCategory || ""));
+        L.polygon(polygon, {
+            pane: "mapPseudo3dStructurePane",
+            color: isTunnel ? "#cbd5e1" : "#475569",
+            weight: 1.5,
+            opacity: 0.85,
+            fillColor: isTunnel ? "#94a3b8" : "#64748b",
+            fillOpacity: isTunnel ? 0.34 : 0.28,
+            dashArray: isTunnel ? "8 6" : null,
+            interactive: false,
+        }).addTo(mapItems);
+    });
+}
+
+function drawPseudo3DEarthworkStructures(points, startChOffset) {
+    const standardTc = _safeNum(state.settings?.visual?.minTc, 5.3);
+    const formationW = _safeNum(state.settings?.visual?.formationWidthFill, 7.85);
+
+    (state.earthworkStructures?.retainingWalls || []).forEach((wall) => {
+        const fromCh = _safeNum(wall?.fromCh, NaN);
+        const toCh = _safeNum(wall?.toCh, NaN);
+        if (!Number.isFinite(fromCh) || !Number.isFinite(toCh)) return;
+        const midCh = (fromCh + toCh) / 2;
+        const rowIndex = typeof findNearestCalcRowIndexByChainage === "function" ? findNearestCalcRowIndexByChainage(midCh) : 0;
+        const row = state.calcRows?.[rowIndex];
+        const envelope = row && typeof compute3DEnvelopeForRow === "function"
+            ? compute3DEnvelopeForRow(row, standardTc, formationW)
+            : { currentFormationW: formationW, centerOffset: 0 };
+        const xBase = _safeNum(envelope.centerOffset, 0);
+        const halfWidth = _safeNum(envelope.currentFormationW, formationW) / 2;
+        const offsets = String(wall?.side || "").toLowerCase() === "both"
+            ? [xBase - (halfWidth + 1.2), xBase + (halfWidth + 1.2)]
+            : [xBase + ((String(wall?.side || "").toLowerCase() === "left" ? -1 : 1) * (halfWidth + 1.2))];
+        offsets.forEach((x) => {
+            const line = buildPseudo3DSpanLine(points, startChOffset, fromCh, toCh, x);
+            if (!line) return;
+            L.polyline(line, {
+                pane: "mapPseudo3dStructurePane",
+                color: "#d97706",
+                weight: String(wall?.wallType || "").includes("4") ? 5 : 4,
+                opacity: 0.92,
+                interactive: false,
+            }).addTo(mapItems);
+        });
+    });
+
+    (state.earthworkStructures?.drains || []).forEach((drain) => {
+        const fromCh = _safeNum(drain?.fromCh, NaN);
+        const toCh = _safeNum(drain?.toCh, NaN);
+        if (!Number.isFinite(fromCh) || !Number.isFinite(toCh)) return;
+        const midCh = (fromCh + toCh) / 2;
+        const rowIndex = typeof findNearestCalcRowIndexByChainage === "function" ? findNearestCalcRowIndexByChainage(midCh) : 0;
+        const row = state.calcRows?.[rowIndex];
+        const envelope = row && typeof compute3DEnvelopeForRow === "function"
+            ? compute3DEnvelopeForRow(row, standardTc, formationW)
+            : { currentFormationW: formationW, centerOffset: 0 };
+        const xBase = _safeNum(envelope.centerOffset, 0);
+        const halfWidth = _safeNum(envelope.currentFormationW, formationW) / 2;
+        const drainType = typeof getDrainTypeMeta === "function" ? getDrainTypeMeta(drain?.drainType).key : String(drain?.drainType || "side_drain");
+        let sideOffset = 1.6;
+        if (drainType === "catchwater_drain") sideOffset = 4.5;
+        if (drainType === "berm_drain") sideOffset = 3.2;
+        if (drainType === "yard_drain") sideOffset = 2.2;
+        const drainColor = drainType === "yard_drain"
+            ? "#22c55e"
+            : drainType === "catchwater_drain"
+                ? "#06b6d4"
+                : drainType === "berm_drain"
+                    ? "#a855f7"
+                    : "#60a5fa";
+        const offsets = String(drain?.side || "").toLowerCase() === "both"
+            ? [xBase - (halfWidth + sideOffset), xBase + (halfWidth + sideOffset)]
+            : [xBase + ((String(drain?.side || "").toLowerCase() === "left" ? -1 : 1) * (halfWidth + sideOffset))];
+        offsets.forEach((x) => {
+            const line = buildPseudo3DSpanLine(points, startChOffset, fromCh, toCh, x);
+            if (!line) return;
+            L.polyline(line, {
+                pane: "mapPseudo3dStructurePane",
+                color: drainColor,
+                weight: drainType === "catchwater_drain" ? 4 : 3,
+                opacity: 0.9,
+                dashArray: drainType === "berm_drain" ? "8 6" : null,
+                interactive: false,
+            }).addTo(mapItems);
+        });
+    });
+}
+
+function buildPseudo3DSpanLine(points, startChOffset, startCh, endCh, x) {
+    const chStart = Math.min(startCh, endCh);
+    const chEnd = Math.max(startCh, endCh);
+    const midCh = (chStart + chEnd) / 2;
+    const samples = [chStart, midCh, chEnd]
+        .map((chainage) => buildPseudo3DChainageSample(chainage, points, startChOffset))
+        .filter(Boolean);
+    if (samples.length < 2) return null;
+    return samples.map((sample) => {
+        const pt = projectPseudo3DPoint(sample, x);
+        return [pt.lat, pt.lng];
+    });
+}
+
+function drawPseudo3DLabels(points, startChOffset) {
+    const rows = Array.isArray(state.calcRows) ? state.calcRows : [];
+    if (!rows.length) return;
+    const startCh = _safeNum(rows[0]?.chainage, 0);
+    const endCh = _safeNum(rows[rows.length - 1]?.chainage, startCh);
+    const startKm = Math.ceil(startCh / 1000);
+    const endKm = Math.floor(endCh / 1000);
+
+    for (let km = startKm; km <= endKm; km += 1) {
+        const chainageAbs = km * 1000;
+        const pt = getLatLngFromChainage(chainageAbs - startChOffset, points);
+        if (!pt) continue;
+        L.marker([pt.lat, pt.lng], {
+            pane: "mapPseudo3dLabelPane",
+            interactive: false,
+            icon: L.divIcon({
+                className: "map-km-label-wrap",
+                html: `<div class="map-km-chip">KM ${km}</div>`,
+                iconSize: null,
+            }),
+        }).addTo(mapItems);
+    }
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────
@@ -880,14 +1412,15 @@ function escapeHtmlAttr(value) {
     return escapeHtml(value);
 }
 
-function updateMapLegend(stationPlanCount, hasLandBoundary) {
+function updateMapLegend(stationPlanCount, hasLandBoundary, pseudo3DEnabled = false) {
     const noteEl = document.getElementById("alignmentMapLegendNote");
     if (!noteEl) return;
     const boundaryNote = hasLandBoundary ? " Orange dashed lines show the land acquisition boundary." : "";
+    const overlayNote = pseudo3DEnabled ? " Pseudo-3D overlay is active for corridor, structures, and chainage labels." : "";
     if (stationPlanCount > 0) {
-        noteEl.textContent = `${stationPlanCount} station plan${stationPlanCount === 1 ? "" : "s"} mapped. Station labels are shown once per station at CSB.${boundaryNote}`;
+        noteEl.textContent = `${stationPlanCount} station plan${stationPlanCount === 1 ? "" : "s"} mapped. Station labels are shown once per station at CSB.${boundaryNote}${overlayNote}`;
     } else {
-        noteEl.textContent = `Station locations are shown after KML import. Station labels are shown once per station at CSB.${boundaryNote}`;
+        noteEl.textContent = `Station locations are shown after KML import. Station labels are shown once per station at CSB.${boundaryNote}${overlayNote}`;
     }
 }
 
