@@ -63,6 +63,7 @@ const RETAINING_WALL_REASON_SHORT_LABELS = {
   water: "waterbody",
   habitation: "habitation",
 };
+const GLOBAL_HISTORY_LIMIT = 80;
 const OVERVIEW_LAYOUT_DEFAULTS = {
   dashboard: ["dash_chainage", "dash_length", "dash_points", "dash_structures"],
   earthwork_totals: ["fill_stat", "cut_stat"],
@@ -1000,6 +1001,8 @@ const els = {
   pwayXlsxInput: document.getElementById('pwayXlsxInput'),
   pwayExportExcelBtn: document.getElementById('pwayExportExcelBtn'),
   pwayGrandTotal: document.getElementById('pwayGrandTotal'),
+  globalUndoBtn: document.getElementById("globalUndoBtn"),
+  globalRedoBtn: document.getElementById("globalRedoBtn"),
 };
 
 async function loadAuthState() {
@@ -7884,6 +7887,18 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
 }
 
 function bindEvents() {
+  const queueHistoryCheckpointFromEvent = (event) => {
+    if (window._isUndoRedoOp) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const delay = event.type === "input" ? 250 : 0;
+    scheduleGlobalHistoryCheckpoint(delay);
+  };
+
+  ["click", "change", "input", "drop", "submit"].forEach((eventName) => {
+    document.addEventListener(eventName, queueHistoryCheckpointFromEvent);
+  });
+
   if (els.loginForm) {
     els.loginForm.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -7902,6 +7917,14 @@ function bindEvents() {
     els.logoutBtn.addEventListener("click", () => {
       logout();
     });
+  }
+
+  if (els.globalUndoBtn) {
+    els.globalUndoBtn.addEventListener("click", () => performGlobalUndo());
+  }
+
+  if (els.globalRedoBtn) {
+    els.globalRedoBtn.addEventListener("click", () => performGlobalRedo());
   }
 
   if (els.workNav) {
@@ -10482,28 +10505,166 @@ function drawMiniCrossSection(canvas, row) {
   ctx.fillText(bVal > 0 ? `FILL ${r3(bVal)}m` : (cVal > 0 ? `CUT ${r3(cVal)}m` : "LEVEL"), cw/2 - 20, ch/2 + 15);
 }
 
+function replaceArrayContents(target, source) {
+  target.length = 0;
+  if (Array.isArray(source) && source.length) {
+    target.push(...source);
+  }
+}
+
+function replaceObjectContents(target, source) {
+  Object.keys(target).forEach((key) => delete target[key]);
+  if (source && typeof source === "object") {
+    Object.assign(target, source);
+  }
+}
+
+function normalizeSettingsState() {
+  state.settings = { ...state.defaultSettings, ...(state.settings || {}) };
+  if (!Array.isArray(state.settings.materialProfile) || !state.settings.materialProfile.length) {
+    state.settings.materialProfile = [...(state.defaultSettings.materialProfile || [])];
+  }
+  if (!state.settings.reportBrand || typeof state.settings.reportBrand !== "object") {
+    state.settings.reportBrand = { ...(state.defaultSettings.reportBrand || {}) };
+  } else {
+    state.settings.reportBrand = { ...(state.defaultSettings.reportBrand || {}), ...state.settings.reportBrand };
+  }
+  if (!state.settings.boqMapping || typeof state.settings.boqMapping !== "object") {
+    state.settings.boqMapping = { ...(state.defaultSettings.boqMapping || {}) };
+  } else {
+    state.settings.boqMapping = { ...(state.defaultSettings.boqMapping || {}), ...state.settings.boqMapping };
+  }
+}
+
+function normalizeProjectState() {
+  state.project = {
+    active: Boolean(state.project?.active),
+    verified: Boolean(state.project?.verified),
+    name: String(state.project?.name || ""),
+    uploads: {
+      levels: Boolean(state.project?.uploads?.levels),
+      curves: Boolean(state.project?.uploads?.curves),
+      bridges: Boolean(state.project?.uploads?.bridges),
+      loops: Boolean(state.project?.uploads?.loops),
+      kml: Boolean(state.project?.uploads?.kml) || Boolean(state.kmlData),
+    },
+    profile: {
+      corridorName: String(state.project?.profile?.corridorName || ""),
+      direction: String(state.project?.profile?.direction || "Up"),
+      chainageZeroRef: String(state.project?.profile?.chainageZeroRef || ""),
+    },
+  };
+}
+
+function getSerializableAppState() {
+  return {
+    project: state.project || {},
+    meta: { ...(state.meta || {}) },
+    rawRows: state.rawRows || [],
+    bridgeRows: state.bridgeRows || [],
+    curveRows: state.curveRows || [],
+    loopPlatformRows: state.loopPlatformRows || [],
+    seedRows: state.seedRows || [],
+    seedMeta: state.seedMeta || {},
+    estimates: state.estimates || {},
+    larReferences: state.larReferences || [],
+    settings: state.settings || {},
+    snapshots: state.snapshots || [],
+    kmlData: state.kmlData || null,
+    stationPlans: state.stationPlans || {},
+    earthworkStructures: state.earthworkStructures || { retainingWalls: [], drains: [] },
+    pwayRows: state.pwayRows || [],
+    calcOverrides: state.calcOverrides || [],
+    slopeZones: state.slopeZones || [],
+    laZones: state.laZones || [],
+    importMappings: state.importMappings || { client: "", templates: {} },
+    activeWorkPage: state.activeWorkPage || "overview",
+    activeResultTab: state.activeResultTab || "inputs",
+    supabaseProjectId: state.supabaseProjectId || null,
+    veState: state.veState || { nodes: [], wires: [], groups: [], pan: { x: 0, y: 0 }, zoom: 1, nodeIdCounter: 1 },
+  };
+}
+
+function restoreSerializableAppState(data = {}) {
+  if (_saveTimeout) {
+    clearTimeout(_saveTimeout);
+    _saveTimeout = null;
+  }
+  if (_globalHistoryCheckpointTimer) {
+    clearTimeout(_globalHistoryCheckpointTimer);
+    _globalHistoryCheckpointTimer = null;
+  }
+
+  state.meta = data.meta && typeof data.meta === "object" ? { ...data.meta } : {};
+  replaceArrayContents(state.rawRows, data.rawRows);
+  replaceArrayContents(state.bridgeRows, data.bridgeRows);
+  replaceArrayContents(state.curveRows, data.curveRows);
+  replaceArrayContents(state.loopPlatformRows, data.loopPlatformRows);
+  replaceArrayContents(state.seedRows, data.seedRows);
+  state.seedMeta = data.seedMeta && typeof data.seedMeta === "object" ? { ...data.seedMeta } : {};
+  replaceObjectContents(state.estimates, data.estimates);
+  replaceArrayContents(state.larReferences, data.larReferences);
+  state.settings = data.settings && typeof data.settings === "object" ? { ...data.settings } : {};
+  normalizeSettingsState();
+  replaceArrayContents(state.snapshots, data.snapshots);
+  state.kmlData = data.kmlData || null;
+  state.stationPlans = data.stationPlans && typeof data.stationPlans === "object" ? { ...data.stationPlans } : {};
+  state.earthworkStructures = {
+    retainingWalls: Array.isArray(data.earthworkStructures?.retainingWalls) ? [...data.earthworkStructures.retainingWalls] : [],
+    drains: Array.isArray(data.earthworkStructures?.drains) ? [...data.earthworkStructures.drains] : [],
+  };
+  replaceArrayContents(state.pwayRows, data.pwayRows);
+  replaceArrayContents(state.calcOverrides, data.calcOverrides);
+  replaceArrayContents(state.slopeZones, data.slopeZones);
+  replaceArrayContents(state.laZones, data.laZones);
+  state.importMappings = data.importMappings && typeof data.importMappings === "object"
+    ? { client: String(data.importMappings.client || ""), templates: { ...(data.importMappings.templates || {}) } }
+    : { client: "", templates: {} };
+  state.supabaseProjectId = data.supabaseProjectId || null;
+  state.activeWorkPage = String(data.activeWorkPage || "overview");
+  state.activeResultTab = String(data.activeResultTab || "inputs");
+  state.meta = state.meta || {};
+  normalizeProjectState();
+
+  const veSnapshot = data.veState && typeof data.veState === "object" ? data.veState : {};
+  replaceArrayContents(state.veState.nodes, veSnapshot.nodes);
+  replaceArrayContents(state.veState.wires, veSnapshot.wires);
+  replaceArrayContents(state.veState.groups, veSnapshot.groups);
+  state.veState.pan = veSnapshot.pan && typeof veSnapshot.pan === "object"
+    ? { x: Number(veSnapshot.pan.x) || 0, y: Number(veSnapshot.pan.y) || 0 }
+    : { x: 0, y: 0 };
+  state.veState.zoom = Number(veSnapshot.zoom) || 1;
+  state.veState.nodeIdCounter = Number(veSnapshot.nodeIdCounter) || 1;
+
+  try {
+    localStorage.setItem("earthsoft_ve_last_autosave", JSON.stringify(state.veState));
+  } catch (e) {}
+}
+
+function refreshAppAfterGlobalHistoryRestore() {
+  renderLarRefs();
+  buildSettingsInputs();
+  updateWizardUI();
+  applyProjectGate();
+  recalculate();
+  setResultTab(state.activeResultTab || "inputs");
+  setWorkPage(state.activeWorkPage || "overview");
+  if (typeof window.renderEstGrid === "function") window.renderEstGrid();
+  if (typeof window.renderAbstract === "function") window.renderAbstract();
+  if (typeof renderPwayGrid === "function") renderPwayGrid();
+  if (typeof updateVECanvasTransform === "function") updateVECanvasTransform();
+  if (typeof updateVEDOM === "function") updateVEDOM();
+  if (typeof updateVEUndoRedoButtons === "function") updateVEUndoRedoButtons();
+  if (typeof updateGlobalUndoRedoButtons === "function") updateGlobalUndoRedoButtons();
+}
+
 function saveState() {
   state.meta = state.meta || {};
   state.meta.lastSavedAt = new Date().toISOString();
-  const data = {
-    project: state.project,
-    meta: state.meta,
-    rawRows: state.rawRows,
-    bridgeRows: state.bridgeRows,
-    curveRows: state.curveRows,
-    loopPlatformRows: state.loopPlatformRows,
-    estimates: state.estimates,
-    larReferences: state.larReferences,
-    settings: state.settings,
-    snapshots: state.snapshots,
-    kmlData: state.kmlData,
-    stationPlans: state.stationPlans,
-    earthworkStructures: state.earthworkStructures,
-    pwayRows: state.pwayRows,
-    supabaseProjectId: state.supabaseProjectId
-  };
+  const data = getSerializableAppState();
   try {
     localStorage.setItem("earthsoft_saved_work", JSON.stringify(data));
+    localStorage.setItem("earthsoft_ve_last_autosave", JSON.stringify(state.veState || {}));
   } catch (e) {
     if (e.name === 'QuotaExceededError') {
       console.warn("Local storage quota exceeded. Changes only saved to Supabase (if active).");
@@ -10516,9 +10677,7 @@ function saveState() {
   }
 
   // Push to Undo/Redo Stack
-  if (!window._isUndoRedoOp && window._History) {
-     window._History.push(data);
-  }
+  pushCurrentAppStateToHistory();
 }
 
 window._isSyncing = false;
@@ -10728,82 +10887,158 @@ function loadStoredState() {
   try {
     const data = JSON.parse(saved);
     if (!data) return;
-    
-    // Use mutation to preserve object references
-    if (data.project) Object.assign(state.project, data.project);
-    if (data.meta) state.meta = data.meta;
-    if (data.rawRows) { state.rawRows.length = 0; state.rawRows.push(...data.rawRows); }
-    if (data.bridgeRows) { state.bridgeRows.length = 0; state.bridgeRows.push(...data.bridgeRows); }
-    if (data.curveRows) { state.curveRows.length = 0; state.curveRows.push(...data.curveRows); }
-    if (data.loopPlatformRows) { state.loopPlatformRows.length = 0; state.loopPlatformRows.push(...data.loopPlatformRows); }
-    if (data.estimates) { 
-      Object.keys(state.estimates).forEach(k => delete state.estimates[k]);
-      Object.assign(state.estimates, data.estimates);
-    }
-    if (data.larReferences) { state.larReferences.length = 0; state.larReferences.push(...data.larReferences); }
-    if (data.settings) Object.assign(state.settings, data.settings);
-    if (data.snapshots) { state.snapshots.length = 0; state.snapshots.push(...data.snapshots); }
-    if (data.kmlData) state.kmlData = data.kmlData;
-    if (data.stationPlans) Object.assign(state.stationPlans, data.stationPlans);
-    if (data.earthworkStructures) {
-      state.earthworkStructures = {
-        retainingWalls: Array.isArray(data.earthworkStructures?.retainingWalls) ? data.earthworkStructures.retainingWalls : [],
-        drains: Array.isArray(data.earthworkStructures?.drains) ? data.earthworkStructures.drains : [],
-      };
-    }
-    if (data.pwayRows) { state.pwayRows.length = 0; state.pwayRows.push(...data.pwayRows); }
-    if (data.supabaseProjectId) state.supabaseProjectId = data.supabaseProjectId;
-    
+    restoreSerializableAppState(data);
     renderLarRefs();
     renderEarthworkStructuresPage();
-    
-    // If we have a supabase ID but maybe some data is missing locally, we could sync here
-    // But for now just trust the local storage if it exists.
   } catch (e) {
     console.error("Failed to load state:", e);
   }
 }
 
 // --- Undo / Redo Engine (Time Travel) ---
+let _globalHistoryCheckpointTimer = null;
+
+function normalizeSnapshotForHistory(snapshot = {}) {
+  const normalized = snapshot && typeof snapshot === "object"
+    ? JSON.parse(JSON.stringify(snapshot))
+    : {};
+  if (normalized.meta && typeof normalized.meta === "object") {
+    delete normalized.meta.lastSavedAt;
+  }
+  return normalized;
+}
+
+function pushCurrentAppStateToHistory() {
+  if (window._isUndoRedoOp || !window._History) return false;
+  return window._History.push(getSerializableAppState());
+}
+
+function scheduleGlobalHistoryCheckpoint(delay = 0) {
+  if (window._isUndoRedoOp || !window._History) return;
+  if (_globalHistoryCheckpointTimer) clearTimeout(_globalHistoryCheckpointTimer);
+  _globalHistoryCheckpointTimer = setTimeout(() => {
+    _globalHistoryCheckpointTimer = null;
+    pushCurrentAppStateToHistory();
+  }, Math.max(0, delay));
+}
+
+function flushGlobalHistoryCheckpoint() {
+  if (_globalHistoryCheckpointTimer) {
+    clearTimeout(_globalHistoryCheckpointTimer);
+    _globalHistoryCheckpointTimer = null;
+  }
+  return pushCurrentAppStateToHistory();
+}
+
+function updateGlobalUndoRedoButtons() {
+  const canUndo = Boolean(window._History?.canUndo?.());
+  const canRedo = Boolean(window._History?.canRedo?.());
+  if (els.globalUndoBtn) els.globalUndoBtn.disabled = !canUndo;
+  if (els.globalRedoBtn) els.globalRedoBtn.disabled = !canRedo;
+  if (typeof updateVEUndoRedoButtons === "function") {
+    updateVEUndoRedoButtons();
+  }
+}
+
 window._History = {
   stack: [],
   currentIndex: -1,
+  limit: GLOBAL_HISTORY_LIMIT,
   push(stateSnapshot) {
+     const snapshot = typeof stateSnapshot === "string" ? JSON.parse(stateSnapshot) : stateSnapshot;
+     const serialized = typeof stateSnapshot === "string" ? stateSnapshot : JSON.stringify(stateSnapshot);
+     const comparable = JSON.stringify(normalizeSnapshotForHistory(snapshot));
+     const currentComparable = this.currentIndex >= 0
+       ? this.stack[this.currentIndex]?.comparable
+       : null;
+     if (currentComparable === comparable) {
+        updateGlobalUndoRedoButtons();
+        return false;
+     }
      this.stack = this.stack.slice(0, this.currentIndex + 1);
-     this.stack.push(JSON.stringify(stateSnapshot));
-     if (this.stack.length > 20) this.stack.shift();
-     else this.currentIndex++;
+     this.stack.push({ serialized, comparable });
+     if (this.stack.length > this.limit) {
+        this.stack.shift();
+     }
+     this.currentIndex = this.stack.length - 1;
+     updateGlobalUndoRedoButtons();
+     return true;
+  },
+  canUndo() {
+     return this.currentIndex > 0;
+  },
+  canRedo() {
+     return this.currentIndex < this.stack.length - 1;
   },
   undo() {
-     if (this.currentIndex > 0) {
+     if (this.canUndo()) {
         this.currentIndex--;
-        return JSON.parse(this.stack[this.currentIndex]);
+        updateGlobalUndoRedoButtons();
+        return JSON.parse(this.stack[this.currentIndex].serialized);
      }
+     updateGlobalUndoRedoButtons();
      return null;
   },
   redo() {
-     if (this.currentIndex < this.stack.length - 1) {
+     if (this.canRedo()) {
         this.currentIndex++;
-        return JSON.parse(this.stack[this.currentIndex]);
+        updateGlobalUndoRedoButtons();
+        return JSON.parse(this.stack[this.currentIndex].serialized);
      }
+     updateGlobalUndoRedoButtons();
      return null;
   }
 };
 
+function performGlobalUndo() {
+  flushGlobalHistoryCheckpoint();
+  const prevState = window._History?.undo?.();
+  if (!prevState) return;
+  window._isUndoRedoOp = true;
+  restoreSerializableAppState(prevState);
+  refreshAppAfterGlobalHistoryRestore();
+  window.setTimeout(() => {
+    window._isUndoRedoOp = false;
+  }, 0);
+}
+
+function performGlobalRedo() {
+  flushGlobalHistoryCheckpoint();
+  const nextState = window._History?.redo?.();
+  if (!nextState) return;
+  window._isUndoRedoOp = true;
+  restoreSerializableAppState(nextState);
+  refreshAppAfterGlobalHistoryRestore();
+  window.setTimeout(() => {
+    window._isUndoRedoOp = false;
+  }, 0);
+}
+
 window.addEventListener("keydown", (e) => {
-   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-      const isShift = e.shiftKey;
-      const prevState = isShift ? window._History.redo() : window._History.undo();
-      if (prevState) {
-         window._isUndoRedoOp = true;
-         Object.assign(state, prevState);
-         recalculate();
-         updateWizardUI();
-         buildSettingsInputs();
-         buildTable();
-         setTimeout(() => window._isUndoRedoOp = false, 100);
-      }
-   }
+  const ctrlOrCmd = e.ctrlKey || e.metaKey;
+  if (!ctrlOrCmd) return;
+  const isZ = e.key.toLowerCase() === "z";
+  const isY = e.key.toLowerCase() === "y";
+  if (!isZ && !isY) return;
+  const target = e.target;
+  const isTypingContext = target instanceof HTMLElement && (
+    target.isContentEditable ||
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT"
+  );
+  if (state.activeWorkPage === "visual-editor" && (isZ || isY)) {
+    e.preventDefault();
+    if (isZ && e.shiftKey) performGlobalRedo();
+    else if (isZ) performGlobalUndo();
+    else if (isY) performGlobalRedo();
+    return;
+  }
+  if (isTypingContext) return;
+  e.preventDefault();
+  if (isZ && e.shiftKey) performGlobalRedo();
+  else if (isZ) performGlobalUndo();
+  else if (isY) performGlobalRedo();
 });
 
 // --- 3D Fly-Through Viewer (Conceptual Demo) ---
@@ -11721,40 +11956,12 @@ async function init() {
   loadStoredState();
   await loadAuthState();
   // Ensure settings always has all required keys (stored state may have stale/missing fields)
-  state.settings = { ...state.defaultSettings, ...(state.settings || {}) };
-  if (!Array.isArray(state.settings.materialProfile) || !state.settings.materialProfile.length) {
-    state.settings.materialProfile = [...state.defaultSettings.materialProfile];
-  }
-  if (!state.settings.reportBrand || typeof state.settings.reportBrand !== "object") {
-    state.settings.reportBrand = { ...state.defaultSettings.reportBrand };
-  } else {
-    state.settings.reportBrand = { ...state.defaultSettings.reportBrand, ...state.settings.reportBrand };
-  }
-  if (!state.settings.boqMapping || typeof state.settings.boqMapping !== "object") {
-    state.settings.boqMapping = { ...state.defaultSettings.boqMapping };
-  } else {
-    state.settings.boqMapping = { ...state.defaultSettings.boqMapping, ...state.settings.boqMapping };
-  }
+  normalizeSettingsState();
   state.meta = state.meta || {};
-  state.project = {
-    active: Boolean(state.project?.active),
-    verified: Boolean(state.project?.verified),
-    name: String(state.project?.name || ""),
-    uploads: {
-      levels: Boolean(state.project?.uploads?.levels),
-      curves: Boolean(state.project?.uploads?.curves),
-      bridges: Boolean(state.project?.uploads?.bridges),
-      loops: Boolean(state.project?.uploads?.loops),
-      kml: Boolean(state.project?.uploads?.kml) || Boolean(state.kmlData),
-    },
-    profile: {
-      corridorName: String(state.project?.profile?.corridorName || ""),
-      direction: String(state.project?.profile?.direction || "Up"),
-      chainageZeroRef: String(state.project?.profile?.chainageZeroRef || ""),
-    },
-  };
+  normalizeProjectState();
   state.calcOverrides = Array.isArray(state.calcOverrides) ? state.calcOverrides : [];
   state.slopeZones = Array.isArray(state.slopeZones) ? state.slopeZones : [];
+  state.laZones = Array.isArray(state.laZones) ? state.laZones : [];
   state.importMappings = state.importMappings && typeof state.importMappings === "object"
     ? state.importMappings
     : { client: "", templates: {} };
@@ -11768,6 +11975,10 @@ async function init() {
   updateWizardUI();
   applyProjectGate();
   recalculate();
+  window._History.stack = [];
+  window._History.currentIndex = -1;
+  pushCurrentAppStateToHistory();
+  updateGlobalUndoRedoButtons();
 }
 
 // ==================== VISUAL P-WAY EDITOR MODULE ====================
@@ -11811,24 +12022,23 @@ function saveVEStateLocally(isUndoRedo = false) {
       }
       
       veVolatile.historyIndex = veVolatile.history.length - 1;
-      updateUndoRedoButtons();
+      updateVEUndoRedoButtons();
+    }
+    if (!isUndoRedo) {
+      saveState();
     }
   } catch(e) {}
 }
 
-function updateUndoRedoButtons() {
+function updateVEUndoRedoButtons() {
     const undoBtn = document.getElementById("veUndoBtn");
     const redoBtn = document.getElementById("veRedoBtn");
-    const gUndoBtn = document.getElementById("globalUndoBtn");
-    const gRedoBtn = document.getElementById("globalRedoBtn");
     
-    const canUndo = veVolatile.historyIndex <= 0;
-    const canRedo = veVolatile.historyIndex >= veVolatile.history.length - 1;
+    const canUndo = !window._History?.canUndo?.();
+    const canRedo = !window._History?.canRedo?.();
 
     if(undoBtn) undoBtn.disabled = canUndo;
     if(redoBtn) redoBtn.disabled = canRedo;
-    if(gUndoBtn) gUndoBtn.disabled = canUndo;
-    if(gRedoBtn) gRedoBtn.disabled = canRedo;
 }
 
 function veUndo() {
@@ -11845,7 +12055,7 @@ function veUndo() {
         saveVEStateLocally(true);
         updateVECanvasTransform();
         updateVEDOM();
-        updateUndoRedoButtons();
+        updateVEUndoRedoButtons();
     }
 }
 
@@ -11863,11 +12073,14 @@ function veRedo() {
         saveVEStateLocally(true);
         updateVECanvasTransform();
         updateVEDOM();
-        updateUndoRedoButtons();
+        updateVEUndoRedoButtons();
     }
 }
 
 function restoreVEStateLocally() {
+  if (state.veState.nodes.length || state.veState.wires.length || state.veState.groups.length) {
+    return;
+  }
   try {
     const saved = localStorage.getItem("earthsoft_ve_last_autosave");
     if (saved) {
@@ -11915,7 +12128,7 @@ function processVisualEditorLogic() {
   
   updateVECanvasTransform();
   updateVEDOM();
-  updateUndoRedoButtons();
+  updateVEUndoRedoButtons();
 
   // Add Drag and Drop listeners to sidebar items
   document.querySelectorAll(".ve-node-drag").forEach(el => {
@@ -12105,10 +12318,8 @@ function processVisualEditorLogic() {
     updateVEDOM();
   });
 
-  document.getElementById("veUndoBtn")?.addEventListener("click", () => veUndo());
-  document.getElementById("veRedoBtn")?.addEventListener("click", () => veRedo());
-  document.getElementById("globalUndoBtn")?.addEventListener("click", () => veUndo());
-  document.getElementById("globalRedoBtn")?.addEventListener("click", () => veRedo());
+  document.getElementById("veUndoBtn")?.addEventListener("click", () => performGlobalUndo());
+  document.getElementById("veRedoBtn")?.addEventListener("click", () => performGlobalRedo());
   document.getElementById("veGroupBtn")?.addEventListener("click", () => veGroupSelectedNodes());
 
   document.getElementById("veZoomInBtn")?.addEventListener("click", () => {
@@ -12124,23 +12335,9 @@ function processVisualEditorLogic() {
     updateVECanvasTransform();
   });
 
-  // Keyboard Shortcuts (Ctrl/Cmd + Z, Ctrl/Cmd + Y / Ctrl/Cmd + Shift + Z)
+  // Visual editor specific keyboard shortcuts
   window.addEventListener("keydown", (e) => {
     if (state.activeWorkPage !== "visual-editor") return;
-    
-    const isZ = e.key.toLowerCase() === 'z';
-    const isY = e.key.toLowerCase() === 'y';
-    const ctrlOrCmd = e.ctrlKey || e.metaKey;
-    const shift = e.shiftKey;
-
-    if (ctrlOrCmd && isZ) {
-        if (shift) veRedo();
-        else veUndo();
-        e.preventDefault();
-    } else if (ctrlOrCmd && isY) {
-        veRedo();
-        e.preventDefault();
-    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') {
       e.preventDefault();
       veGroupSelectedNodes();

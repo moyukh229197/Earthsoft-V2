@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/demo.tsx","./src/main.tsx","./components/ui/animated-grid-pattern.tsx","./components/ui/background-paper-shaders.tsx","./components/ui/shape-landing-hero.tsx","./lib/utils.ts"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/demo.tsx","./src/main.tsx","./components/ui/animated-grid-pattern.tsx","./components/ui/background-paper-shaders.tsx","./components/ui/shape-landing-hero.tsx","./lib/auth.js","./lib/supabase.js","./lib/utils.ts"],"version":"5.9.3"}

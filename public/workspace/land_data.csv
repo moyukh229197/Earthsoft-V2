@@ -1,0 +1,91 @@
+CENTRAL RAILWAY,Unnamed: 1,Unnamed: 2,Unnamed: 3,Unnamed: 4,Unnamed: 5,Unnamed: 6,Unnamed: 7,Unnamed: 8,Unnamed: 9,Unnamed: 10,Unnamed: 11,Unnamed: 12,Unnamed: 13
+FLS for Construction of New BG Railway Line Nashik to Dahanu ,,,,,,,,,,,,,
+,,,,,,,Length: 150.075 Km.,,,,,,
+,1120 - LAND,,,,,,Gauge : 1.676 M,,,,,,
+,1120-A: PRIVATE LAND,,,,,,,,,,,,
+Sl. No.,Description,Qty. ,Rate in Rs.,Unit,Cash  Rs.,Stores  in Rs.,Total in Rs.,,,,,,
+1,Rural Land (Wet),686.2299909000001,1221872.7946926728,Hect,838485756.7829105,0,838485756.7829105,,110,,,,
+2,Urban Land,,,Hect,0,0,0,,,,,,
+3,Built - Up area/House sites,,,Hect,0,0,0,,,,,,
+,Sub Total : (A),686.2299909000001,,,838485756.7829105,0,838485756.7829105,,,,,,
+4,"As per LARR - 2013, multification factor for land compensation is 1-2 times on item no. 1 - Rural Area ",1.5,,,1257728635.1743658,0,1257728635.1743658,,,,,,
+5,"As per LARR - 2013, multification factor for land compensation is 2 times on item no. 2 & 3. - Urban & Builtlup Area ",1,,,0,0,0,,,,,,
+6,Compensation for standing crops @ 3% on items 1,0.03,,,25154572.703487314,0,25154572.703487314,,,,,,
+,Sub Total : (B),,,,1282883207.8778532,0,1282883207.8778532,,,,,,
+7,Compenstation for residential buildings and borewells,,24200,Sqm,0,0,0,,,,,,
+,Sub Total : C,,,,0,0,0,,,,,,
+8,Solatium @ 100 % on land cost ,1,,,1282883207.8778532,0,1282883207.8778532,,,,,,
+10,"R&R entitlement @ 10,00,000 per family and 10 families per Hectare",0,,,0,0,0,,,,,,
+11,Doghbel or lock split ,,111.2,100 M,0,0,0,,,,,,
+,Sub Total : (D) = B+C,,,,1282883207.8778532,0,1282883207.8778532,,,,,,
+9,Any Other Charges E,,,,0,0,0,,,,,,
+10,"Administrative Cost, F = (B+C+D)* 6%",0.06,,,153945984.94534236,0,153945984.94534236,,,,,,
+11,"Contingencies, G = (B+C+D)* 5%",0.05,,,128288320.78778532,0,128288320.78778532,,,,,,
+12,"Interest, H = (B+C+D+E)*12%*n
+n= 1 for projects with CP 1‐4 years,
+n = 2 for projects with CP 5‐8 years and 
+n= 3 for projects with CP 9 years and above.
+CP = Compleation Period.
+(Section 30(3) of LARR Act)
+Not Applicable in case of Forest land",0.12,,,307891969.8906847,0,307891969.8906847,,,,,,
+,Total for Private Land : (B+C+D+E+F+G+H),686.2299909000001,,,3155892691.379519,0,3155892691.379519,,,,,,
+,,,,,,,,,,,,,
+,1120-B: GOVERNMENT LAND,,,,,,,,,,,,
+Sl. No.,Description,Qty. ,Rate in Rs.,Unit,Cash  Rs.,Stores  in Rs.,Total in Rs.,,,,,,
+1,Govt. Land Area,,,Hect,0,0,0,,,,,,
+,Sub Total : (A),0,,,0,0,0,,,,,,
+2,"As per LARR - 2013, multification factor for land compensation is 1-2 times on item no. 1- Rural Area ",1,,,0,0,0,,,,,,
+3,"As per LARR - 2013, multification factor for land compensation is 2 times on item no. 1 - Urban Area ",2,,,0,0,0,,,,,,
+,Sub Total : (B),,,,0,0,0,,,,,,
+4,Compenstation for residential buildings and borewells,,,Sqm,0,0,0,,,,,,
+,Sub Total : C,,,,0,0,0,,,,,,
+5,Solatium @ 100 % on land cost ,1,,,,0,0,,,,,,
+,Sub Total : (D) = B+C,,,,,0,0,,,,,,
+6,"Any Other Charges, E",,,,0,0,0,,,,,,
+7,"Administrative Cost, F = (B+C+D)* 6%",0.06,,,0,0,0,,,,,,
+8,"Contingencies, G = (B+C+D)* 5%",0.05,,,0,0,0,,,,,,
+9,"Interest, H = (B+C+D+E)*12%*n
+(n =1, Because the project compleation is 3 Years)",0.12,,,0,0,0,,,,,,
+,"Total for Goverment Land :
+(A+B+C+D+E+F+G+H)",0,,,0,0,0,,,,,,
+,,,,,,,,,,,,,increased
+,1120-C: FOREST LAND,,,,,,,,,,WPI on Dec 18,119.7,
+Sl. No.,Description,Qty. ,Rate in Rs.,Unit,Cash  Rs.,Stores  in Rs.,Total in Rs.,,,,WPI on jan 26,157.8,1.318295739348371
+1,"Forest Land: 
+Rate as per Net Present Value (As per Ministry of Environment, Forest & Climate Change Departments File No. 5-3/2011-FC (Vol-I)",115.47137690000001,1058591.4786967419,Hect,122237015.61971982,0,122237015.61971982,,"Basic Rate = 803000/- 
+All commodities P. Index  
+(Dec 18: 119.7, Jan 26: 
+157.8) % 
+Increase 31.8% 
+Net Rate: 1058591.48",,,,
+,Sub Total : A,115.47137690000001,,,122237015.61971982,0,122237015.61971982,,,,,,
+,"(Cost for compensatary 
+Afforestation on double degraded forest land with forest department)",,,,,,,,,,,,
+2,Double degraded forest land = 115.471 X 2 = 230.942,230.94275380000002,1264575.1879699249,Hect,292044476.2969271,0,292044476.2969271,,"Basic Rate = 959250/- 
+All commodities P. Index  
+(Dec 18: 119.7,Jan 26: 
+157.8) % 
+Increase 31.8% 
+Net Rate: 1264575.19",,,,
+C,Joint measurement fees,,32490.95,Hect,0,0,0,,,,,,
+3,"Cost of Providing Bird 
+Nest",,593.2330827067669,Nos,0,0,0,,"Basic Rate = 450/- 
+All commodities P. Index  
+(Dec 18: 119.7, Jan 26: 
+157.8) % 
+Increase 31.8% 
+Net Rate: 593.23",,,,
+4,Cost of Raising Medical Plants in right of way under Railway Line ,,720017.5388471178,Nos,0,0,0,,"Basic Rate = 5,46,173/- 
+All commodities P. Index  
+(Dec 18: 119.7, Jan 26: 
+157.8) % 
+Increase 31.8% 
+Net Rate: 720017.54",,,,
+5,For Demarcation of Land & TreeS,115.47137690000001,13000,Hect,1501127.8997000002,0,1501127.8997000002,,,,,,
+6,Cost of Cutting Tree,,,,0,0,0,,,750000.0,,,
+7,Prov. of mitigation for wild life animals,,,,0,0,0,,,3000000.0,,,
+,Sub Total : B,,,,293545604.1966271,0,293545604.1966271,,,,,,
+8,Pay & Allowances of LA Staff @ 3% on (A+B),0.03,,,12473478.594490405,0,12473478.594490405,,,,,,
+9,Contingencies @5% on (A+B),0.05,,,20789130.990817346,0,20789130.990817346,,,,,,
+,Total for Forest Land :,115.47137690000001,,,326808213.78193486,0,326808213.78193486,,,,,,
+,Total for 1120 - Land :,,,,3482700905.1614537,0,3482700905.1614537,,,,,,
