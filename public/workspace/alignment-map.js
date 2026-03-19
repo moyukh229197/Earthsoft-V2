@@ -1472,23 +1472,123 @@ function getStationMidChainage(station) {
     return NaN;
 }
 
+function interpolateAlignmentMetricsAtChainage(chainageAbs) {
+    const rows = Array.isArray(state.calcRows) ? state.calcRows : [];
+    const defaultFormationW = _safeNum(state.settings?.visual?.formationWidthFill, _safeNum(state.settings?.formationWidthFill, 7.85));
+    const defaultMetrics = {
+        proposedLevel: 0,
+        groundLevel: 0,
+        formationWidth: defaultFormationW,
+    };
+    if (!rows.length || !Number.isFinite(chainageAbs)) return defaultMetrics;
+
+    const standardTc = _safeNum(state.settings?.visual?.minTc, 5.3);
+    const metricForRow = (row) => {
+        const envelope = typeof compute3DEnvelopeForRow === "function"
+            ? compute3DEnvelopeForRow(row, standardTc, defaultFormationW)
+            : { currentFormationW: defaultFormationW };
+        return {
+            proposedLevel: _safeNum(row?.proposedLevel, 0),
+            groundLevel: _safeNum(row?.groundLevel, 0),
+            formationWidth: _safeNum(envelope?.currentFormationW, defaultFormationW),
+        };
+    };
+
+    const firstCh = _safeNum(rows[0]?.chainage, NaN);
+    const lastCh = _safeNum(rows[rows.length - 1]?.chainage, NaN);
+    if (!Number.isFinite(firstCh) || !Number.isFinite(lastCh)) return defaultMetrics;
+    if (chainageAbs <= firstCh) return metricForRow(rows[0]);
+    if (chainageAbs >= lastCh) return metricForRow(rows[rows.length - 1]);
+
+    let low = 0;
+    let high = rows.length - 1;
+    while (low <= high) {
+        const mid = Math.floor((low + high) / 2);
+        const midCh = _safeNum(rows[mid]?.chainage, NaN);
+        if (midCh < chainageAbs) low = mid + 1;
+        else if (midCh > chainageAbs) high = mid - 1;
+        else return metricForRow(rows[mid]);
+    }
+
+    const leftRow = rows[Math.max(0, high)];
+    const rightRow = rows[Math.min(rows.length - 1, low)];
+    const leftCh = _safeNum(leftRow?.chainage, chainageAbs);
+    const rightCh = _safeNum(rightRow?.chainage, chainageAbs);
+    if (!Number.isFinite(leftCh) || !Number.isFinite(rightCh) || Math.abs(rightCh - leftCh) < 0.001) {
+        return metricForRow(leftRow || rightRow);
+    }
+
+    const leftMetrics = metricForRow(leftRow);
+    const rightMetrics = metricForRow(rightRow);
+    const ratio = (chainageAbs - leftCh) / (rightCh - leftCh);
+    return {
+        proposedLevel: leftMetrics.proposedLevel + ((rightMetrics.proposedLevel - leftMetrics.proposedLevel) * ratio),
+        groundLevel: leftMetrics.groundLevel + ((rightMetrics.groundLevel - leftMetrics.groundLevel) * ratio),
+        formationWidth: leftMetrics.formationWidth + ((rightMetrics.formationWidth - leftMetrics.formationWidth) * ratio),
+    };
+}
+
+function build3DAlignmentSamples(points, startChOffset) {
+    if (!Array.isArray(points) || !points.length) return [];
+    const sampleWindow = getTypicalChainageStep(state.calcRows || []);
+    return points.map((point) => {
+        const alignmentCh = _safeNum(point?.ch, NaN);
+        const chainageAbs = alignmentCh + startChOffset;
+        const metrics = interpolateAlignmentMetricsAtChainage(chainageAbs);
+        const tangent = getAlignmentTangentAtChainage(alignmentCh, points, sampleWindow);
+        return {
+            lat: point.lat,
+            lng: point.lng,
+            ch: alignmentCh,
+            chainageAbs,
+            proposedLevel: metrics.proposedLevel,
+            groundLevel: metrics.groundLevel,
+            formationWidth: metrics.formationWidth,
+            tangent,
+        };
+    }).filter((sample) => Number.isFinite(sample.lat) && Number.isFinite(sample.lng));
+}
+
+function build3DCorridorPolygonCoordinates(samples) {
+    const left = [];
+    const right = [];
+    samples.forEach((sample) => {
+        if (!sample.tangent) return;
+        const halfWidth = Math.max(_safeNum(sample.formationWidth, 7.85) / 2, 1);
+        const altitude = _safeNum(sample.proposedLevel, 0);
+        const leftPoint = offsetLatLng(sample, sample.tangent, halfWidth);
+        const rightPoint = offsetLatLng(sample, sample.tangent, -halfWidth);
+        left.push(`${leftPoint.lng},${leftPoint.lat},${altitude.toFixed(3)}`);
+        right.push(`${rightPoint.lng},${rightPoint.lat},${altitude.toFixed(3)}`);
+    });
+    if (left.length < 2 || right.length < 2) return "";
+    const ring = [...left, ...right.reverse()];
+    ring.push(left[0]);
+    return ring.join(" ");
+}
+
 function buildAlignmentKmlDocument() {
     const points = state.kmlData?.points || [];
     if (!points.length) return "";
 
     const startChOffset = (state.calcRows && state.calcRows.length) ? _safeNum(state.calcRows[0].chainage) : 0;
     const projectName = escapeHtml(state.project?.name || "Earthsoft Alignment");
-    const lineCoordinates = points.map((point) => `${point.lng},${point.lat},0`).join(" ");
+    const samples = build3DAlignmentSamples(points, startChOffset);
+    const has3DLevels = samples.some((sample) => Math.abs(_safeNum(sample.proposedLevel, 0)) > 0.001);
+    const lineCoordinates = samples.map((sample) => `${sample.lng},${sample.lat},${_safeNum(sample.proposedLevel, 0).toFixed(3)}`).join(" ");
+    const terrainCoordinates = samples.map((sample) => `${sample.lng},${sample.lat},${_safeNum(sample.groundLevel, 0).toFixed(3)}`).join(" ");
+    const corridorPolygonCoordinates = build3DCorridorPolygonCoordinates(samples);
 
     const stationPlacemarks = getStationGroupsForMap().map((station) => {
         const midCh = getStationMidChainage(station);
         const point = Number.isFinite(midCh) ? getLatLngFromChainage(midCh - startChOffset, points) : null;
         if (!point) return "";
+        const metrics = interpolateAlignmentMetricsAtChainage(midCh);
         return `
             <Placemark>
                 <name>${escapeHtml(station.station || "Station")}</name>
-                <description><![CDATA[CSB: ${Number.isFinite(station.csb) ? station.csb.toFixed(3) : "-"}]]></description>
-                <Point><coordinates>${point.lng},${point.lat},0</coordinates></Point>
+                <description><![CDATA[CSB: ${Number.isFinite(station.csb) ? station.csb.toFixed(3) : "-"} | Formation RL: ${_safeNum(metrics.proposedLevel, 0).toFixed(3)}]]></description>
+                <Point><coordinates>${point.lng},${point.lat},${_safeNum(metrics.proposedLevel, 0).toFixed(3)}</coordinates></Point>
             </Placemark>
         `;
     }).join("");
@@ -1497,13 +1597,15 @@ function buildAlignmentKmlDocument() {
         const startCh = _safeNum(bridge?.startChainage, NaN);
         const endCh = _safeNum(bridge?.endChainage, NaN);
         if (!Number.isFinite(startCh) || !Number.isFinite(endCh)) return "";
-        const point = getLatLngFromChainage((((startCh + endCh) / 2) - startChOffset), points);
+        const midCh = (startCh + endCh) / 2;
+        const point = getLatLngFromChainage((midCh - startChOffset), points);
         if (!point) return "";
+        const metrics = interpolateAlignmentMetricsAtChainage(midCh);
         return `
             <Placemark>
                 <name>Bridge ${escapeHtml(bridge.bridgeNo || "-")}</name>
-                <description><![CDATA[${escapeHtml(bridge.bridgeCategory || "Bridge")}]]></description>
-                <Point><coordinates>${point.lng},${point.lat},0</coordinates></Point>
+                <description><![CDATA[${escapeHtml(bridge.bridgeCategory || "Bridge")} | Formation RL: ${_safeNum(metrics.proposedLevel, 0).toFixed(3)}]]></description>
+                <Point><coordinates>${point.lng},${point.lat},${_safeNum(metrics.proposedLevel, 0).toFixed(3)}</coordinates></Point>
             </Placemark>
         `;
     }).join("");
@@ -1512,44 +1614,147 @@ function buildAlignmentKmlDocument() {
 <kml xmlns="http://www.opengis.net/kml/2.2">
     <Document>
         <name>${projectName}</name>
-        <Style id="alignmentLine">
+        <Style id="alignmentLine3d">
             <LineStyle>
-                <color>ffffffff</color>
-                <width>4</width>
+                <color>ff00ffff</color>
+                <width>5</width>
             </LineStyle>
         </Style>
-        <Placemark>
-            <name>${projectName} Alignment</name>
-            <styleUrl>#alignmentLine</styleUrl>
-            <LineString>
-                <tessellate>1</tessellate>
-                <coordinates>${lineCoordinates}</coordinates>
-            </LineString>
-        </Placemark>
-        ${stationPlacemarks}
-        ${bridgePlacemarks}
+        <Style id="alignmentLineGround">
+            <LineStyle>
+                <color>ff9dfcff</color>
+                <width>3</width>
+            </LineStyle>
+        </Style>
+        <Style id="terrainLine">
+            <LineStyle>
+                <color>ff5f708a</color>
+                <width>2</width>
+            </LineStyle>
+        </Style>
+        <Style id="corridorDeck">
+            <LineStyle>
+                <color>ccffffff</color>
+                <width>1.5</width>
+            </LineStyle>
+            <PolyStyle>
+                <color>664fc3f7</color>
+            </PolyStyle>
+        </Style>
+        <Folder>
+            <name>Alignment</name>
+            <Placemark>
+                <name>${projectName} 3D Alignment</name>
+                <description><![CDATA[Exported from Earthsoft with projected formation RL along the imported alignment.]]></description>
+                <styleUrl>#alignmentLine3d</styleUrl>
+                <LineString>
+                    <extrude>${has3DLevels ? 1 : 0}</extrude>
+                    <tessellate>0</tessellate>
+                    <altitudeMode>${has3DLevels ? "absolute" : "clampToGround"}</altitudeMode>
+                    <coordinates>${lineCoordinates}</coordinates>
+                </LineString>
+            </Placemark>
+            <Placemark>
+                <name>${projectName} Surface Trace</name>
+                <styleUrl>#alignmentLineGround</styleUrl>
+                <LineString>
+                    <extrude>0</extrude>
+                    <tessellate>1</tessellate>
+                    <altitudeMode>clampToGround</altitudeMode>
+                    <coordinates>${samples.map((sample) => `${sample.lng},${sample.lat},0`).join(" ")}</coordinates>
+                </LineString>
+            </Placemark>
+            <Placemark>
+                <name>${projectName} Ground Profile</name>
+                <styleUrl>#terrainLine</styleUrl>
+                <LineString>
+                    <extrude>0</extrude>
+                    <tessellate>0</tessellate>
+                    <altitudeMode>${has3DLevels ? "absolute" : "clampToGround"}</altitudeMode>
+                    <coordinates>${terrainCoordinates}</coordinates>
+                </LineString>
+            </Placemark>
+            ${corridorPolygonCoordinates ? `
+            <Placemark>
+                <name>${projectName} Corridor Deck</name>
+                <description><![CDATA[Formation-width deck derived from the Earthsoft 3D corridor envelope.]]></description>
+                <styleUrl>#corridorDeck</styleUrl>
+                <Polygon>
+                    <extrude>${has3DLevels ? 1 : 0}</extrude>
+                    <altitudeMode>${has3DLevels ? "absolute" : "clampToGround"}</altitudeMode>
+                    <outerBoundaryIs>
+                        <LinearRing>
+                            <coordinates>${corridorPolygonCoordinates}</coordinates>
+                        </LinearRing>
+                    </outerBoundaryIs>
+                </Polygon>
+            </Placemark>` : ""}
+        </Folder>
+        <Folder>
+            <name>Stations</name>
+            ${stationPlacemarks}
+        </Folder>
+        <Folder>
+            <name>Structures</name>
+            ${bridgePlacemarks}
+        </Folder>
     </Document>
 </kml>`;
 }
 
-function downloadAlignmentKml() {
+function buildAlignmentKmzReadme() {
+    return [
+        "Earthsoft 3D Alignment Export",
+        "",
+        "This KMZ contains:",
+        "- doc.kml: 3D alignment, surface trace, ground profile, corridor deck, stations, and structures",
+        "",
+        "Recommended use:",
+        "1. Open Google Earth Web or Google Earth Pro.",
+        "2. Import this KMZ file.",
+        "3. Enable the Alignment folder and tilt the camera for the 3D corridor view.",
+        "",
+        "Notes:",
+        "- 3D heights are based on Earthsoft proposed formation levels.",
+        "- Surface trace is included as a clamp-to-ground fallback for review.",
+    ].join("\n");
+}
+
+async function downloadAlignmentKml() {
     const kmlText = buildAlignmentKmlDocument();
     if (!kmlText) {
         alert("Import a KML alignment first.");
         return;
     }
 
-    const blob = new Blob([kmlText], { type: "application/vnd.google-earth.kml+xml;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
     const fileBase = String(state.project?.name || "earthsoft-alignment")
         .trim()
         .replace(/[^a-z0-9]+/gi, "-")
         .replace(/^-+|-+$/g, "")
         .toLowerCase() || "earthsoft-alignment";
 
+    let blob;
+    let extension = "kmz";
+
+    if (typeof JSZip !== "undefined") {
+        const zip = new JSZip();
+        zip.file("doc.kml", kmlText);
+        zip.file("README.txt", buildAlignmentKmzReadme());
+        blob = await zip.generateAsync({
+            type: "blob",
+            compression: "DEFLATE",
+            compressionOptions: { level: 6 },
+        });
+    } else {
+        blob = new Blob([kmlText], { type: "application/vnd.google-earth.kml+xml;charset=utf-8" });
+        extension = "kml";
+        alert("JSZip is unavailable, so Earthsoft exported a .kml instead of a .kmz.");
+    }
+
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${fileBase}.kml`;
+    link.download = `${fileBase}.${extension}`;
     document.body.appendChild(link);
     link.click();
     link.remove();
