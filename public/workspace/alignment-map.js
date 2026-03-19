@@ -2246,7 +2246,7 @@ function buildAlignmentKmlDocument() {
         </Placemark>` : ""}
         </Folder>
         <Folder>
-            <name>Terrain & Earthwork</name>
+            <name>${escapeHtml("Terrain & Earthwork")}</name>
             ${terrainRibbonCoordinates ? buildKmlPlacemark(
                 `${projectName} Terrain Ribbon`,
                 "terrainSurface",
@@ -2265,7 +2265,7 @@ function buildAlignmentKmlDocument() {
             ${cuttingPlacemarkGroup}
         </Folder>
         <Folder>
-            <name>Track & Platforms</name>
+            <name>${escapeHtml("Track & Platforms")}</name>
             ${loopTrackPlacemarks}
             ${platformPlacemarks}
         </Folder>
