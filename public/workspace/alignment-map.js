@@ -16,11 +16,14 @@ let googleMapsApiLoadPromise = null;
 let googleMapsApiKeyInUse = "";
 let googleEarthMapListenersBound = false;
 let googleMapsAuthFailed = false;
+let googleTerrainProfileCache = null;
+let googleTerrainProfilePromise = null;
 const GOOGLE_MAPS_API_KEY_STORAGE_KEY = "earthsoft_google_maps_api_key";
 const GOOGLE_MAPS_MAP_ID_STORAGE_KEY = "earthsoft_google_maps_map_id";
 const MAP_PSEUDO_3D_DEFAULTS = {
     enabled: false,
     terrain: true,
+    contours: true,
     corridor: true,
     earthwork: true,
     structures: true,
@@ -36,6 +39,7 @@ function getMapPseudo3DSettings() {
     return {
         enabled: saved.enabled === true,
         terrain: saved.terrain !== false,
+        contours: saved.contours !== false,
         corridor: saved.corridor !== false,
         earthwork: saved.earthwork !== false,
         structures: saved.structures !== false,
@@ -50,6 +54,7 @@ function syncMapPseudo3DControls() {
     const mapping = {
         mapPseudo3dEnabledToggle: "enabled",
         mapOverlayTerrainToggle: "terrain",
+        mapOverlayContoursToggle: "contours",
         mapOverlayCorridorToggle: "corridor",
         mapOverlayEarthworkToggle: "earthwork",
         mapOverlayStructuresToggle: "structures",
@@ -97,6 +102,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const mapTypeSelect = document.getElementById("mapTypeSelect");
     const mapPseudo3dEnabledToggle = document.getElementById("mapPseudo3dEnabledToggle");
     const mapOverlayTerrainToggle = document.getElementById("mapOverlayTerrainToggle");
+    const mapOverlayContoursToggle = document.getElementById("mapOverlayContoursToggle");
     const mapOverlayCorridorToggle = document.getElementById("mapOverlayCorridorToggle");
     const mapOverlayEarthworkToggle = document.getElementById("mapOverlayEarthworkToggle");
     const mapOverlayStructuresToggle = document.getElementById("mapOverlayStructuresToggle");
@@ -179,6 +185,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (mapOverlayTerrainToggle) {
         mapOverlayTerrainToggle.addEventListener("change", (e) => setMapPseudo3DSetting("terrain", Boolean(e.target.checked)));
+    }
+    if (mapOverlayContoursToggle) {
+        mapOverlayContoursToggle.addEventListener("change", (e) => setMapPseudo3DSetting("contours", Boolean(e.target.checked)));
     }
     if (mapOverlayCorridorToggle) {
         mapOverlayCorridorToggle.addEventListener("change", (e) => setMapPseudo3DSetting("corridor", Boolean(e.target.checked)));
@@ -325,6 +334,7 @@ function initLeafletMap() {
 
     [
         ["mapPseudo3dTerrainPane", 405],
+        ["mapPseudo3dContourPane", 410],
         ["mapPseudo3dEarthworkPane", 415],
         ["mapPseudo3dCorridorPane", 425],
         ["mapPseudo3dStructurePane", 435],
@@ -1175,6 +1185,99 @@ function ensureGoogleMapsLoaded(apiKey) {
 
     return googleMapsApiLoadPromise;
 }
+
+function buildGoogleTerrainProfileKey() {
+    return [
+        getStoredGoogleMapsApiKey() ? "gmap" : "nogmap",
+        state?.kmlData?.points?.length || 0,
+        state?.calcRows?.length || 0,
+        _safeNum(state?.calcRows?.[0]?.chainage, 0),
+        _safeNum(state?.calcRows?.[state?.calcRows?.length - 1]?.chainage, 0),
+    ].join("|");
+}
+
+function reduceGoogleTerrainPath(points, maxPoints = 256) {
+    if (!Array.isArray(points) || !points.length) return [];
+    if (points.length <= maxPoints) {
+        return points.map((point) => ({ lat: _safeNum(point?.lat, NaN), lng: _safeNum(point?.lng, NaN) }))
+            .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+    }
+    const reduced = [];
+    const step = Math.max(1, Math.ceil(points.length / maxPoints));
+    for (let i = 0; i < points.length; i += step) {
+        reduced.push(points[i]);
+    }
+    const last = points[points.length - 1];
+    if (reduced[reduced.length - 1] !== last) reduced.push(last);
+    return reduced
+        .map((point) => ({ lat: _safeNum(point?.lat, NaN), lng: _safeNum(point?.lng, NaN) }))
+        .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+}
+
+function ensureGoogleTerrainProfile(forceReload = false) {
+    const apiKey = getStoredGoogleMapsApiKey();
+    const key = buildGoogleTerrainProfileKey();
+    if (!apiKey || !state?.kmlData?.points?.length || !state?.calcRows?.length) {
+        googleTerrainProfileCache = null;
+        return Promise.resolve(null);
+    }
+    if (!forceReload && googleTerrainProfileCache?.key === key) {
+        return Promise.resolve(googleTerrainProfileCache);
+    }
+    if (!forceReload && googleTerrainProfilePromise?.key === key) {
+        return googleTerrainProfilePromise.promise;
+    }
+
+    const promise = ensureGoogleMapsLoaded(apiKey)
+        .then(() => {
+            if (!window.google?.maps?.ElevationService) {
+                throw new Error("Google ElevationService is unavailable.");
+            }
+            const path = reduceGoogleTerrainPath(state.kmlData.points, 256);
+            if (path.length < 2) return null;
+            const firstCh = _safeNum(state.calcRows[0]?.chainage, 0);
+            const lastCh = _safeNum(state.calcRows[state.calcRows.length - 1]?.chainage, firstCh);
+            const chainageSpan = Math.max(lastCh - firstCh, 1e-6);
+            const sampleCount = Math.max(128, Math.min(512, Math.round(chainageSpan / 20)));
+            const service = new google.maps.ElevationService();
+            return new Promise((resolve, reject) => {
+                service.getElevationAlongPath({ path, samples: sampleCount }, (results, status) => {
+                    if (status !== "OK" || !Array.isArray(results) || !results.length) {
+                        reject(new Error(`Google terrain sampling failed: ${status || "unknown"}`));
+                        return;
+                    }
+                    const samples = results.map((result, index) => ({
+                        chainage: firstCh + ((chainageSpan * index) / Math.max(results.length - 1, 1)),
+                        elevationM: _safeNum(result?.elevation, NaN),
+                    })).filter((sample) => Number.isFinite(sample.chainage) && Number.isFinite(sample.elevationM));
+                    resolve(samples.length ? {
+                        key,
+                        samples,
+                        firstChainage: firstCh,
+                        lastChainage: lastCh,
+                    } : null);
+                });
+            });
+        })
+        .then((profile) => {
+            googleTerrainProfileCache = profile;
+            return profile;
+        })
+        .catch((error) => {
+            console.warn("Google terrain profile could not be prepared:", error);
+            googleTerrainProfileCache = null;
+            return null;
+        })
+        .finally(() => {
+            googleTerrainProfilePromise = null;
+        });
+
+    googleTerrainProfilePromise = { key, promise };
+    return promise;
+}
+
+window.ensureGoogleTerrainProfile = ensureGoogleTerrainProfile;
+window.getCachedGoogleTerrainProfile = () => googleTerrainProfileCache;
 
 function initGoogleEarthMap(forceReload = false) {
     const mapContainer = document.getElementById("googleEarthMapContainer");
@@ -2361,6 +2464,10 @@ function drawPseudo3DOverlay(points, startChOffset, settings) {
         });
     }
 
+    if (settings.contours) {
+        drawPseudo3DContours(samples);
+    }
+
     if (settings.earthwork) {
         drawPseudo3DEarthwork(samples, "fill");
         drawPseudo3DEarthwork(samples, "cut");
@@ -2517,6 +2624,77 @@ function drawPseudo3DEarthwork(samples, kind) {
             xMax: (sample) => sample.centerOffset + (_safeNum(isFill ? sample.row?.fillBottom : sample.row?.cutBottom, sample.currentFormationW) / 2),
         });
     });
+}
+
+function getPseudo3DContourInterval(samples) {
+    const values = (samples || [])
+        .map((sample) => _safeNum(sample?.row?.groundLevel, NaN))
+        .filter((value) => Number.isFinite(value));
+    if (!values.length) return 2;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const span = max - min;
+    if (span > 120) return 10;
+    if (span > 60) return 5;
+    if (span > 25) return 2;
+    return 1;
+}
+
+function drawPseudo3DContours(samples) {
+    if (!Array.isArray(samples) || samples.length < 2) return;
+    const values = samples
+        .map((sample) => _safeNum(sample?.row?.groundLevel, NaN))
+        .filter((value) => Number.isFinite(value));
+    if (values.length < 2) return;
+
+    const interval = getPseudo3DContourInterval(samples);
+    const minLevel = Math.floor(Math.min(...values) / interval) * interval;
+    const maxLevel = Math.ceil(Math.max(...values) / interval) * interval;
+    const visibleBandsPerSide = 6;
+    const terrainMargin = 18;
+
+    for (let contourLevel = minLevel; contourLevel <= maxLevel; contourLevel += interval) {
+        const line = [];
+        samples.forEach((sample) => {
+            const groundLevel = _safeNum(sample?.row?.groundLevel, NaN);
+            if (!Number.isFinite(groundLevel)) return;
+            const terrainHalfWidth = (_safeNum(sample.currentFormationW, 7.85) / 2) + terrainMargin;
+            const normalized = (contourLevel - groundLevel) / (interval * visibleBandsPerSide);
+            if (Math.abs(normalized) > 1.02) return;
+            const xOffset = _safeNum(sample.centerOffset, 0) + (normalized * terrainHalfWidth);
+            const point = projectPseudo3DPoint(sample, xOffset);
+            line.push([point.lat, point.lng]);
+        });
+        if (line.length < 2) continue;
+        const isIndexContour = Math.round(contourLevel / interval) % 5 === 0;
+        L.polyline(line, {
+            pane: "mapPseudo3dContourPane",
+            color: isIndexContour ? "#b45309" : "#c2410c",
+            weight: isIndexContour ? 1.6 : 0.9,
+            opacity: isIndexContour ? 0.68 : 0.42,
+            dashArray: isIndexContour ? null : "5 7",
+            interactive: false,
+        }).addTo(mapItems);
+
+        if (isIndexContour) {
+            const labelSample = samples[Math.floor(samples.length * 0.38)] || samples[Math.floor(samples.length / 2)];
+            const terrainHalfWidth = (_safeNum(labelSample?.currentFormationW, 7.85) / 2) + terrainMargin;
+            const normalized = (contourLevel - _safeNum(labelSample?.row?.groundLevel, contourLevel)) / (interval * visibleBandsPerSide);
+            if (Math.abs(normalized) <= 1.02) {
+                const xOffset = _safeNum(labelSample?.centerOffset, 0) + (normalized * terrainHalfWidth);
+                const labelPoint = projectPseudo3DPoint(labelSample, xOffset);
+                L.marker([labelPoint.lat, labelPoint.lng], {
+                    pane: "mapPseudo3dLabelPane",
+                    interactive: false,
+                    icon: L.divIcon({
+                        className: "map-km-label-wrap",
+                        html: `<div class="map-km-chip" style="padding:2px 6px;font-size:0.62rem;background:rgba(251,191,36,0.18);border-color:rgba(180,83,9,0.28);color:#f59e0b;">RL ${contourLevel.toFixed(0)}</div>`,
+                        iconSize: null,
+                    }),
+                }).addTo(mapItems);
+            }
+        }
+    }
 }
 
 function drawPseudo3DTrackRails(samples) {
@@ -2981,11 +3159,12 @@ function updateMapLegend(stationPlanCount, hasLandBoundary, pseudo3DEnabled = fa
     const noteEl = document.getElementById("alignmentMapLegendNote");
     if (!noteEl) return;
     const boundaryNote = hasLandBoundary ? " Orange dashed lines show the land acquisition boundary." : "";
+    const contourNote = pseudo3DEnabled && getMapPseudo3DSettings().contours ? " Contour lines are projected over the pseudo-3D terrain ribbon." : "";
     const overlayNote = pseudo3DEnabled ? " Pseudo-3D overlay is active for corridor, structures, and chainage labels." : "";
     if (stationPlanCount > 0) {
-        noteEl.textContent = `${stationPlanCount} station plan${stationPlanCount === 1 ? "" : "s"} mapped. Station labels are shown once per station at CSB.${boundaryNote}${overlayNote}`;
+        noteEl.textContent = `${stationPlanCount} station plan${stationPlanCount === 1 ? "" : "s"} mapped. Station labels are shown once per station at CSB.${boundaryNote}${overlayNote}${contourNote}`;
     } else {
-        noteEl.textContent = `Station locations are shown after KML import. Station labels are shown once per station at CSB.${boundaryNote}${overlayNote}`;
+        noteEl.textContent = `Station locations are shown after KML import. Station labels are shown once per station at CSB.${boundaryNote}${overlayNote}${contourNote}`;
     }
 }
 

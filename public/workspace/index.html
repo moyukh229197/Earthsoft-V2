@@ -1624,6 +1624,10 @@
             <span>Terrain</span>
           </label>
           <label class="map-toggle-chip">
+            <input id="mapOverlayContoursToggle" type="checkbox" />
+            <span>Contours</span>
+          </label>
+          <label class="map-toggle-chip">
             <input id="mapOverlayCorridorToggle" type="checkbox" />
             <span>Corridor</span>
           </label>
@@ -1658,6 +1662,10 @@
             <div class="map-legend-item">
               <span class="map-legend-swatch map-legend-line terrain"></span>
               <span>Terrain Ribbon</span>
+            </div>
+            <div class="map-legend-item">
+              <span class="map-legend-swatch map-legend-line contour"></span>
+              <span>Contour Lines</span>
             </div>
             <div class="map-legend-item">
               <span class="map-legend-swatch map-legend-line corridor"></span>
@@ -2609,6 +2617,7 @@
 	          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
 	            <span style="font-size:0.72rem; color:rgba(255,255,255,0.55); font-weight:700; letter-spacing:0.08em; text-transform:uppercase;">Layers</span>
 	            <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem;"><input id="viewer3dTerrainToggle" data-viewer3d-toggle="terrain" type="checkbox" checked /> Terrain</label>
+	            <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem;"><input id="viewer3dContoursToggle" data-viewer3d-toggle="contours" type="checkbox" checked /> Contours</label>
 	            <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem;"><input id="viewer3dEarthworkToggle" data-viewer3d-toggle="earthwork" type="checkbox" checked /> Earthwork</label>
 	            <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem;"><input id="viewer3dStructuresToggle" data-viewer3d-toggle="structures" type="checkbox" checked /> Bridges / Tunnels</label>
 	            <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem;"><input id="viewer3dLabelsToggle" data-viewer3d-toggle="labels" type="checkbox" checked /> Labels</label>

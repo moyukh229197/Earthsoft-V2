@@ -4869,6 +4869,11 @@ td:first-child {
   border-top-color: rgba(88, 125, 57, 0.92);
 }
 
+.map-legend-line.contour {
+  border-top-color: rgba(176, 109, 56, 0.92);
+  border-top-style: dashed;
+}
+
 .map-legend-line.corridor {
   border-top-color: rgba(148, 163, 184, 0.95);
 }
