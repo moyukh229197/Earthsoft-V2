@@ -1479,6 +1479,11 @@ function interpolateAlignmentMetricsAtChainage(chainageAbs) {
         proposedLevel: 0,
         groundLevel: 0,
         formationWidth: defaultFormationW,
+        centerOffset: 0,
+        toeWidth: defaultFormationW,
+        topWidth: defaultFormationW,
+        bank: 0,
+        cut: 0,
     };
     if (!rows.length || !Number.isFinite(chainageAbs)) return defaultMetrics;
 
@@ -1491,6 +1496,15 @@ function interpolateAlignmentMetricsAtChainage(chainageAbs) {
             proposedLevel: _safeNum(row?.proposedLevel, 0),
             groundLevel: _safeNum(row?.groundLevel, 0),
             formationWidth: _safeNum(envelope?.currentFormationW, defaultFormationW),
+            centerOffset: _safeNum(envelope?.centerOffset, 0),
+            toeWidth: row?.bank > 0.001
+                ? _safeNum(row?.fillBottom, _safeNum(envelope?.currentFormationW, defaultFormationW))
+                : row?.cut > 0.001
+                    ? _safeNum(row?.cutBottom, _safeNum(envelope?.currentFormationW, defaultFormationW))
+                    : _safeNum(row?.topWidth, _safeNum(envelope?.currentFormationW, defaultFormationW)),
+            topWidth: _safeNum(row?.topWidth, _safeNum(envelope?.currentFormationW, defaultFormationW)),
+            bank: _safeNum(row?.bank, 0),
+            cut: _safeNum(row?.cut, 0),
         };
     };
 
@@ -1525,6 +1539,11 @@ function interpolateAlignmentMetricsAtChainage(chainageAbs) {
         proposedLevel: leftMetrics.proposedLevel + ((rightMetrics.proposedLevel - leftMetrics.proposedLevel) * ratio),
         groundLevel: leftMetrics.groundLevel + ((rightMetrics.groundLevel - leftMetrics.groundLevel) * ratio),
         formationWidth: leftMetrics.formationWidth + ((rightMetrics.formationWidth - leftMetrics.formationWidth) * ratio),
+        centerOffset: leftMetrics.centerOffset + ((rightMetrics.centerOffset - leftMetrics.centerOffset) * ratio),
+        toeWidth: leftMetrics.toeWidth + ((rightMetrics.toeWidth - leftMetrics.toeWidth) * ratio),
+        topWidth: leftMetrics.topWidth + ((rightMetrics.topWidth - leftMetrics.topWidth) * ratio),
+        bank: leftMetrics.bank + ((rightMetrics.bank - leftMetrics.bank) * ratio),
+        cut: leftMetrics.cut + ((rightMetrics.cut - leftMetrics.cut) * ratio),
     };
 }
 
@@ -1544,20 +1563,27 @@ function build3DAlignmentSamples(points, startChOffset) {
             proposedLevel: metrics.proposedLevel,
             groundLevel: metrics.groundLevel,
             formationWidth: metrics.formationWidth,
+            centerOffset: metrics.centerOffset,
+            toeWidth: metrics.toeWidth,
+            topWidth: metrics.topWidth,
+            bank: metrics.bank,
+            cut: metrics.cut,
             tangent,
         };
     }).filter((sample) => Number.isFinite(sample.lat) && Number.isFinite(sample.lng));
 }
 
-function build3DCorridorPolygonCoordinates(samples) {
+function build3DRibbonPolygonCoordinates(samples, xMinResolver, xMaxResolver, altitudeResolver) {
     const left = [];
     const right = [];
     samples.forEach((sample) => {
-        if (!sample.tangent) return;
-        const halfWidth = Math.max(_safeNum(sample.formationWidth, 7.85) / 2, 1);
-        const altitude = _safeNum(sample.proposedLevel, 0);
-        const leftPoint = offsetLatLng(sample, sample.tangent, halfWidth);
-        const rightPoint = offsetLatLng(sample, sample.tangent, -halfWidth);
+        if (!sample?.tangent) return;
+        const xMin = xMinResolver(sample);
+        const xMax = xMaxResolver(sample);
+        const altitude = altitudeResolver(sample);
+        if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !Number.isFinite(altitude)) return;
+        const leftPoint = offsetLatLng(sample, sample.tangent, xMin);
+        const rightPoint = offsetLatLng(sample, sample.tangent, xMax);
         left.push(`${leftPoint.lng},${leftPoint.lat},${altitude.toFixed(3)}`);
         right.push(`${rightPoint.lng},${rightPoint.lat},${altitude.toFixed(3)}`);
     });
@@ -1565,6 +1591,103 @@ function build3DCorridorPolygonCoordinates(samples) {
     const ring = [...left, ...right.reverse()];
     ring.push(left[0]);
     return ring.join(" ");
+}
+
+function build3DSideFacePolygonCoordinates(samples, topXResolver, topAltitudeResolver, bottomXResolver, bottomAltitudeResolver) {
+    const top = [];
+    const bottom = [];
+    samples.forEach((sample) => {
+        if (!sample?.tangent) return;
+        const topX = topXResolver(sample);
+        const topAltitude = topAltitudeResolver(sample);
+        const bottomX = bottomXResolver(sample);
+        const bottomAltitude = bottomAltitudeResolver(sample);
+        if (!Number.isFinite(topX) || !Number.isFinite(topAltitude) || !Number.isFinite(bottomX) || !Number.isFinite(bottomAltitude)) return;
+        const topPoint = offsetLatLng(sample, sample.tangent, topX);
+        const bottomPoint = offsetLatLng(sample, sample.tangent, bottomX);
+        top.push(`${topPoint.lng},${topPoint.lat},${topAltitude.toFixed(3)}`);
+        bottom.push(`${bottomPoint.lng},${bottomPoint.lat},${bottomAltitude.toFixed(3)}`);
+    });
+    if (top.length < 2 || bottom.length < 2) return "";
+    const ring = [...top, ...bottom.reverse()];
+    ring.push(top[0]);
+    return ring.join(" ");
+}
+
+function build3DCorridorPolygonCoordinates(samples) {
+    return build3DRibbonPolygonCoordinates(
+        samples,
+        (sample) => _safeNum(sample.centerOffset, 0) + (Math.max(_safeNum(sample.formationWidth, 7.85), 2) / 2),
+        (sample) => _safeNum(sample.centerOffset, 0) - (Math.max(_safeNum(sample.formationWidth, 7.85), 2) / 2),
+        (sample) => _safeNum(sample.proposedLevel, 0),
+    );
+}
+
+function build3DRangeSamples(points, startChOffset, startCh, endCh, stepMeters = 20) {
+    if (!Array.isArray(points) || points.length < 2) return [];
+    const fromCh = Math.min(startCh, endCh);
+    const toCh = Math.max(startCh, endCh);
+    if (!Number.isFinite(fromCh) || !Number.isFinite(toCh)) return [];
+
+    const length = Math.max(toCh - fromCh, 0);
+    const steps = Math.max(2, Math.min(80, Math.ceil(length / Math.max(stepMeters, 5))));
+    const sampleWindow = getTypicalChainageStep(state.calcRows || []);
+    const samples = [];
+
+    for (let i = 0; i <= steps; i += 1) {
+        const chainageAbs = fromCh + ((length * i) / steps);
+        const alignmentCh = chainageAbs - startChOffset;
+        const point = getLatLngFromChainage(alignmentCh, points);
+        const tangent = getAlignmentTangentAtChainage(alignmentCh, points, sampleWindow);
+        const metrics = interpolateAlignmentMetricsAtChainage(chainageAbs);
+        if (!point || !tangent) continue;
+        samples.push({
+            lat: point.lat,
+            lng: point.lng,
+            ch: alignmentCh,
+            chainageAbs,
+            proposedLevel: metrics.proposedLevel,
+            groundLevel: metrics.groundLevel,
+            formationWidth: metrics.formationWidth,
+            centerOffset: metrics.centerOffset,
+            toeWidth: metrics.toeWidth,
+            topWidth: metrics.topWidth,
+            bank: metrics.bank,
+            cut: metrics.cut,
+            tangent,
+        });
+    }
+
+    return samples;
+}
+
+function build3DSpanLineCoordinates(points, startChOffset, startCh, endCh, xResolver, altitudeResolver, stepMeters = 20) {
+    const samples = build3DRangeSamples(points, startChOffset, startCh, endCh, stepMeters);
+    if (samples.length < 2) return "";
+    return samples.map((sample) => {
+        const x = xResolver(sample);
+        const altitude = altitudeResolver(sample);
+        if (!Number.isFinite(x) || !Number.isFinite(altitude)) return "";
+        const point = offsetLatLng(sample, sample.tangent, x);
+        return `${point.lng},${point.lat},${altitude.toFixed(3)}`;
+    }).filter(Boolean).join(" ");
+}
+
+function build3DSpanPolygonCoordinates(points, startChOffset, startCh, endCh, xMinResolver, xMaxResolver, altitudeResolver, stepMeters = 20) {
+    const samples = build3DRangeSamples(points, startChOffset, startCh, endCh, stepMeters);
+    return build3DRibbonPolygonCoordinates(samples, xMinResolver, xMaxResolver, altitudeResolver);
+}
+
+function buildKmlPlacemark(name, styleUrl, geometry, description = "") {
+    if (!geometry) return "";
+    return `
+        <Placemark>
+            <name>${escapeHtml(name)}</name>
+            ${description ? `<description><![CDATA[${description}]]></description>` : ""}
+            ${styleUrl ? `<styleUrl>#${styleUrl}</styleUrl>` : ""}
+            ${geometry}
+        </Placemark>
+    `;
 }
 
 function buildAlignmentKmlDocument() {
@@ -1610,6 +1733,348 @@ function buildAlignmentKmlDocument() {
         `;
     }).join("");
 
+    const terrainRibbonCoordinates = build3DRibbonPolygonCoordinates(
+        samples,
+        (sample) => _safeNum(sample.centerOffset, 0) + (Math.max(_safeNum(sample.toeWidth, sample.formationWidth), _safeNum(sample.formationWidth, 7.85)) / 2) + 14,
+        (sample) => _safeNum(sample.centerOffset, 0) - (Math.max(_safeNum(sample.toeWidth, sample.formationWidth), _safeNum(sample.formationWidth, 7.85)) / 2) - 14,
+        (sample) => _safeNum(sample.groundLevel, 0),
+    );
+
+    const embankmentPlacemarkGroup = buildContiguousSampleGroups(samples, (sample) => _safeNum(sample.bank, 0) > 0.1)
+        .map((group, index) => {
+            const footprintCoordinates = build3DRibbonPolygonCoordinates(
+                group,
+                (sample) => _safeNum(sample.centerOffset, 0) + (Math.max(_safeNum(sample.toeWidth, sample.formationWidth), 2) / 2),
+                (sample) => _safeNum(sample.centerOffset, 0) - (Math.max(_safeNum(sample.toeWidth, sample.formationWidth), 2) / 2),
+                (sample) => _safeNum(sample.groundLevel, 0),
+            );
+            const leftFaceCoordinates = build3DSideFacePolygonCoordinates(
+                group,
+                (sample) => _safeNum(sample.centerOffset, 0) + (Math.max(_safeNum(sample.formationWidth, 7.85), 2) / 2),
+                (sample) => _safeNum(sample.proposedLevel, 0) - 0.25,
+                (sample) => _safeNum(sample.centerOffset, 0) + (Math.max(_safeNum(sample.toeWidth, sample.formationWidth), 2) / 2),
+                (sample) => Math.min(_safeNum(sample.proposedLevel, 0) - 0.25, _safeNum(sample.groundLevel, 0)),
+            );
+            const rightFaceCoordinates = build3DSideFacePolygonCoordinates(
+                group,
+                (sample) => _safeNum(sample.centerOffset, 0) - (Math.max(_safeNum(sample.formationWidth, 7.85), 2) / 2),
+                (sample) => _safeNum(sample.proposedLevel, 0) - 0.25,
+                (sample) => _safeNum(sample.centerOffset, 0) - (Math.max(_safeNum(sample.toeWidth, sample.formationWidth), 2) / 2),
+                (sample) => Math.min(_safeNum(sample.proposedLevel, 0) - 0.25, _safeNum(sample.groundLevel, 0)),
+            );
+            return [
+                buildKmlPlacemark(
+                    `Embankment Berm ${index + 1}`,
+                    "embankmentSurface",
+                    footprintCoordinates ? `<Polygon>
+                        <extrude>0</extrude>
+                        <altitudeMode>absolute</altitudeMode>
+                        <outerBoundaryIs>
+                            <LinearRing>
+                                <coordinates>${footprintCoordinates}</coordinates>
+                            </LinearRing>
+                        </outerBoundaryIs>
+                    </Polygon>` : "",
+                    "Ground footprint of the embankment / berm envelope.",
+                ),
+                buildKmlPlacemark(
+                    `Embankment Left Face ${index + 1}`,
+                    "embankmentSurface",
+                    leftFaceCoordinates ? `<Polygon>
+                        <extrude>0</extrude>
+                        <altitudeMode>absolute</altitudeMode>
+                        <outerBoundaryIs>
+                            <LinearRing>
+                                <coordinates>${leftFaceCoordinates}</coordinates>
+                            </LinearRing>
+                        </outerBoundaryIs>
+                    </Polygon>` : "",
+                    "Left embankment face between the formation shoulder and berm / toe.",
+                ),
+                buildKmlPlacemark(
+                    `Embankment Right Face ${index + 1}`,
+                    "embankmentSurface",
+                    rightFaceCoordinates ? `<Polygon>
+                        <extrude>0</extrude>
+                        <altitudeMode>absolute</altitudeMode>
+                        <outerBoundaryIs>
+                            <LinearRing>
+                                <coordinates>${rightFaceCoordinates}</coordinates>
+                            </LinearRing>
+                        </outerBoundaryIs>
+                    </Polygon>` : "",
+                    "Right embankment face between the formation shoulder and berm / toe.",
+                ),
+            ].join("");
+        })
+        .join("");
+
+    const cuttingPlacemarkGroup = buildContiguousSampleGroups(samples, (sample) => _safeNum(sample.cut, 0) > 0.1)
+        .map((group, index) => {
+            const footprintCoordinates = build3DRibbonPolygonCoordinates(
+                group,
+                (sample) => _safeNum(sample.centerOffset, 0) + (Math.max(_safeNum(sample.toeWidth, sample.formationWidth), 2) / 2),
+                (sample) => _safeNum(sample.centerOffset, 0) - (Math.max(_safeNum(sample.toeWidth, sample.formationWidth), 2) / 2),
+                (sample) => _safeNum(sample.groundLevel, 0),
+            );
+            const leftFaceCoordinates = build3DSideFacePolygonCoordinates(
+                group,
+                (sample) => _safeNum(sample.centerOffset, 0) + ((Math.max(_safeNum(sample.formationWidth, 7.85), 2) / 2) + 2),
+                (sample) => _safeNum(sample.proposedLevel, 0) + 0.25,
+                (sample) => _safeNum(sample.centerOffset, 0) + Math.max((Math.max(_safeNum(sample.toeWidth, sample.formationWidth), 2) / 2), ((Math.max(_safeNum(sample.formationWidth, 7.85), 2) / 2) + 2)),
+                (sample) => Math.max(_safeNum(sample.proposedLevel, 0) + 0.25, _safeNum(sample.groundLevel, 0)),
+            );
+            const rightFaceCoordinates = build3DSideFacePolygonCoordinates(
+                group,
+                (sample) => _safeNum(sample.centerOffset, 0) - ((Math.max(_safeNum(sample.formationWidth, 7.85), 2) / 2) + 2),
+                (sample) => _safeNum(sample.proposedLevel, 0) + 0.25,
+                (sample) => _safeNum(sample.centerOffset, 0) - Math.max((Math.max(_safeNum(sample.toeWidth, sample.formationWidth), 2) / 2), ((Math.max(_safeNum(sample.formationWidth, 7.85), 2) / 2) + 2)),
+                (sample) => Math.max(_safeNum(sample.proposedLevel, 0) + 0.25, _safeNum(sample.groundLevel, 0)),
+            );
+            return [
+                buildKmlPlacemark(
+                    `Cutting Surface ${index + 1}`,
+                    "cuttingSurface",
+                    footprintCoordinates ? `<Polygon>
+                        <extrude>0</extrude>
+                        <altitudeMode>absolute</altitudeMode>
+                        <outerBoundaryIs>
+                            <LinearRing>
+                                <coordinates>${footprintCoordinates}</coordinates>
+                            </LinearRing>
+                        </outerBoundaryIs>
+                    </Polygon>` : "",
+                    "Ground footprint of the cutting envelope.",
+                ),
+                buildKmlPlacemark(
+                    `Cutting Left Face ${index + 1}`,
+                    "cuttingSurface",
+                    leftFaceCoordinates ? `<Polygon>
+                        <extrude>0</extrude>
+                        <altitudeMode>absolute</altitudeMode>
+                        <outerBoundaryIs>
+                            <LinearRing>
+                                <coordinates>${leftFaceCoordinates}</coordinates>
+                            </LinearRing>
+                        </outerBoundaryIs>
+                    </Polygon>` : "",
+                    "Left cutting face between the corridor shoulder and the top of cut.",
+                ),
+                buildKmlPlacemark(
+                    `Cutting Right Face ${index + 1}`,
+                    "cuttingSurface",
+                    rightFaceCoordinates ? `<Polygon>
+                        <extrude>0</extrude>
+                        <altitudeMode>absolute</altitudeMode>
+                        <outerBoundaryIs>
+                            <LinearRing>
+                                <coordinates>${rightFaceCoordinates}</coordinates>
+                            </LinearRing>
+                        </outerBoundaryIs>
+                    </Polygon>` : "",
+                    "Right cutting face between the corridor shoulder and the top of cut.",
+                ),
+            ].join("");
+        })
+        .join("");
+
+    const standardTc = _safeNum(state.settings?.visual?.minTc, 5.3);
+    const loopTrackPlacemarks = (state.loopPlatformRows || []).map((row, index) => {
+        const startCh = _safeNum(row?.loopStartCh, NaN);
+        const endCh = _safeNum(row?.loopEndCh, NaN);
+        if (!Number.isFinite(startCh) || !Number.isFinite(endCh) || Math.abs(endCh - startCh) < 0.1) return "";
+        const midCh = (startCh + endCh) / 2;
+        const layout = typeof buildStationSequenceLayout === "function"
+            ? buildStationSequenceLayout(midCh, row?.station || "", standardTc, { useRanges: true })
+            : null;
+        const trackItem = layout?.trackItems?.find((item) => item.row === row)
+            || layout?.trackItems?.find((item) =>
+                String(item?.row?.station || "").trim() === String(row?.station || "").trim() &&
+                String(item?.row?.lineType || "").trim() === String(row?.lineType || "").trim() &&
+                String(item?.row?.lineName || "").trim() === String(row?.lineName || "").trim() &&
+                String(item?.row?.side || "").trim() === String(row?.side || "").trim(),
+            )
+            || null;
+        const xOffset = Number.isFinite(layout?.offsetByItem?.get(trackItem))
+            ? layout.offsetByItem.get(trackItem)
+            : (String(row?.side || "").toLowerCase() === "right" ? -_safeNum(row?.tc, 0) : _safeNum(row?.tc, 0));
+        const coordinates = build3DSpanLineCoordinates(
+            points,
+            startChOffset,
+            startCh,
+            endCh,
+            () => xOffset,
+            (sample) => _safeNum(sample.proposedLevel, 0) + 0.42,
+            18,
+        );
+        return buildKmlPlacemark(
+            `${row?.station || "Station"} ${row?.lineType || "Track"} ${row?.lineName || `Line ${index + 1}`}`.trim(),
+            "loopTrackLine",
+            `<LineString>
+                <extrude>0</extrude>
+                <altitudeMode>absolute</altitudeMode>
+                <coordinates>${coordinates}</coordinates>
+            </LineString>`,
+            `${row?.lineType || "Track"} line exported from the station / loop layout.`,
+        );
+    }).join("");
+
+    const platformPlacemarks = (state.loopPlatformRows || []).map((row, index) => {
+        const pfStartCh = _safeNum(row?.pfStartCh, NaN);
+        const pfEndCh = _safeNum(row?.pfEndCh, NaN);
+        const pfWidth = _safeNum(row?.pfWidth, NaN);
+        if (!Number.isFinite(pfStartCh) || !Number.isFinite(pfEndCh) || !(pfWidth > 0)) return "";
+
+        const midCh = (pfStartCh + pfEndCh) / 2;
+        const layout = typeof buildStationSequenceLayout === "function"
+            ? buildStationSequenceLayout(midCh, row?.station || "", standardTc, { useRanges: true })
+            : null;
+        const refTrack = layout?.trackItems?.find((item) => item.row === row)
+            || layout?.trackItems?.find((item) => String(item?.side || "").trim() === String(row?.side || "").trim())
+            || layout?.trackItems?.find((item) => item.isMain)
+            || layout?.trackItems?.[0]
+            || null;
+        const refOffset = Number.isFinite(layout?.offsetByItem?.get(refTrack))
+            ? layout.offsetByItem.get(refTrack)
+            : (String(row?.side || "").toLowerCase() === "right" ? -_safeNum(row?.tc, 0) : _safeNum(row?.tc, 0));
+        const isLeft = String(row?.side || "").toLowerCase() === "left";
+        const cx = refOffset + (isLeft ? -(2.8 + (pfWidth / 2)) : (2.8 + (pfWidth / 2)));
+        const coordinates = build3DSpanPolygonCoordinates(
+            points,
+            startChOffset,
+            pfStartCh,
+            pfEndCh,
+            () => cx + (pfWidth / 2),
+            () => cx - (pfWidth / 2),
+            (sample) => _safeNum(sample.proposedLevel, 0) + 0.4,
+            14,
+        );
+        return buildKmlPlacemark(
+            `${row?.station || "Station"} Platform ${index + 1}`,
+            "platformDeck",
+            `<Polygon>
+                <extrude>0</extrude>
+                <altitudeMode>absolute</altitudeMode>
+                <outerBoundaryIs>
+                    <LinearRing>
+                        <coordinates>${coordinates}</coordinates>
+                    </LinearRing>
+                </outerBoundaryIs>
+            </Polygon>`,
+            `Platform deck exported from Earthsoft (${_safeNum(pfWidth, 0).toFixed(3)} m width).`,
+        );
+    }).join("");
+
+    const bridgeSurfacePlacemarks = (state.bridgeRows || []).map((bridge) => {
+        const startCh = _safeNum(bridge?.startChainage, NaN);
+        const endCh = _safeNum(bridge?.endChainage, NaN);
+        if (!Number.isFinite(startCh) || !Number.isFinite(endCh) || Math.abs(endCh - startCh) < 0.1) return "";
+        const metrics = interpolateAlignmentMetricsAtChainage((startCh + endCh) / 2);
+        const width = Math.max(_safeNum(metrics.formationWidth, 7.85) + 2, 4);
+        const isTunnel = /tunnel/i.test(String(bridge?.bridgeCategory || ""));
+        const coordinates = build3DSpanPolygonCoordinates(
+            points,
+            startChOffset,
+            startCh,
+            endCh,
+            (sample) => _safeNum(sample.centerOffset, metrics.centerOffset) + (width / 2),
+            (sample) => _safeNum(sample.centerOffset, metrics.centerOffset) - (width / 2),
+            (sample) => _safeNum(sample.proposedLevel, 0) + (isTunnel ? 0.2 : 0),
+            18,
+        );
+        return buildKmlPlacemark(
+            `${bridge?.bridgeCategory || "Structure"} ${bridge?.bridgeNo || ""}`.trim(),
+            isTunnel ? "tunnelSurface" : "bridgeSurface",
+            `<Polygon>
+                <extrude>${isTunnel ? 0 : 1}</extrude>
+                <altitudeMode>absolute</altitudeMode>
+                <outerBoundaryIs>
+                    <LinearRing>
+                        <coordinates>${coordinates}</coordinates>
+                    </LinearRing>
+                </outerBoundaryIs>
+            </Polygon>`,
+            `${bridge?.bridgeCategory || "Structure"} span exported from Earthsoft.`,
+        );
+    }).join("");
+
+    const retainingWallPlacemarks = (state.earthworkStructures?.retainingWalls || []).map((wall, index) => {
+        const startCh = _safeNum(wall?.fromCh, NaN);
+        const endCh = _safeNum(wall?.toCh, NaN);
+        if (!Number.isFinite(startCh) || !Number.isFinite(endCh) || Math.abs(endCh - startCh) < 0.1) return "";
+        const metrics = interpolateAlignmentMetricsAtChainage((startCh + endCh) / 2);
+        const offsets = String(wall?.side || "").toLowerCase() === "both"
+            ? [
+                _safeNum(metrics.centerOffset, 0) + (_safeNum(metrics.formationWidth, 7.85) / 2) + 1.2,
+                _safeNum(metrics.centerOffset, 0) - (_safeNum(metrics.formationWidth, 7.85) / 2) - 1.2,
+            ]
+            : [
+                _safeNum(metrics.centerOffset, 0) + ((String(wall?.side || "").toLowerCase() === "left" ? 1 : -1) * ((_safeNum(metrics.formationWidth, 7.85) / 2) + 1.2)),
+            ];
+        return offsets.map((xOffset, sideIndex) => buildKmlPlacemark(
+            `Retaining Wall ${index + 1}${offsets.length > 1 ? `-${sideIndex + 1}` : ""}`,
+            "retainingWallLine",
+            `<LineString>
+                <extrude>1</extrude>
+                <altitudeMode>absolute</altitudeMode>
+                <coordinates>${build3DSpanLineCoordinates(
+                    points,
+                    startChOffset,
+                    startCh,
+                    endCh,
+                    () => xOffset,
+                    (sample) => _safeNum(sample.proposedLevel, 0) + (String(wall?.wallType || "").includes("4") ? 4 : 3),
+                    16,
+                )}</coordinates>
+            </LineString>`,
+            `Retaining wall exported from the earthwork structures sheet.`,
+        )).join("");
+    }).join("");
+
+    const drainPlacemarks = (state.earthworkStructures?.drains || []).map((drain, index) => {
+        const startCh = _safeNum(drain?.fromCh, NaN);
+        const endCh = _safeNum(drain?.toCh, NaN);
+        if (!Number.isFinite(startCh) || !Number.isFinite(endCh) || Math.abs(endCh - startCh) < 0.1) return "";
+        const metrics = interpolateAlignmentMetricsAtChainage((startCh + endCh) / 2);
+        const drainType = typeof getDrainTypeMeta === "function" ? getDrainTypeMeta(drain?.drainType).key : String(drain?.drainType || "side_drain");
+        let sideOffset = 1.6;
+        if (drainType === "catchwater_drain") sideOffset = 4.5;
+        if (drainType === "berm_drain") sideOffset = 3.2;
+        if (drainType === "yard_drain") sideOffset = 2.2;
+        const offsets = String(drain?.side || "").toLowerCase() === "both"
+            ? [
+                _safeNum(metrics.centerOffset, 0) + (_safeNum(metrics.formationWidth, 7.85) / 2) + sideOffset,
+                _safeNum(metrics.centerOffset, 0) - (_safeNum(metrics.formationWidth, 7.85) / 2) - sideOffset,
+            ]
+            : [
+                _safeNum(metrics.centerOffset, 0) + ((String(drain?.side || "").toLowerCase() === "left" ? 1 : -1) * ((_safeNum(metrics.formationWidth, 7.85) / 2) + sideOffset)),
+            ];
+        return offsets.map((xOffset, sideIndex) => buildKmlPlacemark(
+            `Drain ${index + 1}${offsets.length > 1 ? `-${sideIndex + 1}` : ""}`,
+            drainType === "catchwater_drain"
+                ? "drainCatchwater"
+                : drainType === "berm_drain"
+                    ? "drainBerm"
+                    : drainType === "yard_drain"
+                        ? "drainYard"
+                        : "drainSide",
+            `<LineString>
+                <extrude>0</extrude>
+                <altitudeMode>absolute</altitudeMode>
+                <coordinates>${build3DSpanLineCoordinates(
+                    points,
+                    startChOffset,
+                    startCh,
+                    endCh,
+                    () => xOffset,
+                    (sample) => _safeNum(sample.groundLevel, 0) + 0.12,
+                    16,
+                )}</coordinates>
+            </LineString>`,
+            `${drainType.replace(/_/g, " ")} exported from the earthwork structures sheet.`,
+        )).join("");
+    }).join("");
+
     return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
     <Document>
@@ -1640,6 +2105,96 @@ function buildAlignmentKmlDocument() {
             <PolyStyle>
                 <color>664fc3f7</color>
             </PolyStyle>
+        </Style>
+        <Style id="terrainSurface">
+            <LineStyle>
+                <color>99698f45</color>
+                <width>1</width>
+            </LineStyle>
+            <PolyStyle>
+                <color>44587d39</color>
+            </PolyStyle>
+        </Style>
+        <Style id="embankmentSurface">
+            <LineStyle>
+                <color>9922c55e</color>
+                <width>1</width>
+            </LineStyle>
+            <PolyStyle>
+                <color>5522c55e</color>
+            </PolyStyle>
+        </Style>
+        <Style id="cuttingSurface">
+            <LineStyle>
+                <color>99f43f5e</color>
+                <width>1</width>
+            </LineStyle>
+            <PolyStyle>
+                <color>55f43f5e</color>
+            </PolyStyle>
+        </Style>
+        <Style id="loopTrackLine">
+            <LineStyle>
+                <color>ffe2e8f0</color>
+                <width>2.2</width>
+            </LineStyle>
+        </Style>
+        <Style id="platformDeck">
+            <LineStyle>
+                <color>ccb0c4de</color>
+                <width>1.2</width>
+            </LineStyle>
+            <PolyStyle>
+                <color>6694a3b8</color>
+            </PolyStyle>
+        </Style>
+        <Style id="bridgeSurface">
+            <LineStyle>
+                <color>cc94a3b8</color>
+                <width>1.2</width>
+            </LineStyle>
+            <PolyStyle>
+                <color>66475569</color>
+            </PolyStyle>
+        </Style>
+        <Style id="tunnelSurface">
+            <LineStyle>
+                <color>cccbd5e1</color>
+                <width>1.2</width>
+            </LineStyle>
+            <PolyStyle>
+                <color>6694a3b8</color>
+            </PolyStyle>
+        </Style>
+        <Style id="retainingWallLine">
+            <LineStyle>
+                <color>ffd97706</color>
+                <width>3</width>
+            </LineStyle>
+        </Style>
+        <Style id="drainSide">
+            <LineStyle>
+                <color>ff60a5fa</color>
+                <width>2</width>
+            </LineStyle>
+        </Style>
+        <Style id="drainYard">
+            <LineStyle>
+                <color>ff22c55e</color>
+                <width>2</width>
+            </LineStyle>
+        </Style>
+        <Style id="drainCatchwater">
+            <LineStyle>
+                <color>ff06b6d4</color>
+                <width>2.2</width>
+            </LineStyle>
+        </Style>
+        <Style id="drainBerm">
+            <LineStyle>
+                <color>ffa855f7</color>
+                <width>2</width>
+            </LineStyle>
         </Style>
         <Folder>
             <name>Alignment</name>
@@ -1685,10 +2240,34 @@ function buildAlignmentKmlDocument() {
                     <outerBoundaryIs>
                         <LinearRing>
                             <coordinates>${corridorPolygonCoordinates}</coordinates>
+                    </LinearRing>
+                </outerBoundaryIs>
+            </Polygon>
+        </Placemark>` : ""}
+        </Folder>
+        <Folder>
+            <name>Terrain & Earthwork</name>
+            ${terrainRibbonCoordinates ? buildKmlPlacemark(
+                `${projectName} Terrain Ribbon`,
+                "terrainSurface",
+                `<Polygon>
+                    <extrude>0</extrude>
+                    <altitudeMode>absolute</altitudeMode>
+                    <outerBoundaryIs>
+                        <LinearRing>
+                            <coordinates>${terrainRibbonCoordinates}</coordinates>
                         </LinearRing>
                     </outerBoundaryIs>
-                </Polygon>
-            </Placemark>` : ""}
+                </Polygon>`,
+                "Ground ribbon exported along the modeled corridor.",
+            ) : ""}
+            ${embankmentPlacemarkGroup}
+            ${cuttingPlacemarkGroup}
+        </Folder>
+        <Folder>
+            <name>Track & Platforms</name>
+            ${loopTrackPlacemarks}
+            ${platformPlacemarks}
         </Folder>
         <Folder>
             <name>Stations</name>
@@ -1697,6 +2276,9 @@ function buildAlignmentKmlDocument() {
         <Folder>
             <name>Structures</name>
             ${bridgePlacemarks}
+            ${bridgeSurfacePlacemarks}
+            ${retainingWallPlacemarks}
+            ${drainPlacemarks}
         </Folder>
     </Document>
 </kml>`;
@@ -1707,12 +2289,13 @@ function buildAlignmentKmzReadme() {
         "Earthsoft 3D Alignment Export",
         "",
         "This KMZ contains:",
-        "- doc.kml: 3D alignment, surface trace, ground profile, corridor deck, stations, and structures",
+        "- doc.kml: 3D alignment, surface trace, ground profile, corridor deck, terrain ribbon, embankment and cutting faces, loop lines, platform decks, and structures",
         "",
         "Recommended use:",
         "1. Open Google Earth Web or Google Earth Pro.",
         "2. Import this KMZ file.",
-        "3. Enable the Alignment folder and tilt the camera for the 3D corridor view.",
+        "3. Enable the Alignment, Terrain & Earthwork, Track & Platforms, and Structures folders.",
+        "4. Tilt the camera for the full 3D corridor view.",
         "",
         "Notes:",
         "- 3D heights are based on Earthsoft proposed formation levels.",
