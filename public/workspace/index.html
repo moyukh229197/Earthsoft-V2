@@ -2605,6 +2605,8 @@
                 <button class="cam-preset-btn" data-cam="left" title="Left Side View" style="background: transparent; border: 1px solid rgba(255,255,255,0.15); color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 0.7rem; font-weight: 600;">Left</button>
                 <button class="cam-preset-btn" data-cam="right" title="Right Side View" style="background: transparent; border: 1px solid rgba(255,255,255,0.15); color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 0.7rem; font-weight: 600;">Right</button>
                 <button class="cam-preset-btn" data-cam="iso" title="Isometric View" style="background: transparent; border: 1px solid rgba(255,255,255,0.15); color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 0.7rem; font-weight: 600;">ISO</button>
+                <div style="width: 1px; height: 16px; background: rgba(255,255,255,0.2); margin: 0 4px;"></div>
+                <button id="togglePanModeBtn" title="Toggle Left-Click: Pan or Rotate" style="background: transparent; border: 1px solid rgba(255,255,255,0.15); color: #a78bfa; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 0.7rem; font-weight: 600; display:flex; align-items:center; gap:4px;"><i class="ri-drag-move-fill"></i> Pan</button>
 	              </div>
 	              <!-- Action Buttons -->
 	              <button id="next3dHotspotBtn" class="btn btn-secondary" style="border-radius: 20px; padding: 8px 16px;" title="Jump to next hotspot"><i class="ri-alarm-warning-line" style="margin-right: 4px;"></i> Next Hotspot</button>
@@ -2614,15 +2616,39 @@
 	           </div>
 	        </div>
 	        <div style="padding: 8px 24px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: rgba(255,255,255,0.02);">
-	          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-	            <span style="font-size:0.72rem; color:rgba(255,255,255,0.55); font-weight:700; letter-spacing:0.08em; text-transform:uppercase;">Layers</span>
-	            <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem;"><input id="viewer3dTerrainToggle" data-viewer3d-toggle="terrain" type="checkbox" checked /> Terrain</label>
-	            <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem;"><input id="viewer3dContoursToggle" data-viewer3d-toggle="contours" type="checkbox" checked /> Contours</label>
-	            <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem;"><input id="viewer3dEarthworkToggle" data-viewer3d-toggle="earthwork" type="checkbox" checked /> Earthwork</label>
-	            <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem;"><input id="viewer3dStructuresToggle" data-viewer3d-toggle="structures" type="checkbox" checked /> Bridges / Tunnels</label>
-	            <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem;"><input id="viewer3dLabelsToggle" data-viewer3d-toggle="labels" type="checkbox" checked /> Labels</label>
-	            <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem;"><input id="viewer3dBoundaryToggle" data-viewer3d-toggle="boundary" type="checkbox" checked /> Land Boundary</label>
-	            <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem;"><input id="viewer3dEWStructuresToggle" data-viewer3d-toggle="ew_structures" type="checkbox" checked /> RW / Drains</label>
+	          <style>
+	            .layer-toggle {
+	              display: flex; align-items: center; gap: 8px; font-size: 0.78rem; cursor: pointer; user-select: none; color: #d1d5db; transition: color 0.2s;
+	            }
+	            .layer-toggle:hover { color: #ffffff; }
+	            .layer-toggle input[type="checkbox"] {
+	              appearance: none; -webkit-appearance: none; width: 34px; height: 18px;
+	              background: rgba(255,255,255,0.15); border-radius: 20px; position: relative;
+	              outline: none; cursor: pointer; transition: background 0.3s, box-shadow 0.3s;
+	              box-shadow: inset 0 0 4px rgba(0,0,0,0.3); flex-shrink: 0; margin: 0;
+	            }
+	            .layer-toggle input[type="checkbox"]::after {
+	              content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+	              background: #ffffff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+	              transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+	            }
+	            .layer-toggle input[type="checkbox"]:checked {
+	              background: #3b82f6;
+	            }
+	            .layer-toggle input[type="checkbox"]:checked::after {
+	              transform: translateX(16px);
+	            }
+	          </style>
+	          <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+	            <span style="font-size:0.72rem; color:rgba(255,255,255,0.55); font-weight:700; letter-spacing:0.08em; text-transform:uppercase; margin-right: 4px;">Layers</span>
+	            <label class="layer-toggle"><input id="viewer3dTerrainToggle" data-viewer3d-toggle="terrain" type="checkbox" checked /> Terrain</label>
+	            <label class="layer-toggle"><input id="viewer3dEarthworkToggle" data-viewer3d-toggle="earthwork" type="checkbox" checked /> Earthwork</label>
+	            <label class="layer-toggle"><input id="viewer3dStructuresToggle" data-viewer3d-toggle="structures" type="checkbox" checked /> Bridges / Tunnels</label>
+	            <label class="layer-toggle"><input id="viewer3dLabelsToggle" data-viewer3d-toggle="labels" type="checkbox" checked /> Labels</label>
+	            <label class="layer-toggle"><input id="viewer3dBoundaryToggle" data-viewer3d-toggle="boundary" type="checkbox" checked /> Land Boundary</label>
+	            <label class="layer-toggle"><input id="viewer3dEWStructuresToggle" data-viewer3d-toggle="ew_structures" type="checkbox" checked /> RW / Drains</label>
+	            <div style="width: 1px; height: 18px; background: rgba(255,255,255,0.1); margin: 0 4px;"></div>
+	            <label class="layer-toggle" style="color: #60a5fa; font-weight: 500;"><input id="viewer3dSatelliteToggle" data-viewer3d-toggle="satellite" type="checkbox" /> Satellite Map</label>
 	          </div>
 	          <div id="flyHotspotLabel" style="font-size:0.82rem; font-weight:600; color:#facc15;">Open corridor</div>
 	        </div>

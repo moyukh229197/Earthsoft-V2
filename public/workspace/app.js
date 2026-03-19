@@ -7045,7 +7045,7 @@ function drawCrossSection(row, targetEl = els.crossSvg) {
     row.chainage,
     row.stationName || row.station || "",
     standardTrackCenterM,
-    { useRanges: false },
+    { useRanges: true },
   );
   const activeLoopTrackOffsets = sequenceLayout ? [] : (state.loopPlatformRows || [])
     .filter((lp) =>
@@ -11054,7 +11054,7 @@ const flyStep = 10;
 let flySpeed = 0.5; // Default speed multiplier
 
 let camOffsetX = 0;
-let camOffsetY = 2.5; // Default low front view
+let camOffsetY = 10; // Default front view height 10m
 let camOffsetZ = 0;
 let isIsoCam = false;
 let currentLookAhead = 15;
@@ -11064,6 +11064,8 @@ let viewer3dPlatformTexture = null;
 let viewer3dBridgeDeckTexture = null;
 let viewer3dRetainingWallTexture = null;
 const viewer3dDrainTextureCache = new Map();
+let viewer3dSatelliteTexture = null;
+let viewer3dSatelliteBounds = null;
 let viewer3dSmoothedLookTarget = null;
 let viewer3dGoogleTerrainProfile = null;
 let viewer3dGoogleTerrainProfilePromise = null;
@@ -11083,6 +11085,7 @@ function get3DViewerActiveOptions() {
     labels: document.getElementById("viewer3dLabelsToggle")?.checked ?? true,
     boundary: document.getElementById("viewer3dBoundaryToggle")?.checked ?? true,
     ewStructures: document.getElementById("viewer3dEWStructuresToggle")?.checked ?? true,
+    satellite: document.getElementById("viewer3dSatelliteToggle")?.checked ?? false,
   };
 }
 
@@ -11336,11 +11339,13 @@ function compute3DEnvelopeForRow(row, standardTc = 5.3, formationW = 7.85) {
   const stationHint = String(row?.stationName || row?.station || "").trim();
   const activeLayout = buildStationSequenceLayout(row?.chainage, stationHint, standardTc, { useRanges: true });
   const referenceLayout = buildStationSequenceLayout(row?.chainage, stationHint, standardTc, { useRanges: false }) || activeLayout;
-  const trackLayout = referenceLayout || activeLayout;
-  const trackItems = trackLayout
-    ? trackLayout.trackItems.map((item) => ({ ...item, offset: trackLayout.offsetByItem.get(item) }))
+  const trackItems = activeLayout
+    ? activeLayout.trackItems.map((item) => {
+        const refItem = referenceLayout ? referenceLayout.trackItems.find(r => r.order === item.order) : null;
+        return { ...item, offset: refItem ? referenceLayout.offsetByItem.get(refItem) : activeLayout.offsetByItem.get(item) };
+      })
     : [{ order: 0, isMain: true, offset: 0, side: "", row: {} }];
-  const platformItems = trackLayout ? trackLayout.platformItems : [];
+  const platformItems = activeLayout ? activeLayout.platformItems : [];
   const platformPlacements = resolve3DPlatformPlacements(referenceLayout, trackProfile, row?.chainage);
 
   let trackMinX = -formationW / 2;
@@ -11554,8 +11559,8 @@ function get3DViewerPathCache() {
     const distanceFromPrev = segPrev.length();
     const angle = segPrev.lengthSq() > 1e-6 && segNext.lengthSq() > 1e-6 ? segPrev.angleTo(segNext) : 0;
     const chainageGap = rawChainages[i] - chainages[chainages.length - 1];
-    const keepForCurve = angle > THREE.MathUtils.degToRad(1.5);
-    const keepForDistance = distanceFromPrev > 10 || chainageGap > 10;
+    const keepForCurve = angle > THREE.MathUtils.degToRad(0.8);
+    const keepForDistance = distanceFromPrev > 15 || chainageGap > 15;
     if (keepForCurve || keepForDistance) keepControlPoint(currentPoint, rawChainages[i]);
   }
   keepControlPoint(rawControlPoints[rawControlPoints.length - 1], rawChainages[rawChainages.length - 1], true);
@@ -11565,7 +11570,21 @@ function get3DViewerPathCache() {
     chainages.splice(0, chainages.length, ...rawChainages);
   }
 
-  const curve = new THREE.CatmullRomCurve3(controlPoints, false, "centripetal", 0.15);
+  // Apply 3 iterations of aggressive Laplacian smoothing to control points for perfect S-curve elimination
+  const smoothedPoints = controlPoints.map(p => p.clone());
+  for (let iter = 0; iter < 3; iter++) {
+    const temp = smoothedPoints.map(p => p.clone());
+    for (let i = 2; i < smoothedPoints.length - 2; i++) {
+      temp[i].x = (smoothedPoints[i-2].x + smoothedPoints[i-1].x + smoothedPoints[i].x + smoothedPoints[i+1].x + smoothedPoints[i+2].x) / 5;
+      temp[i].z = (smoothedPoints[i-2].z + smoothedPoints[i-1].z + smoothedPoints[i].z + smoothedPoints[i+1].z + smoothedPoints[i+2].z) / 5;
+    }
+    for (let i = 2; i < smoothedPoints.length - 2; i++) {
+        smoothedPoints[i].copy(temp[i]);
+    }
+  }
+
+  // Use smoothed points with lower tension to get sweeping, perfect arcs
+  const curve = new THREE.CatmullRomCurve3(smoothedPoints, false, "chordal", 0.5);
   const params = chainages.map((chainageAbs) => (chainageAbs - firstCh) / chainageSpan);
 
   viewer3dPathCache = {
@@ -11733,7 +11752,69 @@ function build3DViewerSlopedSideGeometry(samples, xTopResolver, xBottomResolver,
   return geometry;
 }
 
-function split3DViewerSamplesByGap(samples, maxGap = 1) {
+function build3DTunnelGeometry(samples, innerRadius, outerRadius, yOffset = 0) {
+  const verts = [];
+  const indices = [];
+  const arcSegments = 50; // Smooth 360-degree circle
+  let vertexIndex = 0;
+
+  samples.forEach((sample, i) => {
+    if (!sample.frame) return;
+    // Loop around full 360 degrees (0 to 2*PI)
+    for (let j = 0; j <= arcSegments; j++) {
+      const angle = (j / arcSegments) * Math.PI * 2; 
+      const xMul = -Math.cos(angle);
+      const yMul = Math.sin(angle); 
+
+      const ix = xMul * innerRadius;
+      const iy = yMul * innerRadius;
+      const oPos = get3DViewerFramePoint(sample.frame, sample.centerOffset + ix, sample.yCenter + iy + yOffset, 0);
+      verts.push(oPos.x, oPos.y, oPos.z);
+
+      const ox = xMul * outerRadius;
+      const oy = yMul * outerRadius;
+      const iPos = get3DViewerFramePoint(sample.frame, sample.centerOffset + ox, sample.yCenter + oy + yOffset, 0);
+      verts.push(iPos.x, iPos.y, iPos.z);
+
+      if (i > 0 && j > 0) {
+        const cio = vertexIndex + (j * 2);
+        const cii = cio - 2;
+        const coo = cio + 1;
+        const coi = cii + 1;
+
+        const pio = cio - ((arcSegments + 1) * 2);
+        const pii = cii - ((arcSegments + 1) * 2);
+        const poo = coo - ((arcSegments + 1) * 2);
+        const poi = coi - ((arcSegments + 1) * 2);
+
+        // Inner wall (clockwise/counterclockwise visibility)
+        indices.push(cii, pii, pio, cii, pio, cio); 
+        // Outer wall
+        indices.push(coo, poo, poi, coo, poi, coi); 
+      }
+    }
+    vertexIndex += (arcSegments + 1) * 2;
+  });
+
+  if (samples.length > 1) {
+      for (let j = 0; j < arcSegments; j++) {
+          const sI1 = j * 2, sO1 = sI1 + 1, sI2 = sI1 + 2, sO2 = sI2 + 1;
+          indices.push(sI1, sO1, sO2, sI1, sO2, sI2); // Start cap (front)
+          const eB = vertexIndex - ((arcSegments + 1) * 2);
+          const eI1 = eB + (j * 2), eO1 = eI1 + 1, eI2 = eI1 + 2, eO2 = eI2 + 1;
+          indices.push(eI2, eO2, eO1, eI2, eO1, eI1); // End cap (back)
+      }
+      // Note: No ground base plates required for a 360-degree fully enclosed tube geometry
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function split3DViewerSamplesByGap(samples, maxGap = 20) {
   if (!Array.isArray(samples) || !samples.length) return [];
   const groups = [];
   let current = [];
@@ -12287,6 +12368,150 @@ function init3DViewer() {
    });
 }
 
+async function ensure3DViewerSatelliteTexture() {
+  const points = state?.kmlData?.points;
+  // Try multiple sources for the Google Maps API key
+  let apiKey = "";
+  if (typeof getStoredGoogleMapsApiKey === "function") {
+    apiKey = getStoredGoogleMapsApiKey() || "";
+  }
+  if (!apiKey) {
+    try { apiKey = String(localStorage.getItem("earthsoft_google_maps_api_key") || "").trim(); } catch(_) {}
+  }
+  if (!apiKey) {
+    apiKey = String(window.EARTHSOFT_GOOGLE_MAPS_API_KEY || "").trim();
+  }
+  if (!apiKey) {
+    // Last resort: try reading from the Google Earth settings input field
+    const inputEl = document.getElementById("googleEarthApiKeyInput");
+    if (inputEl) apiKey = String(inputEl.value || "").trim();
+  }
+  console.log("[3D Satellite] ensure called. points:", points?.length || 0, "apiKey:", apiKey ? "present (" + apiKey.slice(0,8) + "...)" : "MISSING");
+  if (!points?.length || !apiKey) {
+    console.warn("[3D Satellite] Skipping — no alignment points or no Google Maps API Key.");
+    if (points?.length && !apiKey) {
+      // Show a brief notification to the user
+      const label = document.getElementById("flyHotspotLabel");
+      if (label) {
+        label.textContent = "⚠ Satellite Map requires a Google Maps API Key. Set it in Alignment Map → Google Earth tab.";
+        label.style.color = "#f97316";
+        setTimeout(() => { label.style.color = ""; }, 8000);
+      }
+    }
+    viewer3dSatelliteTexture = null;
+    viewer3dSatelliteBounds = null;
+    return null;
+  }
+
+  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+  points.forEach(p => {
+    minLat = Math.min(minLat, p.lat);
+    maxLat = Math.max(maxLat, p.lat);
+    minLng = Math.min(minLng, p.lng);
+    maxLng = Math.max(maxLng, p.lng);
+  });
+
+  const cacheKey = [minLat.toFixed(6), maxLat.toFixed(6), minLng.toFixed(6), maxLng.toFixed(6)].join("|");
+  if (viewer3dSatelliteTexture && viewer3dSatelliteBounds?.key === cacheKey) {
+    console.log("[3D Satellite] Using cached texture.");
+    return viewer3dSatelliteTexture;
+  }
+
+  // Use Esri World_Street_Map tiles (free, CORS-enabled). 
+  // We use Street Map instead of Imagery so the user explicitly sees map features (roads, text, land use) 
+  // instead of ambiguous desert sand.
+  const tileSize = 256;
+  const canvasSize = 2048;
+  const tilesPerSide = canvasSize / tileSize; // 8x8 grid
+
+  // Pick zoom based on corridor length for optimal detail
+  const corridorLengthM = (state.calcRows?.length || 1) * (get3DViewerRowSpacingM?.() || 1);
+  const corridorLengthKm = corridorLengthM / 1000;
+  
+  // Choose zoom to roughly bounds the corridor in the 8x8 tile grid.
+  let zoom = 11;
+  if (corridorLengthKm <= 8) zoom = 15;
+  else if (corridorLengthKm <= 16) zoom = 14;
+  else if (corridorLengthKm <= 30) zoom = 13;
+  else if (corridorLengthKm <= 60) zoom = 12;
+
+  const centerLat = (minLat + maxLat) / 2;
+  const centerLng = (minLng + maxLng) / 2;
+  console.log("[3D Satellite] Map center:", centerLat.toFixed(5), centerLng.toFixed(5), "zoom:", zoom, "corridorKm:", corridorLengthKm.toFixed(1));
+
+  // Convert lat/lng to real tile coordinates at this zoom
+  const n = Math.pow(2, zoom);
+  const centerTileX = Math.floor((centerLng + 180) / 360 * n);
+  const latRad = centerLat * Math.PI / 180;
+  const centerTileY = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
+
+  const halfTiles = Math.floor(tilesPerSide / 2);
+  const startTileX = centerTileX - halfTiles;
+  const startTileY = centerTileY - halfTiles;
+
+  // Calculate exact geographic bounds of the stitched tile grid
+  const gridMinLng = (startTileX / n) * 360 - 180;
+  const gridMaxLng = ((startTileX + tilesPerSide) / n) * 360 - 180;
+  const gridMaxLat = Math.atan(Math.sinh(Math.PI * (1 - 2 * startTileY / n))) * 180 / Math.PI;
+  const gridMinLat = Math.atan(Math.sinh(Math.PI * (1 - 2 * (startTileY + tilesPerSide) / n))) * 180 / Math.PI;
+
+  return new Promise((resolve) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvasSize;
+    canvas.height = canvasSize;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#e5e5e5";
+    ctx.fillRect(0, 0, canvasSize, canvasSize);
+
+    let loaded = 0;
+    let failed = 0;
+    const totalTiles = tilesPerSide * tilesPerSide;
+
+    const finish = () => {
+      if (loaded + failed < totalTiles) return;
+      console.log("[3D Satellite] Map Tiles loaded:", loaded, "failed:", failed);
+      if (loaded > 0) {
+        const tex = new THREE.Texture(canvas);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.flipY = true; // For tile drawing to canvas, WebGL expects flipY=true
+        tex.needsUpdate = true;
+        viewer3dSatelliteTexture = tex;
+        viewer3dSatelliteBounds = {
+          minLat: gridMinLat,
+          maxLat: gridMaxLat,
+          minLng: gridMinLng,
+          maxLng: gridMaxLng,
+          key: cacheKey,
+        };
+        resolve(tex);
+      } else {
+        console.error("[3D Satellite] All map tiles failed to load.");
+        viewer3dSatelliteTexture = null;
+        viewer3dSatelliteBounds = null;
+        resolve(null);
+      }
+    };
+
+    for (let dy = 0; dy < tilesPerSide; dy++) {
+      for (let dx = 0; dx < tilesPerSide; dx++) {
+        const tileX = startTileX + dx;
+        const tileY = startTileY + dy;
+        // ArcGIS street map provides a clear cartographic map.
+        const url = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${zoom}/${tileY}/${tileX}`;
+        
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          ctx.drawImage(img, dx * tileSize, dy * tileSize, tileSize, tileSize);
+          loaded++; finish();
+        };
+        img.onerror = () => { failed++; finish(); };
+        img.src = url;
+      }
+    }
+  });
+}
+
 function generate3DMesh() {
 	   if (!viewer3dScene) return;
 	   viewer3dPathCache = null;
@@ -12299,6 +12524,23 @@ function generate3DMesh() {
 	   const oldTrack = viewer3dScene.getObjectByName('trackCorridor');
    if (oldTrack) viewer3dScene.remove(oldTrack);
 
+   const options = get3DViewerActiveOptions();
+   if (options.satellite && !viewer3dSatelliteTexture) {
+      console.log("[3D Satellite] Satellite enabled but texture not loaded yet. Starting async load...");
+      ensure3DViewerSatelliteTexture().then((tex) => {
+        if (tex && viewer3dScene) {
+          console.log("[3D Satellite] Texture ready! Regenerating 3D mesh with satellite imagery...");
+          const stillOpen = document.getElementById("viewer3dModal")?.open;
+          if (stillOpen) generate3DMesh();
+        }
+      });
+   } else if (!options.satellite && viewer3dSatelliteTexture) {
+      // Satellite toggled off → clear cached texture so it's re-fetched if toggled back
+      viewer3dSatelliteTexture = null;
+      viewer3dSatelliteBounds = null;
+   }
+
+
    if (state.calcRows.length === 0) {
       const helper = new THREE.GridHelper(200, 20, 0x3b82f6, 0x1e293b);
       helper.name = 'trackCorridor';
@@ -12306,7 +12548,6 @@ function generate3DMesh() {
       return;
    }
 
-   const options = get3DViewerActiveOptions();
    const trackGroup = new THREE.Group();
    trackGroup.name = 'trackCorridor';
    const RAIL_GAUGE_M = 1.676;
@@ -12323,7 +12564,12 @@ function generate3DMesh() {
    const overlayGroup = new THREE.Group();
    trackGroup.add(terrainGroup, corridorGroup, earthworkGroup, structuresGroup, labelsGroup, boundaryGroup, overlayGroup);
 
-   const landMat = new THREE.MeshStandardMaterial({ color: 0x587d39, side: THREE.DoubleSide, roughness: 0.98, metalness: 0.02 });
+   const useSatelliteMat = options.satellite && viewer3dSatelliteTexture;
+   console.log("[3D Satellite] landMat mode:", useSatelliteMat ? "SATELLITE TEXTURE" : "green terrain", "| satellite toggle:", options.satellite, "| texture:", !!viewer3dSatelliteTexture);
+   const landMat = useSatelliteMat
+     ? new THREE.MeshStandardMaterial({ map: viewer3dSatelliteTexture, side: THREE.DoubleSide, roughness: 1, metalness: 0 })
+     : new THREE.MeshStandardMaterial({ color: 0x587d39, side: THREE.DoubleSide, roughness: 0.98, metalness: 0.02 });
+
    const basePlaneMat = new THREE.MeshStandardMaterial({ color: 0x17231a, side: THREE.DoubleSide, roughness: 1 });
    const contourMinorMat = new THREE.MeshBasicMaterial({
      color: 0x1f2937,
@@ -12422,6 +12668,7 @@ function generate3DMesh() {
 	   const railRibbonSamplesByKey = new Map();
    const platformRibbonSamplesByKey = new Map();
    const bridgeRibbonSamplesByKey = new Map();
+   const tunnelRibbonSamplesByKey = new Map();
    const bridgeParapetSamplesByKey = new Map();
    let currentBallastRibbon = [];
    let currentFormationRibbon = [];
@@ -12580,7 +12827,9 @@ function generate3DMesh() {
 	         corridorGroup.add(sleeper);
 	       }
 	       if (useAlignedPath && frame) {
-	         const key = `${track.order}|${track.side || "center"}|${track.isMain ? "main" : "aux"}`;
+	         // Mainlines span across the entire corridor and seamlessly bridge across distinct regions (block sections vs stations)
+	         // Auxiliary lines (loops) are kept unique per table order so they can function as dead end sidings and crossovers
+	         const key = track.isMain ? `main|${track.side || "center"}` : `aux|${track.order}|${track.side || "center"}`;
 	         if (!railRibbonSamplesByKey.has(key)) railRibbonSamplesByKey.set(key, []);
 	         railRibbonSamplesByKey.get(key).push({
 	           index: i,
@@ -12674,27 +12923,21 @@ function generate3DMesh() {
      });
 
      if (options.structures && bridgeInRange) {
-       if (isTunnel) {
-         const rw = currentFormationW / 2 + 2;
-         const rh = 7.5;
-         const tShape = new THREE.Shape();
-         tShape.moveTo(-rw - 0.5, -0.5);
-         tShape.lineTo(rw + 0.5, -0.5);
-         tShape.lineTo(rw + 0.5, rh / 2);
-         tShape.absarc(0, rh / 2, rw + 0.5, 0, Math.PI, false);
-         tShape.lineTo(-rw - 0.5, -0.5);
-         const hole = new THREE.Path();
-         hole.moveTo(rw, -0.2);
-         hole.lineTo(rw, rh / 2);
-         hole.absarc(0, rh / 2, rw, 0, Math.PI, true);
-         hole.lineTo(-rw, -0.2);
-         tShape.holes.push(hole);
-         const tunnelGeo = new THREE.ExtrudeGeometry(tShape, { depth: flyStep + 0.1, bevelEnabled: false });
-         const tunnelMesh = new THREE.Mesh(tunnelGeo, tunnelMat);
-         tunnelMesh.position.copy(get3DViewerFramePoint(frame, centerOffset, yPos, -(flyStep / 2)));
-         if (frame) tunnelMesh.rotation.y = frame.headingY;
-         structuresGroup.add(tunnelMesh);
-       } else if (useAlignedPath && frame) {
+       if (isTunnel && useAlignedPath && frame) {
+          const bridgeRowIndex = state.bridgeRows.indexOf(bridgeInRange);
+          const tunnelKey = bridgeRowIndex >= 0
+            ? `tunnel-${bridgeRowIndex}`
+            : `tunnel-${String(bridgeInRange?.bridgeNo || bridgeInRange?.bridgeCategory || "tunnel").trim()}-${r3(safeNum(bridgeInRange?.startChainage, 0))}`;
+          if (!tunnelRibbonSamplesByKey.has(tunnelKey)) tunnelRibbonSamplesByKey.set(tunnelKey, []);
+          tunnelRibbonSamplesByKey.get(tunnelKey).push({
+            index: i,
+            chainageAbs: safeNum(row.chainage, 0),
+            frame,
+            centerOffset,
+            yCenter: yPos,
+            formationWidth: currentFormationW
+          });
+       } else if (!isTunnel && useAlignedPath && frame) {
          const bridgeRowIndex = state.bridgeRows.indexOf(bridgeInRange);
          const bridgeKey = bridgeRowIndex >= 0
            ? `bridge-${bridgeRowIndex}`
@@ -12867,7 +13110,7 @@ function generate3DMesh() {
      }
    });
 
-	   railRibbonSamplesByKey.forEach((samples) => {
+	   railRibbonSamplesByKey.forEach((samples, key) => {
 	     split3DViewerSamplesByGap(samples).forEach((group) => {
        const leftRail = build3DViewerRibbonGeometry(
          group,
@@ -12887,30 +13130,178 @@ function generate3DMesh() {
        const sleeperPitchM = 1000 / 1660;
        const sleeperStart = safeNum(group[0]?.chainageAbs, NaN);
        const sleeperEnd = safeNum(group[group.length - 1]?.chainageAbs, NaN);
-	       if (Number.isFinite(sleeperStart) && Number.isFinite(sleeperEnd) && sleeperEnd > sleeperStart) {
-	         const firstSleeper = Math.ceil(sleeperStart / sleeperPitchM) * sleeperPitchM;
-	         const sleeperChainages = [];
-	         for (let ch = firstSleeper; ch <= sleeperEnd; ch += sleeperPitchM) sleeperChainages.push(ch);
-	         if (sleeperChainages.length) {
-	           const sleeperGeometry = new THREE.BoxGeometry(2.75, Math.max(0.12, safeNum(group[0]?.sleeperThickness, 0.25)), 0.28);
-	           const sleeperMesh = new THREE.InstancedMesh(sleeperGeometry, sleeperMat, sleeperChainages.length);
-	           const sleeperNode = new THREE.Object3D();
-	           sleeperChainages.forEach((chainageAbs, sleeperIndex) => {
-	             const interpolated = interpolate3DViewerSampleAtChainage(group, chainageAbs);
-	             const sleeperFrame = get3DViewerPathFrameForChainage(chainageAbs) || interpolated?.frame || null;
-	             if (!interpolated || !sleeperFrame) return;
-	             sleeperNode.position.copy(get3DViewerFramePoint(sleeperFrame, interpolated.centerOffset, safeNum(interpolated.sleeperCenterY, safeNum(interpolated.yCenter, 0)), 0));
-	             sleeperNode.rotation.set(0, sleeperFrame.headingY, 0);
-	             sleeperNode.updateMatrix();
-	             sleeperMesh.setMatrixAt(sleeperIndex, sleeperNode.matrix);
-	           });
-           sleeperMesh.instanceMatrix.needsUpdate = true;
-           corridorGroup.add(sleeperMesh);
-         }
+       
+       const drawSleepers = (startCh, endCh, sampleGroup) => {
+           if (Number.isFinite(startCh) && Number.isFinite(endCh) && endCh > startCh) {
+             const firstSleeper = Math.ceil(startCh / sleeperPitchM) * sleeperPitchM;
+             const sleeperChainages = [];
+             for (let ch = firstSleeper; ch <= endCh; ch += sleeperPitchM) sleeperChainages.push(ch);
+             if (sleeperChainages.length) {
+               const sleeperGeometry = new THREE.BoxGeometry(2.75, Math.max(0.12, safeNum(sampleGroup[0]?.sleeperThickness, 0.25)), 0.28);
+               const sleeperMesh = new THREE.InstancedMesh(sleeperGeometry, sleeperMat, sleeperChainages.length);
+               const sleeperNode = new THREE.Object3D();
+               sleeperChainages.forEach((chainageAbs, sleeperIndex) => {
+                 const interpolated = interpolate3DViewerSampleAtChainage(sampleGroup, chainageAbs);
+                 const sleeperFrame = get3DViewerPathFrameForChainage(chainageAbs) || interpolated?.frame || null;
+                 if (!interpolated || !sleeperFrame) return;
+                 
+                 // In real turnouts, switch ties remain physically parallel to the main line (no heading adjust)
+                 // This entirely fixes the jagged overlapping tie issues seen previously on curved crossovers
+                 sleeperNode.position.copy(get3DViewerFramePoint(sleeperFrame, interpolated.centerOffset, safeNum(interpolated.sleeperCenterY, safeNum(interpolated.yCenter, 0)), 0));
+                 sleeperNode.rotation.set(0, sleeperFrame.headingY, 0);
+                 sleeperNode.updateMatrix();
+                 sleeperMesh.setMatrixAt(sleeperIndex, sleeperNode.matrix);
+               });
+               sleeperMesh.instanceMatrix.needsUpdate = true;
+               corridorGroup.add(sleeperMesh);
+             }
+           }
+       };
+
+       drawSleepers(sleeperStart, sleeperEnd, group);
+
+       // Build smooth crossovers connecting aux (loop) lines back to the main line
+       if (key.startsWith("aux") && sleeperStart && sleeperEnd) {
+           const buildCrossover = (chA, chB, offsetA, offsetB) => {
+               const crossoverLength = Math.abs(chB - chA);
+               if (crossoverLength < 5) return;
+               const crossSamples = [];
+               for(let i=0; i<=15; i++) {
+                   const t = i/15;
+                   const ch = chA + (chB - chA) * t;
+                   // Smooth step S-curve mathematically simulates a standard double reverse turnout
+                   const smoothT = t * t * (3 - 2 * t);
+                   const cx = offsetA + (offsetB - offsetA) * smoothT;
+                   const frame = get3DViewerPathFrameForChainage(ch);
+                   if (frame) {
+                       crossSamples.push({
+                           ...group[0],
+                           chainageAbs: ch,
+                           frame: frame,
+                           centerOffset: cx,
+                       });
+                   }
+               }
+               if (crossSamples.length > 2) {
+                   const crossL = build3DViewerRibbonGeometry(crossSamples, 
+                       s => s.centerOffset - RAIL_CENTER_OFFSET_M - RAIL_HALF_WIDTH_M, 
+                       s => s.centerOffset - RAIL_CENTER_OFFSET_M + RAIL_HALF_WIDTH_M, 
+                       s => s.yCenter + (s.thickness / 2));
+                   const crossR = build3DViewerRibbonGeometry(crossSamples, 
+                       s => s.centerOffset + RAIL_CENTER_OFFSET_M - RAIL_HALF_WIDTH_M, 
+                       s => s.centerOffset + RAIL_CENTER_OFFSET_M + RAIL_HALF_WIDTH_M, 
+                       s => s.yCenter + (s.thickness / 2));
+                   if (crossL) corridorGroup.add(new THREE.Mesh(crossL, railMat));
+                   if (crossR) corridorGroup.add(new THREE.Mesh(crossR, railMat));
+                   drawSleepers(Math.min(chA, chB), Math.max(chA, chB), crossSamples);
+               }
+           };
+
+           // Dynamic Overrun Safety Length (OSL): Aim for 120m, but shrink dynamically for short loops
+           const loopTotalLen = sleeperEnd - sleeperStart;
+           const turnoutLen = 45;
+           const oslLength = Math.max(0, Math.min(120, (loopTotalLen / 2) - turnoutLen - 5));
+           
+           const juncStart = sleeperStart + oslLength;
+           const juncEnd = sleeperEnd - oslLength;
+           
+           let mainStartOffset = 0;
+           let mainEndOffset = 0;
+           railRibbonSamplesByKey.forEach((mSamples, mKey) => {
+               if (mKey.startsWith("main")) {
+                   const mInterS = interpolate3DViewerSampleAtChainage(mSamples, juncStart);
+                   const mInterE = interpolate3DViewerSampleAtChainage(mSamples, juncEnd);
+                   if (mInterS && Math.abs(mInterS.centerOffset - group[0].centerOffset) < Math.abs(mainStartOffset - group[0].centerOffset + 100)) mainStartOffset = mInterS.centerOffset;
+                   if (mInterE && Math.abs(mInterE.centerOffset - group[group.length-1].centerOffset) < Math.abs(mainEndOffset - group[group.length-1].centerOffset + 100)) mainEndOffset = mInterE.centerOffset;
+               }
+           });
+
+           // Build Crossover 1: Diverges inwards exactly at juncStart (e.g. 1120 to 1165)
+           if (juncStart < sleeperEnd) {
+               buildCrossover(juncStart, juncStart + turnoutLen, group[0].centerOffset, mainStartOffset);
+           }
+           
+           // Build Crossover 2: Diverges inwards exactly at juncEnd (e.g. 1835 to 1880)
+           if (juncEnd > sleeperStart) {
+               buildCrossover(juncEnd - turnoutLen, juncEnd, mainEndOffset, group[group.length-1].centerOffset);
+           }
+           
+           // Dead End / Realistic Buffer Stops at BOTH ends of the auxiliary line
+           [sleeperStart, sleeperEnd].forEach((ch, idx) => {
+               const bframe = get3DViewerPathFrameForChainage(ch);
+               if (!bframe) return;
+               
+               const bGroup = new THREE.Group();
+               const steelMat = new THREE.MeshStandardMaterial({ color: 0x5a3a3a, roughness: 0.9, metalness: 0.1 }); 
+               const beamMat = new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.95 }); 
+               const whiteMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.95 }); 
+               const lightMat = new THREE.MeshBasicMaterial({ color: 0xff1111 }); 
+               
+               const beam = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.45, 0.25), beamMat);
+               beam.position.set(0, 1.2, 0); 
+               bGroup.add(beam);
+               
+               const whiteGeo = new THREE.BoxGeometry(0.4, 0.46, 0.27);
+               const whiteL = new THREE.Mesh(whiteGeo, whiteMat);
+               whiteL.position.set(-1.3, 1.2, 0);
+               const whiteR = whiteL.clone();
+               whiteR.position.set(1.3, 1.2, 0);
+               bGroup.add(whiteL, whiteR);
+               
+               const plate = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.05), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+               plate.position.set(0, 1.6, 0);
+               bGroup.add(plate);
+               
+               const light = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.08, 16), lightMat);
+               light.rotation.x = Math.PI / 2;
+               light.position.set(0, 1.6, 0.04);
+               bGroup.add(light);
+               
+               const legGeo = new THREE.BoxGeometry(0.2, 1.6, 0.2);
+               const legLL = new THREE.Mesh(legGeo, steelMat);
+               legLL.position.set(-0.9, 0.6, 0.35);
+               legLL.rotation.x = -Math.PI / 7;
+               const legLR = new THREE.Mesh(legGeo, steelMat);
+               legLR.position.set(-0.9, 0.6, -0.35);
+               legLR.rotation.x = Math.PI / 7;
+               const legRL = legLL.clone();
+               legRL.position.set(0.9, 0.6, 0.35);
+               const legRR = legLR.clone();
+               legRR.position.set(0.9, 0.6, -0.35);
+               bGroup.add(legLL, legLR, legRL, legRR);
+
+               // Determine yOffset and placement
+               const sOffset = idx === 0 ? group[0].centerOffset : group[group.length-1].centerOffset;
+               const sy = idx === 0 ? group[0].yCenter : group[group.length-1].yCenter;
+               bGroup.position.copy(get3DViewerFramePoint(bframe, sOffset, sy || 0, 0));
+               
+               // Buffer stops should face inwards toward the track
+               bGroup.rotation.y = bframe.headingY + (idx === 0 ? 0 : Math.PI);
+               corridorGroup.add(bGroup);
+           });
+
        }
      });
    });
-
+   tunnelRibbonSamplesByKey.forEach((samples) => {
+     split3DViewerSamplesByGap(samples).forEach((group) => {
+       if (group.length < 2) return;
+       
+       // Enforced Tunnel Diameter: 7000mm
+       const innerR = 3.5; // 7000mm internal diameter (3.5m radius)
+       const outerR = 3.8; // 300mm structural lining thickness
+       const centerOffsetFromRail = 0.845; // 845mm between center line and rail line
+       
+       try {
+           const tunnelGeo = build3DTunnelGeometry(group, innerR, outerR, centerOffsetFromRail);
+           const tunnelMesh = new THREE.Mesh(tunnelGeo, tunnelMat);
+           tunnelMesh.renderOrder = 3;
+           structuresGroup.add(tunnelMesh);
+       } catch (e) {
+           console.warn("Tunnel building failed", e);
+       }
+     });
+   });
    bridgeRibbonSamplesByKey.forEach((samples) => {
      split3DViewerSamplesByGap(samples).forEach((group) => {
        const family = String(group[0]?.family || "bridge");
@@ -13011,29 +13402,87 @@ function generate3DMesh() {
 	         );
 	         if (tactileRightGeometry) corridorGroup.add(new THREE.Mesh(tactileRightGeometry, platformTactileMat));
 	       }
+           
+	       // Build Sloped Ramps on the platform ends
+           [0, group.length - 1].forEach((idx) => {
+               const isStart = idx === 0;
+               const sample = group[idx];
+               const rampLength = 10; // Standard 10m platform ramp
+               const targetCh = isStart ? sample.chainageAbs - rampLength : sample.chainageAbs + rampLength;
+               const frameGround = get3DViewerPathFrameForChainage(targetCh);
+               if (!frameGround) return;
+               
+               const groundSample = {
+                   ...sample,
+                   frame: frameGround,
+                   yComputedTop: safeNum(sample.yBottom, sample.yCenter - (sample.thickness / 2)) + 0.1, // Near ground level
+               };
+               const edgeSample = {
+                   ...sample,
+                   yComputedTop: safeNum(sample.yTop, sample.yCenter + (sample.thickness / 2)) // Full platform height
+               };
+               
+               const rampGroup = isStart ? [groundSample, edgeSample] : [edgeSample, groundSample];
+               
+               const rTop = build3DViewerRibbonGeometry(rampGroup, s => s.centerOffset - (s.width / 2), s => s.centerOffset + (s.width / 2), s => s.yComputedTop);
+               const rLeft = build3DViewerSideGeometry(rampGroup, s => s.centerOffset - (s.width / 2), s => s.yComputedTop, s => safeNum(s.yBottom, s.yCenter - (s.thickness / 2)));
+               const rRight = build3DViewerSideGeometry(rampGroup, s => s.centerOffset + (s.width / 2), s => s.yComputedTop, s => safeNum(s.yBottom, s.yCenter - (s.thickness / 2)));
+               
+               if (rTop) corridorGroup.add(new THREE.Mesh(rTop, platformTopMat));
+               if (rLeft) corridorGroup.add(new THREE.Mesh(rLeft, platformSideMat));
+               if (rRight) corridorGroup.add(new THREE.Mesh(rRight, platformSideMat));
+               
+               if (tactileLeft) {
+                   const tLG = build3DViewerRibbonGeometry(rampGroup, s => (s.centerOffset - (s.width / 2)), s => (s.centerOffset - (s.width / 2)) + PLATFORM_TACTILE_STRIP_W_M, s => s.yComputedTop + 0.015);
+                   if (tLG) corridorGroup.add(new THREE.Mesh(tLG, platformTactileMat));
+               }
+               if (tactileRight) {
+                   const tRG = build3DViewerRibbonGeometry(rampGroup, s => (s.centerOffset + (s.width / 2)) - PLATFORM_TACTILE_STRIP_W_M, s => s.centerOffset + (s.width / 2), s => s.yComputedTop + 0.015);
+                   if (tRG) corridorGroup.add(new THREE.Mesh(tRG, platformTactileMat));
+               }
+           });
 	     });
 	   });
 
   if (options.terrain && pointsGL.length > 1) {
      const verts = [];
      const indices = [];
+     const uvs = [];
      const contourMinorTransforms = [];
      const contourMajorTransforms = [];
      const halfW = 120;
      for (let i = 0; i < pointsGL.length; i += 1) {
        const point = pointsGL[i];
        const frame = rowFrames[i];
-       if (useAlignedPath && frame) {
-         const left = frame.centerVec.clone().add(frame.normalVec.clone().multiplyScalar(-halfW)).setY(point.y);
-         const right = frame.centerVec.clone().add(frame.normalVec.clone().multiplyScalar(halfW)).setY(point.y);
-         verts.push(left.x, left.y, left.z);
-         verts.push(right.x, right.y, right.z);
+       const leftVec = (useAlignedPath && frame) 
+         ? frame.centerVec.clone().add(frame.normalVec.clone().multiplyScalar(-halfW)).setY(point.y)
+         : new THREE.Vector3(-halfW, point.y, point.z);
+       const rightVec = (useAlignedPath && frame)
+         ? frame.centerVec.clone().add(frame.normalVec.clone().multiplyScalar(halfW)).setY(point.y)
+         : new THREE.Vector3(halfW, point.y, point.z);
+       
+       verts.push(leftVec.x, leftVec.y, leftVec.z);
+       verts.push(rightVec.x, rightVec.y, rightVec.z);
+
+       if (options.satellite && viewer3dSatelliteBounds) {
+         const b = viewer3dSatelliteBounds;
+         const origin = state.kmlData.points[0];
+         const metersPerDegLat = 111320;
+         const metersPerDegLng = Math.cos(origin.lat * Math.PI / 180) * metersPerDegLat;
+
+         const getUV = (vec) => {
+            const lat = origin.lat + (-vec.z / metersPerDegLat);
+            const lng = origin.lng + (vec.x / metersPerDegLng);
+            const u = Math.max(0, Math.min(1, (lng - b.minLng) / (b.maxLng - b.minLng)));
+            // flipY=false: v=0 is top of image (north), v=1 is bottom (south)
+            const v = Math.max(0, Math.min(1, 1.0 - (lat - b.minLat) / (b.maxLat - b.minLat)));
+            return [u, v];
+         };
+         uvs.push(...getUV(leftVec), ...getUV(rightVec));
        } else {
-         const z = point.z;
-         const y = point.y;
-         verts.push(-halfW, y, z);
-         verts.push(halfW, y, z);
+         uvs.push(0, i / pointsGL.length, 1, i / pointsGL.length);
        }
+
      }
      for (let i = 0; i < pointsGL.length - 1; i += 1) {
        const a = i * 2;
@@ -13045,6 +13494,7 @@ function generate3DMesh() {
      }
      const groundGeo = new THREE.BufferGeometry();
      groundGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+     groundGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
      groundGeo.setIndex(indices);
      groundGeo.computeVertexNormals();
      terrainGroup.add(new THREE.Mesh(groundGeo, landMat));
@@ -13054,7 +13504,7 @@ function generate3DMesh() {
        const minLevel = Math.min(...groundLevels);
        const maxLevel = Math.max(...groundLevels);
        const terrainRange = maxLevel - minLevel;
-       if (options.contours) {
+       if (false /* contours removed */) {
          const minorContourStep = 0.1;
          const majorContourStep = 0.5;
          const minorDepth = 0.6;
@@ -13373,7 +13823,7 @@ document.addEventListener("DOMContentLoaded", () => {
            isIsoCam = false;
            
            if (camType === "front") {
-               camOffsetX = 0; camOffsetY = 2.5; camOffsetZ = 0; currentLookAhead = 15;
+               camOffsetX = 0; camOffsetY = 10; camOffsetZ = 0; currentLookAhead = 15;
            } else if (camType === "top") {
                camOffsetX = 0; camOffsetY = 150; camOffsetZ = 20; currentLookAhead = 1;
            } else if (camType === "left") {
@@ -13414,6 +13864,35 @@ document.addEventListener("DOMContentLoaded", () => {
        toggle.addEventListener('change', () => {
            if (viewer3dScene) generate3DMesh();
        });
+   });
+
+   let isPanMode = false;
+   document.getElementById('togglePanModeBtn')?.addEventListener('click', (e) => {
+       isPanMode = !isPanMode;
+       const btn = e.currentTarget;
+       if (isPanMode) {
+           btn.style.background = 'rgba(167, 139, 250, 0.2)';
+           btn.style.color = '#fff';
+           btn.style.borderColor = '#a78bfa';
+           if (viewer3dControls) {
+               viewer3dControls.mouseButtons = {
+                   LEFT: THREE.MOUSE.PAN,
+                   MIDDLE: THREE.MOUSE.DOLLY,
+                   RIGHT: THREE.MOUSE.ROTATE
+               };
+           }
+       } else {
+           btn.style.background = 'transparent';
+           btn.style.color = '#a78bfa';
+           btn.style.borderColor = 'rgba(255,255,255,0.15)';
+           if (viewer3dControls) {
+               viewer3dControls.mouseButtons = {
+                   LEFT: THREE.MOUSE.ROTATE,
+                   MIDDLE: THREE.MOUSE.DOLLY,
+                   RIGHT: THREE.MOUSE.PAN
+               };
+           }
+       }
    });
 
 });
