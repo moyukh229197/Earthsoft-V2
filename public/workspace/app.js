@@ -11208,6 +11208,57 @@ function update3DHUD(row, idx) {
   }
 }
 
+function has3DViewerAlignmentPath() {
+  return Boolean(
+    state.kmlData?.points?.length &&
+    typeof getLatLngFromChainage === "function" &&
+    typeof getAlignmentTangentAtChainage === "function" &&
+    typeof getTypicalChainageStep === "function",
+  );
+}
+
+function get3DViewerPathFrame(index) {
+  if (!has3DViewerAlignmentPath() || !Array.isArray(state.calcRows) || !state.calcRows.length) return null;
+  const bounded = Math.max(0, Math.min(index, state.calcRows.length - 1));
+  const row = state.calcRows[bounded];
+  if (!row) return null;
+
+  const points = state.kmlData.points;
+  const startChOffset = safeNum(state.calcRows[0]?.chainage, 0);
+  const sampleWindow = getTypicalChainageStep(state.calcRows);
+  const alignmentCh = safeNum(row.chainage, 0) - startChOffset;
+  const center = getLatLngFromChainage(alignmentCh, points);
+  const tangent = getAlignmentTangentAtChainage(alignmentCh, points, sampleWindow);
+  const origin = points[0];
+  if (!center || !tangent || !origin) return null;
+
+  const metersPerDegLat = 111320;
+  const metersPerDegLng = Math.max(Math.cos(((origin.lat + center.lat) / 2) * Math.PI / 180) * metersPerDegLat, 1e-6);
+  const east = (center.lng - origin.lng) * metersPerDegLng;
+  const north = (center.lat - origin.lat) * metersPerDegLat;
+  const tangentVec = new THREE.Vector3(tangent.east, 0, -tangent.north);
+  if (tangentVec.lengthSq() < 1e-9) return null;
+  tangentVec.normalize();
+  const normalVec = new THREE.Vector3(-tangent.north, 0, -tangent.east);
+  if (normalVec.lengthSq() < 1e-9) return null;
+  normalVec.normalize();
+
+  return {
+    centerVec: new THREE.Vector3(east, 0, -north),
+    tangentVec,
+    normalVec,
+    headingY: Math.atan2(tangentVec.x, tangentVec.z),
+  };
+}
+
+function get3DViewerFramePoint(frame, xOffset, y, zOffset = 0) {
+  if (!frame) return new THREE.Vector3(xOffset, y, zOffset);
+  return frame.centerVec.clone()
+    .add(frame.normalVec.clone().multiplyScalar(safeNum(xOffset, 0)))
+    .add(frame.tangentVec.clone().multiplyScalar(safeNum(zOffset, 0)))
+    .setY(y);
+}
+
 function focus3DCameraAtIndex(idx) {
   if (!viewer3dCamera || !Array.isArray(state.calcRows) || !state.calcRows.length) return;
   const bounded = Math.max(0, Math.min(idx, state.calcRows.length - 1));
@@ -11215,8 +11266,23 @@ function focus3DCameraAtIndex(idx) {
   if (!row) return;
   const lookAheadIdx = Math.min(bounded + currentLookAhead, state.calcRows.length - 1);
   const aheadRow = state.calcRows[lookAheadIdx] || row;
-  viewer3dCamera.position.set(camOffsetX, (row.proposedLevel / 10) + camOffsetY, (-bounded * flyStep) + camOffsetZ);
-  const lookTarget = new THREE.Vector3(0, aheadRow.proposedLevel / 10, isIsoCam ? ((-bounded * flyStep) - 20) : ((-bounded * flyStep) - 60));
+  const frame = get3DViewerPathFrame(bounded);
+  const aheadFrame = get3DViewerPathFrame(lookAheadIdx);
+  let lookTarget;
+  if (frame && aheadFrame) {
+    viewer3dCamera.position.copy(
+      get3DViewerFramePoint(frame, -camOffsetX, (safeNum(row.proposedLevel, 0) / 10) + camOffsetY, -camOffsetZ),
+    );
+    lookTarget = get3DViewerFramePoint(
+      aheadFrame,
+      0,
+      safeNum(aheadRow.proposedLevel, 0) / 10,
+      isIsoCam ? 20 : 60,
+    );
+  } else {
+    viewer3dCamera.position.set(camOffsetX, (row.proposedLevel / 10) + camOffsetY, (-bounded * flyStep) + camOffsetZ);
+    lookTarget = new THREE.Vector3(0, aheadRow.proposedLevel / 10, isIsoCam ? ((-bounded * flyStep) - 20) : ((-bounded * flyStep) - 60));
+  }
   viewer3dCamera.lookAt(lookTarget);
   if (viewer3dControls) {
     viewer3dControls.target.copy(lookTarget);
@@ -11336,19 +11402,23 @@ function init3DViewer() {
            update3DHUD(row, idx);
 
            if (flying) {
-              const targetY = (row.proposedLevel / 10) + camOffsetY;
-              const targetZ = flyZ + camOffsetZ;
-              const targetX = camOffsetX;
-              
-              // Smooth camera movement (lerp)
-              viewer3dCamera.position.z += (targetZ - viewer3dCamera.position.z) * 0.05;
-              viewer3dCamera.position.y += (targetY - viewer3dCamera.position.y) * 0.05;
-              viewer3dCamera.position.x += (targetX - viewer3dCamera.position.x) * 0.05;
-              
-              // Look ahead logic
               const lookAheadIdx = Math.min(idx + currentLookAhead, state.calcRows.length - 1);
               const aheadRow = state.calcRows[lookAheadIdx] || row;
-              const lookTarget = new THREE.Vector3(0, aheadRow.proposedLevel / 10, isIsoCam ? (flyZ - 20) : (flyZ - 60));
+              const frame = get3DViewerPathFrame(idx);
+              const aheadFrame = get3DViewerPathFrame(lookAheadIdx);
+              let targetPos;
+              let lookTarget;
+              if (frame && aheadFrame) {
+                targetPos = get3DViewerFramePoint(frame, -camOffsetX, (safeNum(row.proposedLevel, 0) / 10) + camOffsetY, -camOffsetZ);
+                lookTarget = get3DViewerFramePoint(aheadFrame, 0, safeNum(aheadRow.proposedLevel, 0) / 10, isIsoCam ? 20 : 60);
+              } else {
+                targetPos = new THREE.Vector3(camOffsetX, (row.proposedLevel / 10) + camOffsetY, flyZ + camOffsetZ);
+                lookTarget = new THREE.Vector3(0, aheadRow.proposedLevel / 10, isIsoCam ? (flyZ - 20) : (flyZ - 60));
+              }
+
+              viewer3dCamera.position.x += (targetPos.x - viewer3dCamera.position.x) * 0.05;
+              viewer3dCamera.position.y += (targetPos.y - viewer3dCamera.position.y) * 0.05;
+              viewer3dCamera.position.z += (targetPos.z - viewer3dCamera.position.z) * 0.05;
               viewer3dCamera.lookAt(lookTarget);
               viewer3dControls.enabled = false;
            } else {
@@ -11418,6 +11488,8 @@ function generate3DMesh() {
    const formationW = parseFloat(state.settings.visual?.formationWidthFill || 7.85);
    const standardTc = parseFloat(state.settings.visual?.minTc || 5.3);
    const laSettings = getLASettings();
+   const useAlignedPath = has3DViewerAlignmentPath();
+   const rowFrames = new Array(maxDisplay);
    const pointsGL = [];
    const leftBoundaryPoints = [];
    const rightBoundaryPoints = [];
@@ -11430,18 +11502,19 @@ function generate3DMesh() {
    const cutInds = [];
 
    if (options.terrain) {
-     const corridorLength = Math.max(maxDisplay * flyStep, 100);
-     const basePlane = new THREE.Mesh(new THREE.PlaneGeometry(360, corridorLength), basePlaneMat);
-     basePlane.rotation.x = -Math.PI / 2;
-     basePlane.position.set(0, -10.5, -(corridorLength / 2) + (flyStep / 2));
-     terrainGroup.add(basePlane);
+     if (!useAlignedPath) {
+       const corridorLength = Math.max(maxDisplay * flyStep, 100);
+       const basePlane = new THREE.Mesh(new THREE.PlaneGeometry(360, corridorLength), basePlaneMat);
+       basePlane.rotation.x = -Math.PI / 2;
+       basePlane.position.set(0, -10.5, -(corridorLength / 2) + (flyStep / 2));
+       terrainGroup.add(basePlane);
+     }
    }
 
    for (let i = 0; i < maxDisplay; i += 1) {
      const row = state.calcRows[i];
      const yPos = safeNum(row.proposedLevel, 0) / 10;
      const glYPos = safeNum(row.groundLevel, 0) / 10;
-     const zPos = -i * flyStep;
      const envelope = compute3DEnvelopeForRow(row, standardTc, formationW);
      const tracks = envelope.trackItems;
      const platforms = envelope.platformItems;
@@ -11449,8 +11522,10 @@ function generate3DMesh() {
      const centerOffset = envelope.centerOffset;
      const bridgeInRange = find3DBridgeAtChainage(row.chainage);
      const isTunnel = bridgeInRange ? /tunnel/i.test(String(bridgeInRange.bridgeCategory || "")) : false;
-
-     pointsGL.push(new THREE.Vector3(0, glYPos, zPos));
+     const frame = useAlignedPath ? get3DViewerPathFrame(i) : null;
+     rowFrames[i] = frame;
+     const centerPoint = frame ? frame.centerVec.clone().setY(yPos) : new THREE.Vector3(0, yPos, -i * flyStep);
+     pointsGL.push(frame ? frame.centerVec.clone().setY(glYPos) : new THREE.Vector3(0, glYPos, -i * flyStep));
 
      if (options.boundary) {
        let toeWidth = currentFormationW;
@@ -11460,27 +11535,29 @@ function generate3DMesh() {
          toeWidth = safeNum(row.cutBottom, currentFormationW);
        }
        const laWidth = toeWidth + (2 * laSettings.offsetFromToe);
-       leftBoundaryPoints.push(new THREE.Vector3(centerOffset - (laWidth / 2), glYPos + 0.2, zPos));
-       rightBoundaryPoints.push(new THREE.Vector3(centerOffset + (laWidth / 2), glYPos + 0.2, zPos));
+       leftBoundaryPoints.push(get3DViewerFramePoint(frame, centerOffset - (laWidth / 2), glYPos + 0.2, 0));
+       rightBoundaryPoints.push(get3DViewerFramePoint(frame, centerOffset + (laWidth / 2), glYPos + 0.2, 0));
      }
 
      if (!bridgeInRange || isTunnel) {
        const ballast = new THREE.Mesh(new THREE.BoxGeometry(currentFormationW + 1.4, 0.55, flyStep), ballastMat);
-       ballast.position.set(centerOffset, yPos + 0.05, zPos);
+       ballast.position.copy(get3DViewerFramePoint(frame, centerOffset, yPos + 0.05, 0));
+       if (frame) ballast.rotation.y = frame.headingY;
        corridorGroup.add(ballast);
 
        const formation = new THREE.Mesh(new THREE.BoxGeometry(currentFormationW, 0.22, flyStep), formationMat);
-       formation.position.set(centerOffset, yPos + 0.34, zPos);
+       formation.position.copy(get3DViewerFramePoint(frame, centerOffset, yPos + 0.34, 0));
+       if (frame) formation.rotation.y = frame.headingY;
        corridorGroup.add(formation);
      }
 
      if (options.earthwork && !bridgeInRange) {
        const slopeFactor = 2.0;
        if (safeNum(row.bank, 0) > 0.1) {
-         const lT = new THREE.Vector3(centerOffset - (currentFormationW / 2), yPos - 0.25, zPos);
-         const lB = new THREE.Vector3(centerOffset - (currentFormationW / 2) - (row.bank * slopeFactor), Math.min(yPos - 0.25, glYPos), zPos);
-         const rT = new THREE.Vector3(centerOffset + (currentFormationW / 2), yPos - 0.25, zPos);
-         const rB = new THREE.Vector3(centerOffset + (currentFormationW / 2) + (row.bank * slopeFactor), Math.min(yPos - 0.25, glYPos), zPos);
+         const lT = get3DViewerFramePoint(frame, centerOffset - (currentFormationW / 2), yPos - 0.25, 0);
+         const lB = get3DViewerFramePoint(frame, centerOffset - (currentFormationW / 2) - (row.bank * slopeFactor), Math.min(yPos - 0.25, glYPos), 0);
+         const rT = get3DViewerFramePoint(frame, centerOffset + (currentFormationW / 2), yPos - 0.25, 0);
+         const rB = get3DViewerFramePoint(frame, centerOffset + (currentFormationW / 2) + (row.bank * slopeFactor), Math.min(yPos - 0.25, glYPos), 0);
          if (prevFillNode) {
            const p = prevFillNode;
            fillVerts.push(p.lB.x, p.lB.y, p.lB.z, lB.x, lB.y, lB.z, lT.x, lT.y, lT.z, p.lT.x, p.lT.y, p.lT.z);
@@ -11496,10 +11573,10 @@ function generate3DMesh() {
        }
 
        if (safeNum(row.cut, 0) > 0.1) {
-         const lB = new THREE.Vector3(centerOffset - (currentFormationW / 2) - 2, yPos + 0.25, zPos);
-         const lT = new THREE.Vector3(centerOffset - (currentFormationW / 2) - 2 - (row.cut * slopeFactor), Math.max(yPos + 0.25, glYPos), zPos);
-         const rB = new THREE.Vector3(centerOffset + (currentFormationW / 2) + 2, yPos + 0.25, zPos);
-         const rT = new THREE.Vector3(centerOffset + (currentFormationW / 2) + 2 + (row.cut * slopeFactor), Math.max(yPos + 0.25, glYPos), zPos);
+         const lB = get3DViewerFramePoint(frame, centerOffset - (currentFormationW / 2) - 2, yPos + 0.25, 0);
+         const lT = get3DViewerFramePoint(frame, centerOffset - (currentFormationW / 2) - 2 - (row.cut * slopeFactor), Math.max(yPos + 0.25, glYPos), 0);
+         const rB = get3DViewerFramePoint(frame, centerOffset + (currentFormationW / 2) + 2, yPos + 0.25, 0);
+         const rT = get3DViewerFramePoint(frame, centerOffset + (currentFormationW / 2) + 2 + (row.cut * slopeFactor), Math.max(yPos + 0.25, glYPos), 0);
          if (prevCutNode) {
            const p = prevCutNode;
            cutVerts.push(p.lT.x, p.lT.y, p.lT.z, lT.x, lT.y, lT.z, lB.x, lB.y, lB.z, p.lB.x, p.lB.y, p.lB.z);
@@ -11522,14 +11599,17 @@ function generate3DMesh() {
        const cx = safeNum(track.offset, 0);
        if (i % 2 === 0) {
          const sleeper = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.12, 0.42), sleeperMat);
-         sleeper.position.set(cx, yPos + 0.22, zPos);
+         sleeper.position.copy(get3DViewerFramePoint(frame, cx, yPos + 0.22, 0));
+         if (frame) sleeper.rotation.y = frame.headingY;
          corridorGroup.add(sleeper);
        }
        const railL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, flyStep), railMat);
-       railL.position.set(cx - 0.835, yPos + 0.42, zPos);
+       railL.position.copy(get3DViewerFramePoint(frame, cx - 0.835, yPos + 0.42, 0));
+       if (frame) railL.rotation.y = frame.headingY;
        corridorGroup.add(railL);
        const railR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, flyStep), railMat);
-       railR.position.set(cx + 0.835, yPos + 0.42, zPos);
+       railR.position.copy(get3DViewerFramePoint(frame, cx + 0.835, yPos + 0.42, 0));
+       if (frame) railR.rotation.y = frame.headingY;
        corridorGroup.add(railR);
      });
 
@@ -11541,7 +11621,8 @@ function generate3DMesh() {
        const cx = safeNum(refTrack?.offset, 0) + (isLeft ? -(pfEdgeDistance + (pfW / 2)) : (pfEdgeDistance + (pfW / 2)));
 
        const platformMesh = new THREE.Mesh(new THREE.BoxGeometry(pfW, 0.8, flyStep), platformMat);
-       platformMesh.position.set(cx, yPos + 0.4, zPos);
+       platformMesh.position.copy(get3DViewerFramePoint(frame, cx, yPos + 0.4, 0));
+       if (frame) platformMesh.rotation.y = frame.headingY;
        corridorGroup.add(platformMesh);
 
        if (options.labels && i % 12 === 0 && platformIdx === 0) {
@@ -11562,14 +11643,17 @@ function generate3DMesh() {
          ctx.strokeRect(0, 0, 512, 128);
          const texture = new THREE.CanvasTexture(canvas);
          const board = new THREE.Mesh(new THREE.BoxGeometry(8, 2, 0.2), new THREE.MeshBasicMaterial({ map: texture }));
-         board.position.set(cx, yPos + 3, zPos);
+         board.position.copy(get3DViewerFramePoint(frame, cx, yPos + 3, 0));
+         if (frame) board.rotation.y = frame.headingY;
          labelsGroup.add(board);
          const postGeo = new THREE.BoxGeometry(0.2, 3, 0.2);
          const postMat = new THREE.MeshBasicMaterial({ color: 0x334155 });
          const post1 = new THREE.Mesh(postGeo, postMat);
-         post1.position.set(cx - 3.5, yPos + 1.5, zPos);
+         post1.position.copy(get3DViewerFramePoint(frame, cx - 3.5, yPos + 1.5, 0));
+         if (frame) post1.rotation.y = frame.headingY;
          const post2 = new THREE.Mesh(postGeo, postMat);
-         post2.position.set(cx + 3.5, yPos + 1.5, zPos);
+         post2.position.copy(get3DViewerFramePoint(frame, cx + 3.5, yPos + 1.5, 0));
+         if (frame) post2.rotation.y = frame.headingY;
          labelsGroup.add(post1);
          labelsGroup.add(post2);
        }
@@ -11593,11 +11677,13 @@ function generate3DMesh() {
          tShape.holes.push(hole);
          const tunnelGeo = new THREE.ExtrudeGeometry(tShape, { depth: flyStep + 0.1, bevelEnabled: false });
          const tunnelMesh = new THREE.Mesh(tunnelGeo, tunnelMat);
-         tunnelMesh.position.set(centerOffset, yPos, zPos);
+         tunnelMesh.position.copy(get3DViewerFramePoint(frame, centerOffset, yPos, -(flyStep / 2)));
+         if (frame) tunnelMesh.rotation.y = frame.headingY;
          structuresGroup.add(tunnelMesh);
        } else {
          const bridgeDeck = new THREE.Mesh(new THREE.BoxGeometry(currentFormationW + 2, 2, flyStep + 0.1), bridgeMat);
-         bridgeDeck.position.set(centerOffset, yPos - 1.25, zPos);
+         bridgeDeck.position.copy(get3DViewerFramePoint(frame, centerOffset, yPos - 1.25, 0));
+         if (frame) bridgeDeck.rotation.y = frame.headingY;
          structuresGroup.add(bridgeDeck);
        }
      }
@@ -11622,10 +11708,12 @@ function generate3DMesh() {
            ctx.strokeRect(0, 0, 256, 128);
            const tex = new THREE.CanvasTexture(canvas);
            const board = new THREE.Mesh(new THREE.BoxGeometry(5, 3, 0.2), new THREE.MeshBasicMaterial({ map: tex }));
-           board.position.set(centerOffset + (currentFormationW / 2) + 5, yPos + 5, zPos);
+           board.position.copy(get3DViewerFramePoint(frame, centerOffset + (currentFormationW / 2) + 5, yPos + 5, 0));
+           if (frame) board.rotation.y = frame.headingY;
            labelsGroup.add(board);
            const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, 5, 0.4), new THREE.MeshBasicMaterial({ color: 0x334155 }));
-           post.position.set(centerOffset + (currentFormationW / 2) + 5, yPos + 2.5, zPos);
+           post.position.copy(get3DViewerFramePoint(frame, centerOffset + (currentFormationW / 2) + 5, yPos + 2.5, 0));
+           if (frame) post.rotation.y = frame.headingY;
            labelsGroup.add(post);
            lastRenderedKm = currentKm;
          }
@@ -11638,10 +11726,19 @@ function generate3DMesh() {
      const indices = [];
      const halfW = 120;
      for (let i = 0; i < pointsGL.length; i += 1) {
-       const z = pointsGL[i].z;
-       const y = pointsGL[i].y;
-       verts.push(-halfW, y, z);
-       verts.push(halfW, y, z);
+       const point = pointsGL[i];
+       const frame = rowFrames[i];
+       if (useAlignedPath && frame) {
+         const left = frame.centerVec.clone().add(frame.normalVec.clone().multiplyScalar(-halfW)).setY(point.y);
+         const right = frame.centerVec.clone().add(frame.normalVec.clone().multiplyScalar(halfW)).setY(point.y);
+         verts.push(left.x, left.y, left.z);
+         verts.push(right.x, right.y, right.z);
+       } else {
+         const z = point.z;
+         const y = point.y;
+         verts.push(-halfW, y, z);
+         verts.push(halfW, y, z);
+       }
      }
      for (let i = 0; i < pointsGL.length - 1; i += 1) {
        const a = i * 2;
@@ -11709,13 +11806,19 @@ function generate3DMesh() {
        if (String(wall?.side || "").toLowerCase() === "both") {
          [-1, 1].forEach((dir) => {
            const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.45, wallHeight, depth), retainingWallMat);
-           mesh.position.set(edge + (dir * (halfWidth + 1.2)), baseY, zCenter);
+           const frame = rowFrames[midIdx] || null;
+           mesh.position.copy(get3DViewerFramePoint(frame, edge + (dir * (halfWidth + 1.2)), baseY, 0));
+           if (frame) mesh.rotation.y = frame.headingY;
+           else mesh.position.z = zCenter;
            overlayGroup.add(mesh);
          });
        } else {
          const dir = String(wall?.side || "").toLowerCase() === "left" ? -1 : 1;
          const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.45, wallHeight, depth), retainingWallMat);
-         mesh.position.set(edge + (dir * (halfWidth + 1.2)), baseY, zCenter);
+         const frame = rowFrames[midIdx] || null;
+         mesh.position.copy(get3DViewerFramePoint(frame, edge + (dir * (halfWidth + 1.2)), baseY, 0));
+         if (frame) mesh.rotation.y = frame.headingY;
+         else mesh.position.z = zCenter;
          overlayGroup.add(mesh);
        }
      });
@@ -11744,13 +11847,19 @@ function generate3DMesh() {
        if (String(drain?.side || "").toLowerCase() === "both") {
          [-1, 1].forEach((dir) => {
            const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.14, depth), drainMat);
-           mesh.position.set(baseX + (dir * (halfWidth + sideOffset)), baseY, zCenter);
+           const frame = rowFrames[midIdx] || null;
+           mesh.position.copy(get3DViewerFramePoint(frame, baseX + (dir * (halfWidth + sideOffset)), baseY, 0));
+           if (frame) mesh.rotation.y = frame.headingY;
+           else mesh.position.z = zCenter;
            overlayGroup.add(mesh);
          });
        } else {
          const dir = String(drain?.side || "").toLowerCase() === "left" ? -1 : 1;
          const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.14, depth), drainMat);
-         mesh.position.set(baseX + (dir * (halfWidth + sideOffset)), baseY, zCenter);
+         const frame = rowFrames[midIdx] || null;
+         mesh.position.copy(get3DViewerFramePoint(frame, baseX + (dir * (halfWidth + sideOffset)), baseY, 0));
+         if (frame) mesh.rotation.y = frame.headingY;
+         else mesh.position.z = zCenter;
          overlayGroup.add(mesh);
        }
      });
@@ -11835,19 +11944,7 @@ document.addEventListener("DOMContentLoaded", () => {
            }
            
            if (viewer3dCamera && state.calcRows.length > 0) {
-              const idx = Math.floor(Math.abs(flyZ) / flyStep);
-              const row = state.calcRows[idx];
-              if (row) {
-                  viewer3dCamera.position.set(camOffsetX, (row.proposedLevel / 10) + camOffsetY, flyZ + camOffsetZ);
-                  const lookAheadIdx = Math.min(idx + currentLookAhead, state.calcRows.length - 1);
-                  const aheadRow = state.calcRows[lookAheadIdx] || row;
-                  const lookTarget = new THREE.Vector3(0, aheadRow.proposedLevel / 10, isIsoCam ? (flyZ - 20) : (flyZ - 60));
-                  viewer3dCamera.lookAt(lookTarget);
-                  if (viewer3dControls) {
-                     viewer3dControls.target.copy(lookTarget);
-                     viewer3dControls.update();
-                  }
-              }
+              focus3DCameraAtIndex(get3DViewerRowIndexFromFlyZ());
            }
        });
    });
