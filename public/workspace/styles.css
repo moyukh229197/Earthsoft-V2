@@ -541,10 +541,7 @@ body.is-authenticated .login-screen {
 }
 
 .export-card > .toggle-input {
-  position: absolute;
-  right: 18px;
-  top: 50%;
-  transform: translateY(-50%);
+  flex-shrink: 0;
 }
 
 .export-options {

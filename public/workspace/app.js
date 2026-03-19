@@ -13612,36 +13612,84 @@ function generate3DMesh() {
 	       renderedStationBoards.add(stationKey);
 	       const boardOffset = safeNum(profile.envelope?.overallCenterOffset, safeNum(profile.envelope?.centerOffset, 0))
 	         + (safeNum(profile.envelope?.overallWidth, safeNum(profile.envelope?.currentFormationW, formationW)) / 2) + 6;
-	       const boardBaseY = safeNum(profile.trackProfile?.railTop, safeNum(profile.row?.proposedLevel, 0) / 10) + 2.6;
+	       
+	       // Create authentic Indian Railways Station Board Canvas
 	       const canvas = document.createElement('canvas');
-	       canvas.width = 512;
-	       canvas.height = 128;
+	       canvas.width = 1024;
+	       canvas.height = 512;
 	       const ctx = canvas.getContext('2d');
-	       ctx.fillStyle = '#facc15';
-	       ctx.fillRect(0, 0, 512, 128);
-	       ctx.fillStyle = '#0f172a';
-	       ctx.font = 'bold 64px sans-serif';
+	       
+	       // Indian Railways Bright Yellow
+	       ctx.fillStyle = '#ffcc00';
+	       ctx.fillRect(0, 0, 1024, 512);
+	       
+	       // Text Setup
+	       ctx.fillStyle = '#111111';
 	       ctx.textAlign = 'center';
 	       ctx.textBaseline = 'middle';
-	       ctx.fillText(stationName.toUpperCase(), 256, 64);
-	       ctx.lineWidth = 10;
-	       ctx.strokeStyle = '#0f172a';
-	       ctx.strokeRect(0, 0, 512, 128);
+	       
+	       // Draw Station Name
+	       ctx.font = 'bold 110px sans-serif';
+	       ctx.fillText("भारतीय रेल", 512, 110); // Standard Hindi header placeholder
+	       ctx.fillText(stationName.toUpperCase(), 512, 260); // Main English
+	       
+	       // Draw horizontal separator
+	       ctx.lineWidth = 6;
+	       ctx.beginPath();
+	       ctx.moveTo(150, 420);
+	       ctx.lineTo(874, 420);
+	       ctx.stroke();
+	       
+	       // M.S.L marking
+	       ctx.font = 'bold 30px sans-serif';
+	       ctx.fillText("M.S.L 507.62 M", 512, 455);
+	       
 	       const texture = new THREE.CanvasTexture(canvas);
-	       const board = new THREE.Mesh(new THREE.BoxGeometry(8, 2, 0.2), new THREE.MeshBasicMaterial({ map: texture }));
-	       board.position.copy(get3DViewerFramePoint(profile.frame, boardOffset, boardBaseY, 0));
-	       board.rotation.y = profile.frame.headingY;
-	       labelsGroup.add(board);
-	       const postGeo = new THREE.BoxGeometry(0.2, 3, 0.2);
-	       const postMat = new THREE.MeshBasicMaterial({ color: 0x334155 });
-	       const post1 = new THREE.Mesh(postGeo, postMat);
-	       post1.position.copy(get3DViewerFramePoint(profile.frame, boardOffset - 3.5, boardBaseY - 1.5, 0));
-	       post1.rotation.y = profile.frame.headingY;
-	       const post2 = new THREE.Mesh(postGeo, postMat);
-	       post2.position.copy(get3DViewerFramePoint(profile.frame, boardOffset + 3.5, boardBaseY - 1.5, 0));
-	       post2.rotation.y = profile.frame.headingY;
-	       labelsGroup.add(post1);
-	       labelsGroup.add(post2);
+	       texture.anisotropy = 16;
+	       
+	       // Authentic 3D Structural Geometry
+	       const baseY = profile.trackProfile?.formationTop || 0;
+	       const boardGrp = new THREE.Group();
+	       
+           const boardW = 6.0;
+           const boardH = 3.0;
+           const boardD = 0.2;
+           const postW = 0.4;
+           const postH = 4.5; // Taller than the board
+           const blackBaseH = 0.8; 
+           
+	       const faceMat = new THREE.MeshBasicMaterial({ map: texture });
+	       const yellowMat = new THREE.MeshStandardMaterial({ color: 0xffcc00, roughness: 0.8 });
+	       const blackMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.9 });
+	       
+	       // The Board Mesh
+	       const boardMesh = new THREE.Mesh(new THREE.BoxGeometry(boardW, boardH, boardD), 
+	         [yellowMat, yellowMat, yellowMat, yellowMat, faceMat, faceMat]); // Map texture only to front/back
+	       boardMesh.position.set(0, 1.2 + (boardH / 2), 0);
+	       boardGrp.add(boardMesh);
+	       
+	       const postGeoY = new THREE.BoxGeometry(postW, postH - blackBaseH, postW + 0.1);
+	       const postGeoB = new THREE.BoxGeometry(postW + 0.04, blackBaseH, postW + 0.14);
+	       const dX = (boardW / 2) + (postW / 2) - 0.05; // Slightly sink board into posts
+	       
+	       // Left Support Post
+	       const pLeftY = new THREE.Mesh(postGeoY, yellowMat);
+	       pLeftY.position.set(-dX, blackBaseH + (postH - blackBaseH)/2, 0);
+	       const pLeftB = new THREE.Mesh(postGeoB, blackMat);
+	       pLeftB.position.set(-dX, blackBaseH/2, 0);
+	       boardGrp.add(pLeftY, pLeftB);
+	       
+	       // Right Support Post
+	       const pRightY = new THREE.Mesh(postGeoY, yellowMat);
+	       pRightY.position.set(dX, blackBaseH + (postH - blackBaseH)/2, 0);
+	       const pRightB = new THREE.Mesh(postGeoB, blackMat);
+	       pRightB.position.set(dX, blackBaseH/2, 0);
+	       boardGrp.add(pRightY, pRightB);
+	       
+	       // Anchor relative to train tracks
+	       boardGrp.position.copy(get3DViewerFramePoint(profile.frame, boardOffset, baseY, 0));
+	       boardGrp.rotation.y = profile.frame.headingY;
+	       labelsGroup.add(boardGrp);
 	     });
 	   }
 
@@ -14368,28 +14416,50 @@ function processVisualEditorLogic() {
   });
 
   document.getElementById("veSampleBtn")?.addEventListener("click", () => {
-    veState.nodes = []; veState.wires = []; veState.nodeIdCounter = 1;
+    veState.nodes = []; veState.wires = []; veState.groups = []; veState.nodeIdCounter = 1;
     
-    // Main Line
-    const mainNode = { id: "node_" + (veState.nodeIdCounter++), type: "MainLine", x: 60, y: 100, inputs: {}, def: VE_NODE_DEFS.MainLine };
-    mainNode.inputs["Start Ch (m)"] = "0"; mainNode.inputs["End Ch (m)"] = "2000";
+    // Main Lines
+    const upNode = { id: "node_" + (veState.nodeIdCounter++), type: "MainLine", x: 100, y: 150, inputs: {}, def: VE_NODE_DEFS.MainLine };
+    upNode.inputs["Start Ch (m)"] = "0"; upNode.inputs["End Ch (m)"] = "3000";
     
-    // Loop
-    const loopNode = { id: "node_" + (veState.nodeIdCounter++), type: "LoopLine", x: 400, y: 50, inputs: {}, def: VE_NODE_DEFS.LoopLine };
-    loopNode.inputs["Takeoff Ch"] = "500"; loopNode.inputs["Length (m)"] = "750"; loopNode.inputs["Side (L/R)"] = "L";
-
-    // Platform
-    const pfNode = { id: "node_" + (veState.nodeIdCounter++), type: "Platform", x: 400, y: 350, inputs: {}, def: VE_NODE_DEFS.Platform };
-    pfNode.inputs["Side"] = "R"; pfNode.inputs["Width (m)"] = "12"; pfNode.inputs["Length (m)"] = "400";
-
-    veState.nodes = [mainNode, loopNode, pfNode];
+    const dnNode = { id: "node_" + (veState.nodeIdCounter++), type: "MainLine", x: 100, y: 400, inputs: {}, def: VE_NODE_DEFS.MainLine };
+    dnNode.inputs["Start Ch (m)"] = "0"; dnNode.inputs["End Ch (m)"] = "3000";
     
-    // Wire Main -> Loop
-    veState.wires.push({ fromNodeId: mainNode.id, fromPortIdx: "0", toNodeId: loopNode.id, toPortIdx: "0" });
-    // Wire Main -> PF
-    veState.wires.push({ fromNodeId: mainNode.id, fromPortIdx: "0", toNodeId: pfNode.id, toPortIdx: "0" });
+    // Loops
+    const loop1 = { id: "node_" + (veState.nodeIdCounter++), type: "LoopLine", x: 380, y: 50, inputs: {}, def: VE_NODE_DEFS.LoopLine };
+    loop1.inputs["Takeoff Ch"] = "1000"; loop1.inputs["Length (m)"] = "750"; loop1.inputs["Side (L/R)"] = "L";
 
-    // Reset pan
+    const loop2 = { id: "node_" + (veState.nodeIdCounter++), type: "LoopLine", x: 380, y: 500, inputs: {}, def: VE_NODE_DEFS.LoopLine };
+    loop2.inputs["Takeoff Ch"] = "1050"; loop2.inputs["Length (m)"] = "750"; loop2.inputs["Side (L/R)"] = "R";
+
+    // Platforms
+    const pf1 = { id: "node_" + (veState.nodeIdCounter++), type: "Platform", x: 680, y: 100, inputs: {}, def: VE_NODE_DEFS.Platform };
+    pf1.inputs["Track Loop"] = "Line 1"; pf1.inputs["Start Ch"] = "1100"; pf1.inputs["End Ch"] = "1700";
+
+    const pf2 = { id: "node_" + (veState.nodeIdCounter++), type: "Platform", x: 680, y: 450, inputs: {}, def: VE_NODE_DEFS.Platform };
+    pf2.inputs["Track Loop"] = "Line 4"; pf2.inputs["Start Ch"] = "1150"; pf2.inputs["End Ch"] = "1750";
+    
+    // Crossover
+    const xover = { id: "node_" + (veState.nodeIdCounter++), type: "Crossover", x: 380, y: 250, inputs: {}, def: VE_NODE_DEFS.Crossover };
+    xover.inputs["Track A"] = "UP Line"; xover.inputs["Track B"] = "DN Line"; xover.inputs["Chainage"] = "1500";
+
+    veState.nodes = [upNode, dnNode, loop1, loop2, pf1, pf2, xover];
+
+    // Wiring Hierarchy
+    veState.wires.push({ fromNodeId: upNode.id, fromPortIdx: "0", toNodeId: loop1.id, toPortIdx: "0" });
+    veState.wires.push({ fromNodeId: dnNode.id, fromPortIdx: "0", toNodeId: loop2.id, toPortIdx: "0" });
+    veState.wires.push({ fromNodeId: loop1.id, fromPortIdx: "0", toNodeId: pf1.id, toPortIdx: "0" });
+    veState.wires.push({ fromNodeId: loop2.id, fromPortIdx: "0", toNodeId: pf2.id, toPortIdx: "0" });
+    veState.wires.push({ fromNodeId: upNode.id, fromPortIdx: "0", toNodeId: xover.id, toPortIdx: "0" });
+
+    // Grouping Canvas Constraint
+    veState.groups.push({
+      id: "group_station1",
+      name: "STATION 1 (NEW NASHIK)",
+      nodeIds: veState.nodes.map(n => n.id),
+      color: "#10b981"
+    });
+
     veState.pan = { x: 0, y: 0 };
     saveVEStateLocally();
     updateVECanvasTransform();
@@ -14506,6 +14576,11 @@ function updateVEDOM() {
   const canvas = document.getElementById("veCanvas");
   if (!canvas) return;
 
+  // Initialize missing legacy groups array safely
+  veState.groups = veState.groups || [];
+  veState.nodes = veState.nodes || [];
+  veState.wires = veState.wires || [];
+
   // Remove groups no longer in state
   Array.from(canvas.querySelectorAll(".ve-group")).forEach(el => {
     if (!veState.groups.find(g => g.id === el.dataset.groupId)) el.remove();
@@ -14551,6 +14626,12 @@ function updateVEDOM() {
   });
 
   veState.nodes.forEach(node => {
+    // Project state backwards compatibility/hydration
+    if (!node.def) node.def = VE_NODE_DEFS[node.type] || { title: "Unknown Node", in: [], out: [] };
+    if (!node.inputs) node.inputs = {};
+    if (!node.def.in) node.def.in = [];
+    if (!node.def.out) node.def.out = [];
+
     let el = canvas.querySelector(`.ve-node[data-node-id="${node.id}"]`);
     if (!el) {
       el = document.createElement("div");
@@ -14561,10 +14642,11 @@ function updateVEDOM() {
       
       // Inputs
       node.def.in.forEach((label, idx) => {
+        const val = node.inputs[label] !== undefined ? node.inputs[label] : "";
         html += `<div class="ve-port-row ve-port-left">
           <div class="ve-socket input" data-node-id="${node.id}" data-port-idx="${idx}"></div>
           <span class="ve-port-label">${label}</span>
-          <input class="ve-port-input" type="text" data-node-id="${node.id}" data-port-label="${label}" value="${node.inputs[label]}" />
+          <input class="ve-port-input" type="text" data-node-id="${node.id}" data-port-label="${label}" value="${val}" />
         </div>`;
       });
       // Outputs
