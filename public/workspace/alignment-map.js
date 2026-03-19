@@ -8,6 +8,16 @@ let baseLayers = {};
 let mapItems = null; // We'll use a FeatureGroup for easy clearing
 let pendingStationPlanTarget = "";
 let pendingStationPlanFile = null;
+let googleEarthMap = null;
+let googleEarthPolyline = null;
+let googleEarthMarkers = [];
+let googleEarthInfoWindow = null;
+let googleMapsApiLoadPromise = null;
+let googleMapsApiKeyInUse = "";
+let googleEarthMapListenersBound = false;
+let googleMapsAuthFailed = false;
+const GOOGLE_MAPS_API_KEY_STORAGE_KEY = "earthsoft_google_maps_api_key";
+const GOOGLE_MAPS_MAP_ID_STORAGE_KEY = "earthsoft_google_maps_map_id";
 const MAP_PSEUDO_3D_DEFAULTS = {
     enabled: false,
     terrain: true,
@@ -93,10 +103,27 @@ document.addEventListener("DOMContentLoaded", () => {
     const mapOverlayLabelsToggle = document.getElementById("mapOverlayLabelsToggle");
     const mapOverlayBoundaryToggle = document.getElementById("mapOverlayBoundaryToggle");
     const mapOverlayEWStructuresToggle = document.getElementById("mapOverlayEWStructuresToggle");
+    const googleEarthImportKmlBtn = document.getElementById("googleEarthImportKmlBtn");
+    const saveGoogleEarthApiKeyBtn = document.getElementById("saveGoogleEarthApiKeyBtn");
+    const clearGoogleEarthApiKeyBtn = document.getElementById("clearGoogleEarthApiKeyBtn");
+    const googleEarthApiKeyInput = document.getElementById("googleEarthApiKeyInput");
+    const googleEarthMapIdInput = document.getElementById("googleEarthMapIdInput");
+    const downloadAlignmentKmlBtn = document.getElementById("downloadAlignmentKmlBtn");
+    const openGoogleEarthWebBtn = document.getElementById("openGoogleEarthWebBtn");
+    const refreshGoogleEarthBtn = document.getElementById("refreshGoogleEarthBtn");
+    const googleEarthTiltUpBtn = document.getElementById("googleEarthTiltUpBtn");
+    const googleEarthTiltDownBtn = document.getElementById("googleEarthTiltDownBtn");
+    const googleEarthRotateLeftBtn = document.getElementById("googleEarthRotateLeftBtn");
+    const googleEarthRotateRightBtn = document.getElementById("googleEarthRotateRightBtn");
+    const googleEarthResetCameraBtn = document.getElementById("googleEarthResetCameraBtn");
+    const googleEarthAlignCameraBtn = document.getElementById("googleEarthAlignCameraBtn");
 
     if (importKmlBtn && kmlImportInput) {
         importKmlBtn.addEventListener("click", () => kmlImportInput.click());
         kmlImportInput.addEventListener("change", handleKmlImport);
+    }
+    if (googleEarthImportKmlBtn && kmlImportInput) {
+        googleEarthImportKmlBtn.addEventListener("click", () => kmlImportInput.click());
     }
     if (importStationPlanBtn && stationPlanImportInput) {
         importStationPlanBtn.addEventListener("click", () => stationPlanImportInput.click());
@@ -171,7 +198,63 @@ document.addEventListener("DOMContentLoaded", () => {
     if (mapOverlayEWStructuresToggle) {
         mapOverlayEWStructuresToggle.addEventListener("change", (e) => setMapPseudo3DSetting("ewStructures", Boolean(e.target.checked)));
     }
+    if (googleEarthApiKeyInput) {
+        googleEarthApiKeyInput.value = getStoredGoogleMapsApiKey();
+        googleEarthApiKeyInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                saveGoogleEarthApiKey();
+            }
+        });
+    }
+    if (googleEarthMapIdInput) {
+        googleEarthMapIdInput.value = getStoredGoogleMapsMapId();
+        googleEarthMapIdInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                saveGoogleEarthApiKey();
+            }
+        });
+    }
+    if (saveGoogleEarthApiKeyBtn) {
+        saveGoogleEarthApiKeyBtn.addEventListener("click", saveGoogleEarthApiKey);
+    }
+    if (clearGoogleEarthApiKeyBtn) {
+        clearGoogleEarthApiKeyBtn.addEventListener("click", clearGoogleEarthApiKey);
+    }
+    if (downloadAlignmentKmlBtn) {
+        downloadAlignmentKmlBtn.addEventListener("click", downloadAlignmentKml);
+    }
+    if (openGoogleEarthWebBtn) {
+        openGoogleEarthWebBtn.addEventListener("click", () => {
+            window.open("https://earth.google.com/web/", "_blank", "noopener");
+        });
+    }
+    if (refreshGoogleEarthBtn) {
+        refreshGoogleEarthBtn.addEventListener("click", () => renderGoogleEarthPage(true));
+    }
+    if (googleEarthTiltUpBtn) {
+        googleEarthTiltUpBtn.addEventListener("click", () => adjustGoogleEarthTilt(12));
+    }
+    if (googleEarthTiltDownBtn) {
+        googleEarthTiltDownBtn.addEventListener("click", () => adjustGoogleEarthTilt(-12));
+    }
+    if (googleEarthRotateLeftBtn) {
+        googleEarthRotateLeftBtn.addEventListener("click", () => adjustGoogleEarthHeading(-20));
+    }
+    if (googleEarthRotateRightBtn) {
+        googleEarthRotateRightBtn.addEventListener("click", () => adjustGoogleEarthHeading(20));
+    }
+    if (googleEarthResetCameraBtn) {
+        googleEarthResetCameraBtn.addEventListener("click", resetGoogleEarthCamera);
+    }
+    if (googleEarthAlignCameraBtn) {
+        googleEarthAlignCameraBtn.addEventListener("click", alignGoogleEarthCameraToCorridor);
+    }
     syncMapPseudo3DControls();
+    updateGoogleEarthSummary();
+    syncGoogleEarthEmptyState();
+    syncGoogleEarthControls();
 
     // Initialize Leaflet Map
     initLeafletMap();
@@ -188,6 +271,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
                 }, 300);
             }
+            if (btn.dataset.workPageBtn === "google-earth") {
+                setTimeout(() => {
+                    renderGoogleEarthPage();
+                }, 300);
+            }
         });
     });
 
@@ -198,6 +286,10 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!pendingStationPlanTarget) return;
         stationPlanImportInput.click();
     });
+
+    if (state.activeWorkPage === "google-earth") {
+        setTimeout(() => renderGoogleEarthPage(), 120);
+    }
 });
 
 function initLeafletMap() {
@@ -268,6 +360,9 @@ function clearMapData() {
 
     document.getElementById("alignmentMapContainer").style.display = "none";
     document.getElementById("alignmentMapEmpty").style.display = "flex";
+    clearGoogleEarthOverlays();
+    syncGoogleEarthEmptyState();
+    updateGoogleEarthSummary();
 
     console.log("Map data cleared.");
 }
@@ -347,6 +442,8 @@ function parseKMLData(kmlText) {
     if (container && container.style.display !== 'none') {
         drawAlignmentMap();
     }
+    updateGoogleEarthSummary();
+    renderGoogleEarthPage();
 }
 
 function pickPreferredKmzKmlEntry(zip) {
@@ -777,6 +874,686 @@ function drawAlignmentMap() {
     }
 
     updateMapLegend(Object.keys(state.stationPlans || {}).length, hasLandBoundary, mapPseudo3DSettings.enabled);
+}
+
+function getStoredGoogleMapsApiKey() {
+    try {
+        const localValue = String(localStorage.getItem(GOOGLE_MAPS_API_KEY_STORAGE_KEY) || "").trim();
+        if (localValue) return localValue;
+    } catch (_) {
+        // Fall back to local machine config below.
+    }
+    return getConfiguredGoogleMapsApiKey();
+}
+
+function getConfiguredGoogleMapsApiKey() {
+    return String(window.EARTHSOFT_GOOGLE_MAPS_API_KEY || "").trim();
+}
+
+function getStoredGoogleMapsMapId() {
+    try {
+        const localValue = String(localStorage.getItem(GOOGLE_MAPS_MAP_ID_STORAGE_KEY) || "").trim();
+        if (localValue) return localValue;
+    } catch (_) {
+        // Fall back to local machine config below.
+    }
+    return getConfiguredGoogleMapsMapId();
+}
+
+function getConfiguredGoogleMapsMapId() {
+    return String(window.EARTHSOFT_GOOGLE_MAP_ID || "").trim();
+}
+
+function setStoredGoogleMapsApiKey(value) {
+    try {
+        if (value) localStorage.setItem(GOOGLE_MAPS_API_KEY_STORAGE_KEY, value);
+        else localStorage.removeItem(GOOGLE_MAPS_API_KEY_STORAGE_KEY);
+    } catch (_) {
+        // Ignore storage failures and let the UI continue as a stateless view.
+    }
+}
+
+function setStoredGoogleMapsMapId(value) {
+    try {
+        if (value) localStorage.setItem(GOOGLE_MAPS_MAP_ID_STORAGE_KEY, value);
+        else localStorage.removeItem(GOOGLE_MAPS_MAP_ID_STORAGE_KEY);
+    } catch (_) {
+        // Ignore storage failures and let the UI continue as a stateless view.
+    }
+}
+
+function setGoogleEarthStatus(message, tone = "") {
+    const statusEl = document.getElementById("googleEarthApiStatus");
+    if (!statusEl) return;
+    statusEl.textContent = message;
+    statusEl.classList.remove("is-ready", "is-warning");
+    if (tone === "ready") statusEl.classList.add("is-ready");
+    if (tone === "warning") statusEl.classList.add("is-warning");
+}
+
+function setGoogleEarthEmpty(title, text) {
+    const titleEl = document.getElementById("googleEarthEmptyTitle");
+    const textEl = document.getElementById("googleEarthEmptyText");
+    if (titleEl) titleEl.textContent = title;
+    if (textEl) textEl.textContent = text;
+}
+
+function syncGoogleEarthControls() {
+    const controlDeck = document.getElementById("googleEarthControlDeck");
+    const buttons = [
+        "googleEarthTiltUpBtn",
+        "googleEarthTiltDownBtn",
+        "googleEarthRotateLeftBtn",
+        "googleEarthRotateRightBtn",
+        "googleEarthResetCameraBtn",
+        "googleEarthAlignCameraBtn",
+    ].map((id) => document.getElementById(id)).filter(Boolean);
+    const hasInteractive3D = Boolean(googleEarthMap && getStoredGoogleMapsMapId());
+
+    if (controlDeck) {
+        controlDeck.style.display = googleEarthMap ? "flex" : "none";
+    }
+    buttons.forEach((button) => {
+        button.disabled = !hasInteractive3D;
+    });
+    updateGoogleEarthViewHud();
+}
+
+function updateGoogleEarthViewHud() {
+    const tiltEl = document.getElementById("googleEarthTiltValue");
+    const headingEl = document.getElementById("googleEarthHeadingValue");
+    const zoomEl = document.getElementById("googleEarthZoomValue");
+    const modeEl = document.getElementById("googleEarthModeBadge");
+
+    const tilt = Number(googleEarthMap?.getTilt?.() || 0);
+    const heading = Number(googleEarthMap?.getHeading?.() || 0);
+    const zoom = Number(googleEarthMap?.getZoom?.() || 0);
+    const is3D = tilt > 0.1;
+
+    if (tiltEl) tiltEl.textContent = `Tilt ${tilt.toFixed(0)}°`;
+    if (headingEl) headingEl.textContent = `Heading ${(((heading % 360) + 360) % 360).toFixed(0)}°`;
+    if (zoomEl) zoomEl.textContent = `Zoom ${zoom.toFixed(1)}`;
+    if (modeEl) modeEl.textContent = is3D ? "3D" : "2D";
+}
+
+function bindGoogleEarthMapListeners() {
+    if (!googleEarthMap || googleEarthMapListenersBound || !window.google?.maps?.event) return;
+    ["tilt_changed", "heading_changed", "zoom_changed", "idle"].forEach((eventName) => {
+        google.maps.event.addListener(googleEarthMap, eventName, updateGoogleEarthViewHud);
+    });
+    googleEarthMapListenersBound = true;
+    updateGoogleEarthViewHud();
+}
+
+function normalizeHeading(value) {
+    const normalized = Number(value || 0) % 360;
+    return normalized < 0 ? normalized + 360 : normalized;
+}
+
+function adjustGoogleEarthTilt(delta) {
+    if (!googleEarthMap || !getStoredGoogleMapsMapId()) return;
+    const currentTilt = Number(googleEarthMap.getTilt?.() || 0);
+    const nextTilt = Math.max(0, Math.min(67.5, currentTilt + delta));
+    if (typeof googleEarthMap.setTilt === "function") {
+        googleEarthMap.setTilt(nextTilt);
+    }
+    updateGoogleEarthViewHud();
+}
+
+function adjustGoogleEarthHeading(delta) {
+    if (!googleEarthMap || !getStoredGoogleMapsMapId()) return;
+    const currentHeading = Number(googleEarthMap.getHeading?.() || 0);
+    const nextHeading = normalizeHeading(currentHeading + delta);
+    if (typeof googleEarthMap.setHeading === "function") {
+        googleEarthMap.setHeading(nextHeading);
+    }
+    updateGoogleEarthViewHud();
+}
+
+function getCorridorHeadingDegrees() {
+    const points = state.kmlData?.points || [];
+    if (points.length < 2) return 0;
+    const first = points[0];
+    const last = points[points.length - 1];
+    const lat1 = first.lat * Math.PI / 180;
+    const lat2 = last.lat * Math.PI / 180;
+    const dLng = (last.lng - first.lng) * Math.PI / 180;
+    const y = Math.sin(dLng) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+    const bearing = Math.atan2(y, x) * 180 / Math.PI;
+    return normalizeHeading(bearing);
+}
+
+function alignGoogleEarthCameraToCorridor() {
+    if (!googleEarthMap || !getStoredGoogleMapsMapId()) return;
+    if (typeof googleEarthMap.setHeading === "function") {
+        googleEarthMap.setHeading(getCorridorHeadingDegrees());
+    }
+    if (typeof googleEarthMap.setTilt === "function") {
+        googleEarthMap.setTilt(60);
+    }
+    updateGoogleEarthViewHud();
+}
+
+function resetGoogleEarthCamera() {
+    if (!googleEarthMap) return;
+    if (googleEarthPolyline && typeof window.google?.maps?.LatLngBounds === "function") {
+        const bounds = new google.maps.LatLngBounds();
+        googleEarthPolyline.getPath().forEach((point) => bounds.extend(point));
+        if (!bounds.isEmpty()) googleEarthMap.fitBounds(bounds, 60);
+    }
+    if (typeof googleEarthMap.setHeading === "function") {
+        googleEarthMap.setHeading(0);
+    }
+    if (typeof googleEarthMap.setTilt === "function") {
+        googleEarthMap.setTilt(getStoredGoogleMapsMapId() ? 45 : 0);
+    }
+    updateGoogleEarthViewHud();
+}
+
+function syncGoogleEarthEmptyState() {
+    const hasKml = Boolean(state.kmlData?.points?.length);
+    const apiKey = getStoredGoogleMapsApiKey();
+    const mapId = getStoredGoogleMapsMapId();
+    if (!hasKml) {
+        setGoogleEarthEmpty(
+            "Import a KML to begin",
+            "This tab will render the imported corridor on Google satellite imagery and generate an alignment KML for Google Earth.",
+        );
+        setGoogleEarthStatus("No alignment KML is loaded yet.", "warning");
+        syncGoogleEarthControls();
+        return;
+    }
+    if (!apiKey) {
+        setGoogleEarthEmpty(
+            "Google Maps API key needed",
+            "Save a Google Maps JavaScript API key to render the corridor here. You can still download the active alignment KML and open it in Google Earth Web.",
+        );
+        setGoogleEarthStatus("API key missing. Download KML or add a key to render the satellite view in-app.", "warning");
+        syncGoogleEarthControls();
+        return;
+    }
+    if (mapId) {
+        setGoogleEarthStatus("Google Maps API key and vector map ID detected. Tilt, rotate, and corridor alignment are available.", "ready");
+    } else {
+        setGoogleEarthStatus("API key detected. Add a vector map ID to unlock tilt and rotate controls.", "warning");
+    }
+    syncGoogleEarthControls();
+}
+
+function updateGoogleEarthSummary() {
+    const alignmentStatusEl = document.getElementById("googleEarthAlignmentStatus");
+    const lengthEl = document.getElementById("googleEarthLengthStat");
+    const markerEl = document.getElementById("googleEarthMarkerStat");
+    const hasKml = Boolean(state.kmlData?.points?.length);
+    const stationCount = getStationGroupsForMap().length;
+    const bridgeCount = Array.isArray(state.bridgeRows) ? state.bridgeRows.length : 0;
+    const curveCount = Array.isArray(state.curveRows) ? state.curveRows.length : 0;
+    const markerCount = stationCount + bridgeCount + curveCount;
+
+    if (alignmentStatusEl) {
+        alignmentStatusEl.textContent = hasKml
+            ? `${state.kmlData.points.length} points imported`
+            : "No KML imported";
+    }
+    if (lengthEl) {
+        const totalDistance = Number.isFinite(state.kmlData?.totalDistance) ? state.kmlData.totalDistance : 0;
+        lengthEl.textContent = `${(totalDistance / 1000).toFixed(3)} km`;
+    }
+    if (markerEl) {
+        markerEl.textContent = `${markerCount} item${markerCount === 1 ? "" : "s"}`;
+    }
+}
+
+function saveGoogleEarthApiKey() {
+    const apiKeyInput = document.getElementById("googleEarthApiKeyInput");
+    const mapIdInput = document.getElementById("googleEarthMapIdInput");
+    const key = String(apiKeyInput?.value || "").trim();
+    const mapId = String(mapIdInput?.value || "").trim();
+    if (!key) {
+        alert("Paste a Google Maps API key first.");
+        return;
+    }
+    setStoredGoogleMapsApiKey(key);
+    setStoredGoogleMapsMapId(mapId);
+    setGoogleEarthStatus(
+        mapId
+            ? "API key and vector map ID saved in this browser. Loading the satellite viewer..."
+            : "API key saved in this browser. Loading the satellite viewer...",
+        "warning",
+    );
+    renderGoogleEarthPage(true);
+}
+
+function clearGoogleEarthApiKey() {
+    setStoredGoogleMapsApiKey("");
+    setStoredGoogleMapsMapId("");
+    const apiKeyInput = document.getElementById("googleEarthApiKeyInput");
+    const mapIdInput = document.getElementById("googleEarthMapIdInput");
+    if (apiKeyInput) apiKeyInput.value = "";
+    if (mapIdInput) mapIdInput.value = "";
+    googleMapsApiLoadPromise = null;
+    googleMapsApiKeyInUse = "";
+    clearGoogleEarthOverlays();
+    syncGoogleEarthEmptyState();
+    renderGoogleEarthPage(true);
+}
+
+function ensureGoogleMapsLoaded(apiKey) {
+    if (!apiKey) {
+        return Promise.reject(new Error("Missing Google Maps API key"));
+    }
+    if (window.google?.maps) {
+        return Promise.resolve(window.google.maps);
+    }
+    if (googleMapsApiLoadPromise && googleMapsApiKeyInUse === apiKey) {
+        return googleMapsApiLoadPromise;
+    }
+
+    const existingScript = document.getElementById("earthsoftGoogleMapsScript");
+    if (existingScript) existingScript.remove();
+
+    googleMapsApiKeyInUse = apiKey;
+    googleMapsAuthFailed = false;
+    googleMapsApiLoadPromise = new Promise((resolve, reject) => {
+        window.gm_authFailure = () => {
+            googleMapsAuthFailed = true;
+            reject(new Error("Google Maps authentication failed. Check billing, API restrictions, and allowed referrers."));
+        };
+        window.__earthsoftGoogleMapsInit = () => resolve(window.google.maps);
+        const script = document.createElement("script");
+        script.id = "earthsoftGoogleMapsScript";
+        script.async = true;
+        script.defer = true;
+        script.onerror = () => reject(new Error("Failed to load the Google Maps JavaScript API."));
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&loading=async&callback=__earthsoftGoogleMapsInit`;
+        document.head.appendChild(script);
+    }).catch((error) => {
+        googleMapsApiLoadPromise = null;
+        throw error;
+    });
+
+    return googleMapsApiLoadPromise;
+}
+
+function initGoogleEarthMap(forceReload = false) {
+    const mapContainer = document.getElementById("googleEarthMapContainer");
+    if (!mapContainer || !window.google?.maps) return null;
+    const mapId = getStoredGoogleMapsMapId();
+
+    if (forceReload) {
+        clearGoogleEarthOverlays();
+        mapContainer.innerHTML = "";
+        googleEarthMap = null;
+        googleEarthInfoWindow = null;
+        googleEarthMapListenersBound = false;
+    }
+
+    if (!googleEarthMap) {
+        const mapOptions = {
+            center: { lat: 20.5937, lng: 78.9629 },
+            zoom: 5,
+            mapTypeId: mapId ? "hybrid" : "satellite",
+            streetViewControl: false,
+            fullscreenControl: true,
+            mapTypeControl: true,
+            rotateControl: true,
+            scaleControl: true,
+            gestureHandling: "greedy",
+            headingInteractionEnabled: Boolean(mapId),
+            tiltInteractionEnabled: Boolean(mapId),
+        };
+        if (mapId) {
+            mapOptions.mapId = mapId;
+            if (window.google?.maps?.RenderingType?.VECTOR) {
+                mapOptions.renderingType = google.maps.RenderingType.VECTOR;
+            }
+        }
+        googleEarthMap = new google.maps.Map(mapContainer, {
+            ...mapOptions,
+        });
+    }
+    if (!googleEarthInfoWindow) {
+        googleEarthInfoWindow = new google.maps.InfoWindow();
+    }
+    bindGoogleEarthMapListeners();
+    syncGoogleEarthControls();
+    return googleEarthMap;
+}
+
+function clearGoogleEarthOverlays() {
+    if (googleEarthPolyline) {
+        googleEarthPolyline.setMap(null);
+        googleEarthPolyline = null;
+    }
+    googleEarthMarkers.forEach((marker) => marker.setMap(null));
+    googleEarthMarkers = [];
+    if (googleEarthInfoWindow) {
+        googleEarthInfoWindow.close();
+    }
+    syncGoogleEarthControls();
+}
+
+function renderGoogleEarthPage(forceReload = false) {
+    const mapContainer = document.getElementById("googleEarthMapContainer");
+    const emptyEl = document.getElementById("googleEarthEmpty");
+    if (!mapContainer || !emptyEl) return;
+
+    updateGoogleEarthSummary();
+
+    const points = state.kmlData?.points || [];
+    if (!points.length) {
+        clearGoogleEarthOverlays();
+        mapContainer.style.display = "none";
+        emptyEl.style.display = "flex";
+        syncGoogleEarthEmptyState();
+        return;
+    }
+
+    const apiKey = getStoredGoogleMapsApiKey();
+    const mapId = getStoredGoogleMapsMapId();
+    if (!apiKey) {
+        clearGoogleEarthOverlays();
+        mapContainer.style.display = "none";
+        emptyEl.style.display = "flex";
+        syncGoogleEarthEmptyState();
+        return;
+    }
+
+    setGoogleEarthStatus(
+        mapId ? "Loading Google vector-enabled satellite viewer..." : "Loading Google satellite viewer...",
+        "warning",
+    );
+    ensureGoogleMapsLoaded(apiKey)
+        .then(() => {
+            if (googleMapsAuthFailed) {
+                throw new Error("Google Maps authentication failed.");
+            }
+            initGoogleEarthMap(forceReload);
+            drawGoogleEarthMap();
+            emptyEl.style.display = "none";
+            mapContainer.style.display = "block";
+            setGoogleEarthStatus(
+                mapId
+                    ? "Google viewer is ready with the imported alignment KML and vector map ID."
+                    : "Google satellite viewer is ready and synced with the imported alignment KML.",
+                "ready",
+            );
+        })
+        .catch((error) => {
+            console.error("Google Earth tab failed to load:", error);
+            clearGoogleEarthOverlays();
+            mapContainer.style.display = "none";
+            emptyEl.style.display = "flex";
+            setGoogleEarthEmpty(
+                "Google viewer could not load",
+                "Google rejected the in-app map. Check that billing is enabled, Maps JavaScript API is enabled, and the API key allows this local origin such as http://127.0.0.1:* and http://localhost:*.",
+            );
+            setGoogleEarthStatus("Google viewer could not load. Allow localhost / 127.0.0.1 in the key referrers and enable Maps JavaScript API + billing.", "warning");
+            syncGoogleEarthControls();
+        });
+}
+
+function drawGoogleEarthMap() {
+    if (!googleEarthMap || !window.google?.maps || !state.kmlData?.points?.length) return;
+
+    const mapContainer = document.getElementById("googleEarthMapContainer");
+    const emptyEl = document.getElementById("googleEarthEmpty");
+    if (mapContainer) mapContainer.style.display = "block";
+    if (emptyEl) emptyEl.style.display = "none";
+
+    clearGoogleEarthOverlays();
+
+    const points = state.kmlData.points;
+    const path = points.map((point) => ({ lat: point.lat, lng: point.lng }));
+    const bounds = new google.maps.LatLngBounds();
+    path.forEach((point) => bounds.extend(point));
+
+    googleEarthPolyline = new google.maps.Polyline({
+        path,
+        map: googleEarthMap,
+        geodesic: true,
+        strokeColor: "#ffffff",
+        strokeOpacity: 0.92,
+        strokeWeight: 4,
+    });
+
+    const startChOffset = (state.calcRows && state.calcRows.length) ? _safeNum(state.calcRows[0].chainage) : 0;
+
+    (state.bridgeRows || []).forEach((bridge) => {
+        const startCh = _safeNum(bridge?.startChainage, NaN);
+        const endCh = _safeNum(bridge?.endChainage, NaN);
+        if (!Number.isFinite(startCh) || !Number.isFinite(endCh)) return;
+        const midCh = (startCh + endCh) / 2;
+        const point = getLatLngFromChainage(midCh - startChOffset, points);
+        if (!point) return;
+
+        addGoogleEarthMarker(
+            point,
+            `Bridge ${bridge.bridgeNo || ""}`.trim(),
+            "#3b82f6",
+            `
+                <div class="google-earth-popup-title">Bridge ${escapeHtml(bridge.bridgeNo || "-")}</div>
+                <div class="google-earth-popup-row"><span class="label">Category</span><span class="value">${escapeHtml(bridge.bridgeCategory || "-")}</span></div>
+                <div class="google-earth-popup-row"><span class="label">Type</span><span class="value">${escapeHtml(bridge.bridgeType || "-")}</span></div>
+                <div class="google-earth-popup-row"><span class="label">Start</span><span class="value">${Number.isFinite(startCh) ? startCh.toFixed(3) : "-"}</span></div>
+                <div class="google-earth-popup-row"><span class="label">End</span><span class="value">${Number.isFinite(endCh) ? endCh.toFixed(3) : "-"}</span></div>
+            `,
+        );
+        bounds.extend(point);
+    });
+
+    (state.curveRows || []).forEach((curve, index) => {
+        const length = _safeNum(curve?.length, 0);
+        const startCh = _safeNum(curve?.chainage, NaN);
+        if (!Number.isFinite(startCh)) return;
+        const endCh = length > 0 ? startCh + length : startCh;
+        const midCh = startCh + (Math.max(length, 0) / 2);
+        const point = getLatLngFromChainage(midCh - startChOffset, points);
+        if (!point) return;
+
+        addGoogleEarthMarker(
+            point,
+            String(curve.curve || `Curve ${index + 1}`),
+            "#eab308",
+            `
+                <div class="google-earth-popup-title">${escapeHtml(curve.curve || `Curve ${index + 1}`)}</div>
+                <div class="google-earth-popup-row"><span class="label">Chainage</span><span class="value">${startCh.toFixed(3)}</span></div>
+                <div class="google-earth-popup-row"><span class="label">Length</span><span class="value">${length.toFixed(3)} m</span></div>
+                <div class="google-earth-popup-row"><span class="label">Radius</span><span class="value">${_safeNum(curve.radius, 0).toFixed(3)} m</span></div>
+                <div class="google-earth-popup-row"><span class="label">Direction</span><span class="value">${escapeHtml(curve.direction || "-")}</span></div>
+            `,
+        );
+        bounds.extend(point);
+    });
+
+    getStationGroupsForMap().forEach((station) => {
+        const midCh = getStationMidChainage(station);
+        if (!Number.isFinite(midCh)) return;
+        const point = getLatLngFromChainage(midCh - startChOffset, points);
+        if (!point) return;
+        const planAttached = Boolean(state.stationPlans?.[String(station.station || "").toLowerCase().trim()]);
+
+        addGoogleEarthMarker(
+            point,
+            station.station || "Station",
+            "#06b6d4",
+            `
+                <div class="google-earth-popup-title">${escapeHtml(station.station || "Station")}</div>
+                <div class="google-earth-popup-row"><span class="label">CSB</span><span class="value">${Number.isFinite(station.csb) ? station.csb.toFixed(3) : "-"}</span></div>
+                <div class="google-earth-popup-row"><span class="label">Loop CH</span><span class="value">${Number.isFinite(station.loopStartCh) ? station.loopStartCh.toFixed(3) : "-"} to ${Number.isFinite(station.loopEndCh) ? station.loopEndCh.toFixed(3) : "-"}</span></div>
+                <div class="google-earth-popup-row"><span class="label">Track Centre</span><span class="value">${_safeNum(station.tc, 0).toFixed(3)} m</span></div>
+                <div class="google-earth-popup-row"><span class="label">Platform Width</span><span class="value">${_safeNum(station.pfWidth, 0).toFixed(3)} m</span></div>
+                <div class="google-earth-popup-row"><span class="label">Plan Attached</span><span class="value">${planAttached ? "Yes" : "No"}</span></div>
+            `,
+        );
+        bounds.extend(point);
+    });
+
+    if (!bounds.isEmpty()) {
+        googleEarthMap.fitBounds(bounds, 60);
+    }
+    if (getStoredGoogleMapsMapId()) {
+        if (typeof googleEarthMap.setTilt === "function") {
+            googleEarthMap.setTilt(55);
+        }
+        if (typeof googleEarthMap.setHeading === "function") {
+            googleEarthMap.setHeading(getCorridorHeadingDegrees());
+        }
+    } else if (typeof googleEarthMap.setTilt === "function") {
+        googleEarthMap.setTilt(0);
+    }
+    updateGoogleEarthViewHud();
+    syncGoogleEarthControls();
+}
+
+function addGoogleEarthMarker(point, title, color, contentHtml) {
+    if (!googleEarthMap || !window.google?.maps) return null;
+    const marker = new google.maps.Marker({
+        map: googleEarthMap,
+        position: { lat: point.lat, lng: point.lng },
+        title,
+        icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            fillColor: color,
+            fillOpacity: 0.95,
+            strokeColor: "#ffffff",
+            strokeWeight: 1.5,
+            scale: 6.5,
+        },
+    });
+
+    marker.addListener("click", () => {
+        if (!googleEarthInfoWindow) {
+            googleEarthInfoWindow = new google.maps.InfoWindow();
+        }
+        googleEarthInfoWindow.setContent(`<div class="google-earth-popup">${contentHtml}</div>`);
+        googleEarthInfoWindow.open({ anchor: marker, map: googleEarthMap });
+    });
+
+    googleEarthMarkers.push(marker);
+    return marker;
+}
+
+function getStationGroupsForMap() {
+    const stationGroups = new Map();
+    (state.loopPlatformRows || []).forEach((lp) => {
+        const stationName = String(lp.station || "").trim() || "Station";
+        const key = stationName.toLowerCase();
+        const group = stationGroups.get(key) || {
+            station: stationName,
+            csb: Number.isFinite(_safeNum(lp.csb, NaN)) ? _safeNum(lp.csb, NaN) : NaN,
+            tc: 0,
+            pfWidth: 0,
+            loopStartCh: Number.POSITIVE_INFINITY,
+            loopEndCh: Number.NEGATIVE_INFINITY,
+            remarks: [],
+        };
+
+        const loopStartCh = _safeNum(lp.loopStartCh, NaN);
+        const loopEndCh = _safeNum(lp.loopEndCh, NaN);
+        if (Number.isFinite(loopStartCh)) group.loopStartCh = Math.min(group.loopStartCh, loopStartCh);
+        if (Number.isFinite(loopEndCh)) group.loopEndCh = Math.max(group.loopEndCh, loopEndCh);
+        group.tc = Math.max(group.tc, _safeNum(lp.tc, 0));
+        group.pfWidth = Math.max(group.pfWidth, _safeNum(lp.pfWidth, 0));
+        if (lp.remarks) group.remarks.push(String(lp.remarks).trim());
+
+        stationGroups.set(key, group);
+    });
+    return Array.from(stationGroups.values());
+}
+
+function getStationMidChainage(station) {
+    const csbCh = Number.isFinite(station?.csb) ? station.csb : NaN;
+    if (Number.isFinite(csbCh)) return csbCh;
+    if (Number.isFinite(station?.loopStartCh) && Number.isFinite(station?.loopEndCh)) {
+        return (station.loopStartCh + station.loopEndCh) / 2;
+    }
+    return NaN;
+}
+
+function buildAlignmentKmlDocument() {
+    const points = state.kmlData?.points || [];
+    if (!points.length) return "";
+
+    const startChOffset = (state.calcRows && state.calcRows.length) ? _safeNum(state.calcRows[0].chainage) : 0;
+    const projectName = escapeHtml(state.project?.name || "Earthsoft Alignment");
+    const lineCoordinates = points.map((point) => `${point.lng},${point.lat},0`).join(" ");
+
+    const stationPlacemarks = getStationGroupsForMap().map((station) => {
+        const midCh = getStationMidChainage(station);
+        const point = Number.isFinite(midCh) ? getLatLngFromChainage(midCh - startChOffset, points) : null;
+        if (!point) return "";
+        return `
+            <Placemark>
+                <name>${escapeHtml(station.station || "Station")}</name>
+                <description><![CDATA[CSB: ${Number.isFinite(station.csb) ? station.csb.toFixed(3) : "-"}]]></description>
+                <Point><coordinates>${point.lng},${point.lat},0</coordinates></Point>
+            </Placemark>
+        `;
+    }).join("");
+
+    const bridgePlacemarks = (state.bridgeRows || []).map((bridge) => {
+        const startCh = _safeNum(bridge?.startChainage, NaN);
+        const endCh = _safeNum(bridge?.endChainage, NaN);
+        if (!Number.isFinite(startCh) || !Number.isFinite(endCh)) return "";
+        const point = getLatLngFromChainage((((startCh + endCh) / 2) - startChOffset), points);
+        if (!point) return "";
+        return `
+            <Placemark>
+                <name>Bridge ${escapeHtml(bridge.bridgeNo || "-")}</name>
+                <description><![CDATA[${escapeHtml(bridge.bridgeCategory || "Bridge")}]]></description>
+                <Point><coordinates>${point.lng},${point.lat},0</coordinates></Point>
+            </Placemark>
+        `;
+    }).join("");
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+    <Document>
+        <name>${projectName}</name>
+        <Style id="alignmentLine">
+            <LineStyle>
+                <color>ffffffff</color>
+                <width>4</width>
+            </LineStyle>
+        </Style>
+        <Placemark>
+            <name>${projectName} Alignment</name>
+            <styleUrl>#alignmentLine</styleUrl>
+            <LineString>
+                <tessellate>1</tessellate>
+                <coordinates>${lineCoordinates}</coordinates>
+            </LineString>
+        </Placemark>
+        ${stationPlacemarks}
+        ${bridgePlacemarks}
+    </Document>
+</kml>`;
+}
+
+function downloadAlignmentKml() {
+    const kmlText = buildAlignmentKmlDocument();
+    if (!kmlText) {
+        alert("Import a KML alignment first.");
+        return;
+    }
+
+    const blob = new Blob([kmlText], { type: "application/vnd.google-earth.kml+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const fileBase = String(state.project?.name || "earthsoft-alignment")
+        .trim()
+        .replace(/[^a-z0-9]+/gi, "-")
+        .replace(/^-+|-+$/g, "")
+        .toLowerCase() || "earthsoft-alignment";
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${fileBase}.kml`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
 }
 
 function drawPseudo3DOverlay(points, startChOffset, settings) {
@@ -1486,6 +2263,7 @@ function attachPendingStationPlan(stationName) {
         state.stationPlans[normalizedStationName] = evt.target.result;
         saveState();
         if (state.kmlData) drawAlignmentMap();
+        renderGoogleEarthPage();
 
         const modal = document.getElementById("stationPlanModal");
         if (modal) {

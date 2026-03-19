@@ -4662,6 +4662,11 @@ function setWorkPage(pageName) {
       if (typeof updateVEDOM === "function") updateVEDOM();
     });
   }
+  if (selected === "google-earth") {
+    requestAnimationFrame(() => {
+      if (typeof renderGoogleEarthPage === "function") renderGoogleEarthPage();
+    });
+  }
   if (selected === "bridges") {
     renderBridgeInputs();
   }
