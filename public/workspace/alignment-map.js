@@ -373,6 +373,7 @@ function clearMapData() {
     clearGoogleEarthOverlays();
     syncGoogleEarthEmptyState();
     updateGoogleEarthSummary();
+    if (typeof renderTerrain3DMapPage === "function") renderTerrain3DMapPage(true);
 
     console.log("Map data cleared.");
 }
@@ -454,6 +455,7 @@ function parseKMLData(kmlText) {
     }
     updateGoogleEarthSummary();
     renderGoogleEarthPage();
+    if (typeof renderTerrain3DMapPage === "function") renderTerrain3DMapPage(true);
 }
 
 function pickPreferredKmzKmlEntry(zip) {

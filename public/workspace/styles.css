@@ -4496,6 +4496,118 @@ td:first-child {
   margin-top: 16px;
 }
 
+.terrain3d-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.terrain3d-select-wrap,
+.terrain3d-speed-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(2, 6, 23, 0.45);
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.terrain3d-select,
+.terrain3d-speed-select {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.88);
+  color: #e2e8f0;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.terrain3d-select:focus,
+.terrain3d-speed-select:focus {
+  outline: none;
+  border-color: rgba(56, 189, 248, 0.55);
+}
+
+.terrain3d-status-card {
+  margin-top: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.48);
+  color: #cbd5e1;
+  padding: 12px 14px;
+  line-height: 1.5;
+}
+
+.terrain3d-status-card.is-ready {
+  border-color: rgba(34, 197, 94, 0.26);
+  background: rgba(20, 83, 45, 0.22);
+  color: #dcfce7;
+}
+
+.terrain3d-status-card.is-warning {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(120, 53, 15, 0.2);
+  color: #fde68a;
+}
+
+.terrain3d-stage {
+  margin-top: 16px;
+  position: relative;
+  overflow: hidden;
+  min-height: calc(100vh - 250px);
+  padding: 0;
+}
+
+.terrain3d-empty {
+  display: flex;
+  min-height: 520px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+  padding: 28px;
+  color: rgba(226, 232, 240, 0.76);
+  background:
+    radial-gradient(circle at top, rgba(14, 116, 144, 0.16), transparent 44%),
+    radial-gradient(circle at bottom, rgba(51, 65, 85, 0.24), transparent 40%),
+    linear-gradient(135deg, rgba(2, 6, 23, 0.96), rgba(15, 23, 42, 0.86));
+}
+
+.terrain3d-empty h3,
+.terrain3d-empty p {
+  margin: 0;
+}
+
+.terrain3d-empty h3 {
+  font-size: 1.2rem;
+  color: #f8fafc;
+}
+
+.terrain3d-empty p {
+  max-width: 560px;
+  line-height: 1.6;
+}
+
+.terrain3d-map {
+  width: 100%;
+  min-height: 520px;
+  height: calc(100vh - 250px);
+}
+
+.terrain3d-map .cesium-viewer,
+.terrain3d-map .cesium-viewer-cesiumWidget,
+.terrain3d-map .cesium-widget {
+  width: 100%;
+  height: 100%;
+}
+
 
 .map-toggle-chip {
   display: inline-flex;
@@ -5467,4 +5579,14 @@ td:first-child {
 
 .light .pway-grid td {
   border-bottom: 1px solid var(--stroke);
+}
+
+@media (max-width: 900px) {
+  .terrain3d-stage {
+    min-height: 520px;
+  }
+
+  .terrain3d-map {
+    height: 520px;
+  }
 }

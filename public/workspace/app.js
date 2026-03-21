@@ -4661,6 +4661,11 @@ function setWorkPage(pageName) {
       if (typeof updateVEDOM === "function") updateVEDOM();
     });
   }
+  if (selected === "terrain-3d-map") {
+    requestAnimationFrame(() => {
+      if (typeof renderTerrain3DMapPage === "function") renderTerrain3DMapPage();
+    });
+  }
   if (selected === "bridges") {
     renderBridgeInputs();
   }

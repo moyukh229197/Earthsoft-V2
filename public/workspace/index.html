@@ -192,6 +192,16 @@
             </svg>
             <span class="nav-text">Alignment Map</span>
           </button>
+          <button class="work-nav-btn" data-work-page-btn="terrain-3d-map" type="button">
+            <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2 14l5-5 4 3 7-7" />
+              <path d="M2 17h16" />
+              <path d="M5 17v-3" />
+              <path d="M11 17v-2" />
+              <path d="M16 17v-4" />
+            </svg>
+            <span class="nav-text">3D Terrain Map</span>
+          </button>
         </div>
 
         <div class="work-nav-section" data-work-nav-section="estimation">
@@ -1706,6 +1716,73 @@
         </div>
       </section>
 
+      <section class="work-page" data-work-page="terrain-3d-map">
+        <header class="page-header">
+          <div>
+            <h2>3D Terrain Map</h2>
+            <p class="text-secondary">Cesium-powered 3D geospatial view with OpenStreetMap imagery and corridor overlay.</p>
+          </div>
+          <div class="terrain3d-toolbar">
+            <button id="terrain3dRefreshBtn" class="btn btn-secondary" type="button">
+              <i class="ri-refresh-line" style="margin-right:4px;"></i> Refresh
+            </button>
+            <button id="terrain3dFlyBtn" class="btn btn-primary" type="button">
+              <i class="ri-flight-takeoff-line" style="margin-right:4px;"></i> Fly To Alignment
+            </button>
+            <button id="terrain3dStartFlyBtn" class="btn btn-primary" type="button">
+              <i class="ri-play-circle-line" style="margin-right:4px;"></i> Start Fly-Through
+            </button>
+            <button id="terrain3dStopFlyBtn" class="btn btn-secondary" type="button" disabled>
+              <i class="ri-stop-circle-line" style="margin-right:4px;"></i> Stop Fly-Through
+            </button>
+            <label class="terrain3d-select-wrap" for="terrain3dMapTypeSelect">
+              <span>Map</span>
+              <select id="terrain3dMapTypeSelect" class="terrain3d-select">
+                <option value="osm" selected>OSM Street</option>
+                <option value="dark">Dark</option>
+                <option value="topo">Topo</option>
+                <option value="satellite">Satellite</option>
+              </select>
+            </label>
+            <label class="terrain3d-select-wrap" for="terrain3dTerrainSourceSelect">
+              <span>Terrain</span>
+              <select id="terrain3dTerrainSourceSelect" class="terrain3d-select">
+                <option value="arcgis" selected>ArcGIS Elevation</option>
+                <option value="maptiler">MapTiler Terrain</option>
+              </select>
+            </label>
+            <label class="terrain3d-speed-wrap" for="terrain3dSpeedSelect">
+              <span>Speed</span>
+              <select id="terrain3dSpeedSelect" class="terrain3d-speed-select">
+                <option value="40">Slow</option>
+                <option value="70" selected>Normal</option>
+                <option value="110">Fast</option>
+                <option value="160">Very Fast</option>
+              </select>
+            </label>
+            <button id="terrain3dBuildingsBtn" class="btn btn-secondary" type="button">
+              <i class="ri-community-line" style="margin-right:4px;"></i> Toggle OSM Buildings
+            </button>
+          </div>
+        </header>
+
+        <div id="terrain3dStatus" class="terrain3d-status-card">
+          Open this tab after importing KML/KMZ to render the 3D alignment over the map.
+        </div>
+
+        <div class="card glass terrain3d-stage">
+          <div id="terrain3dEmpty" class="terrain3d-empty">
+            <svg viewBox="0 0 48 48" width="50" height="50" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M4 30l10-8 8 6 10-12 12 8" />
+              <path d="M4 38h40" />
+            </svg>
+            <h3>No alignment available</h3>
+            <p>Import a KML/KMZ alignment first. Then this tab will draw the design line in 3D over terrain and OSM map layers.</p>
+          </div>
+          <div id="terrain3dMapContainer" class="terrain3d-map" style="display:none;"></div>
+        </div>
+      </section>
+
       <section class="work-page" data-work-page="information">
         <div class="summary-strip" style="gap: 20px;">
           <article class="glass formula-panel" style="flex: 2;">
@@ -2924,6 +3001,7 @@
   <script src="./app.js?v=2"></script>
   <script src="./google-earth-config.local.js"></script>
   <script src="./alignment-map.js"></script>
+  <script src="./terrain-3d-map.js"></script>
 </body>
 
 </html>
