@@ -1720,7 +1720,7 @@
         <header class="page-header">
           <div>
             <h2>3D Terrain Map</h2>
-            <p class="text-secondary">Cesium-powered 3D geospatial view with OpenStreetMap imagery and corridor overlay.</p>
+            <p class="text-secondary">Cesium-powered 3D geospatial view with ArcGIS terrain + map imagery and corridor overlay.</p>
           </div>
           <div class="terrain3d-toolbar">
             <button id="terrain3dRefreshBtn" class="btn btn-secondary" type="button">
@@ -1738,10 +1738,10 @@
             <label class="terrain3d-select-wrap" for="terrain3dMapTypeSelect">
               <span>Map</span>
               <select id="terrain3dMapTypeSelect" class="terrain3d-select">
-                <option value="osm" selected>OSM Street</option>
+                <option value="osm">OSM Street</option>
                 <option value="dark">Dark</option>
                 <option value="topo">Topo</option>
-                <option value="satellite">Satellite</option>
+                <option value="satellite" selected>Satellite</option>
               </select>
             </label>
             <label class="terrain3d-select-wrap" for="terrain3dTerrainSourceSelect">
@@ -2631,7 +2631,7 @@
 	          </style>
 	          <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
 	            <span style="font-size:0.72rem; color:rgba(255,255,255,0.55); font-weight:700; letter-spacing:0.08em; text-transform:uppercase; margin-right: 4px;">Layers</span>
-	            <label class="layer-toggle"><input id="viewer3dTerrainToggle" data-viewer3d-toggle="terrain" type="checkbox" /> Terrain</label>
+	            <label class="layer-toggle"><input id="viewer3dTerrainToggle" data-viewer3d-toggle="terrain" type="checkbox" checked /> Terrain</label>
 	            <label class="layer-toggle"><input id="viewer3dEarthworkToggle" data-viewer3d-toggle="earthwork" type="checkbox" checked /> Earthwork</label>
 	            <label class="layer-toggle"><input id="viewer3dStructuresToggle" data-viewer3d-toggle="structures" type="checkbox" checked /> Bridges / Tunnels</label>
 	            <label class="layer-toggle"><input id="viewer3dInfrastructureToggle" data-viewer3d-toggle="infrastructure" type="checkbox" /> Infra & Assets</label>
@@ -2639,9 +2639,12 @@
 	            <label class="layer-toggle"><input id="viewer3dBoundaryToggle" data-viewer3d-toggle="boundary" type="checkbox" checked /> Land Boundary</label>
 	            <label class="layer-toggle"><input id="viewer3dEWStructuresToggle" data-viewer3d-toggle="ew_structures" type="checkbox" checked /> RW / Drains</label>
 	            <div style="width: 1px; height: 18px; background: rgba(255,255,255,0.1); margin: 0 4px;"></div>
-	            <label class="layer-toggle" style="color: #60a5fa; font-weight: 500;"><input id="viewer3dSatelliteToggle" data-viewer3d-toggle="satellite" type="checkbox" /> Satellite Map</label>
+	            <label class="layer-toggle" style="color: #60a5fa; font-weight: 500;"><input id="viewer3dSatelliteToggle" data-viewer3d-toggle="satellite" type="checkbox" checked /> Satellite Map</label>
 	          </div>
-	          <div id="flyHotspotLabel" style="font-size:0.82rem; font-weight:600; color:#facc15;">Open corridor</div>
+	          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+	            <div id="flyHotspotLabel" style="font-size:0.82rem; font-weight:600; color:#facc15;">Open corridor</div>
+	            <div id="flyTerrainSourceBadge" style="font-size:0.72rem; font-weight:700; color:#93c5fd; letter-spacing:0.02em;">Terrain: Loading | Map: Loading</div>
+	          </div>
 	        </div>
 	        <div id="threeContainer" style="flex: 1; background: #0b1020; position: relative;">
 	          <!-- Station Jump Menu -->

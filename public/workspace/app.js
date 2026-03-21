@@ -11070,12 +11070,33 @@ let viewer3dSatelliteBounds = null;
 let viewer3dSmoothedLookTarget = null;
 let viewer3dGoogleTerrainProfile = null;
 let viewer3dGoogleTerrainProfilePromise = null;
+let viewer3dArcGISTerrainProfile = null;
+let viewer3dArcGISTerrainProfilePromise = null;
+let viewer3dCesiumLoadPromise = null;
+const viewer3dSourceStatus = {
+  terrainSource: "Loading",
+  terrainSamples: 0,
+  mapSource: "Loading",
+  mapZoom: null,
+};
 const PLATFORM_EDGE_CLEARANCE_M = 1.95;
 const PLATFORM_TACTILE_STRIP_W_M = 0.6;
 const VIEWER3D_CAMERA_EASE = 0.1;
 const VIEWER3D_LOOK_EASE = 0.16;
 const VIEWER3D_GEOMETRY_SPACING_M = 1.5;
 const VIEWER3D_PATH_TANGENT_SMOOTHING_M = 25;
+
+function update3DViewerSourceBadge() {
+  const badge = document.getElementById("flyTerrainSourceBadge");
+  if (!badge) return;
+  const terrainPart = viewer3dSourceStatus.terrainSamples > 0
+    ? `${viewer3dSourceStatus.terrainSource} (${viewer3dSourceStatus.terrainSamples} samples)`
+    : viewer3dSourceStatus.terrainSource;
+  const mapPart = Number.isFinite(viewer3dSourceStatus.mapZoom)
+    ? `${viewer3dSourceStatus.mapSource} z${viewer3dSourceStatus.mapZoom}`
+    : viewer3dSourceStatus.mapSource;
+  badge.textContent = `Terrain: ${terrainPart} | Map: ${mapPart}`;
+}
 
 function get3DViewerActiveOptions() {
   return {
@@ -11123,8 +11144,78 @@ function get3DViewerGoogleTerrainProfileKey() {
   ].join("|");
 }
 
+function get3DViewerArcGISTerrainProfileKey() {
+  return [
+    "arcgis",
+    state?.kmlData?.points?.length || 0,
+    state?.calcRows?.length || 0,
+    safeNum(state?.calcRows?.[0]?.chainage, 0),
+    safeNum(state?.calcRows?.[state?.calcRows?.length - 1]?.chainage, 0),
+  ].join("|");
+}
+
+function reduce3DViewerProfilePoints(points, maxPoints = 512) {
+  if (!Array.isArray(points) || !points.length) return [];
+  if (points.length <= maxPoints) return points;
+  const reduced = [];
+  const step = Math.max(1, Math.ceil(points.length / maxPoints));
+  for (let i = 0; i < points.length; i += step) reduced.push(points[i]);
+  const last = points[points.length - 1];
+  if (reduced[reduced.length - 1] !== last) reduced.push(last);
+  return reduced;
+}
+
+function ensure3DViewerCesiumLoaded() {
+  if (window.Cesium) return Promise.resolve(window.Cesium);
+  if (viewer3dCesiumLoadPromise) return viewer3dCesiumLoadPromise;
+
+  const version = "1.124.0";
+  const baseUrl = `https://cdn.jsdelivr.net/npm/cesium@${version}/Build/Cesium/`;
+  const cssUrl = `${baseUrl}Widgets/widgets.css`;
+  const jsUrl = `${baseUrl}Cesium.js`;
+
+  viewer3dCesiumLoadPromise = new Promise((resolve, reject) => {
+    if (!document.getElementById("viewer3dCesiumCss")) {
+      const link = document.createElement("link");
+      link.id = "viewer3dCesiumCss";
+      link.rel = "stylesheet";
+      link.href = cssUrl;
+      document.head.appendChild(link);
+    }
+
+    if (window.CESIUM_BASE_URL == null) {
+      window.CESIUM_BASE_URL = baseUrl;
+    }
+
+    const existing = document.getElementById("viewer3dCesiumJs");
+    if (existing) {
+      existing.addEventListener("load", () => resolve(window.Cesium));
+      existing.addEventListener("error", () => reject(new Error("Failed to load Cesium for ArcGIS terrain sampling.")));
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = "viewer3dCesiumJs";
+    script.async = true;
+    script.src = jsUrl;
+    script.onload = () => {
+      if (window.Cesium) resolve(window.Cesium);
+      else reject(new Error("Cesium loaded but unavailable for 3D viewer terrain sampling."));
+    };
+    script.onerror = () => reject(new Error("Failed to load Cesium script for 3D viewer."));
+    document.head.appendChild(script);
+  }).catch((err) => {
+    viewer3dCesiumLoadPromise = null;
+    throw err;
+  });
+
+  return viewer3dCesiumLoadPromise;
+}
+
 function get3DViewerGoogleTerrainElevationM(chainageAbs) {
-  const profile = viewer3dGoogleTerrainProfile || (typeof window.getCachedGoogleTerrainProfile === "function" ? window.getCachedGoogleTerrainProfile() : null);
+  const profile = viewer3dArcGISTerrainProfile
+    || viewer3dGoogleTerrainProfile
+    || (typeof window.getCachedGoogleTerrainProfile === "function" ? window.getCachedGoogleTerrainProfile() : null);
   if (!profile?.samples?.length || !Number.isFinite(chainageAbs)) return NaN;
   const samples = profile.samples;
   if (chainageAbs <= safeNum(samples[0]?.chainage, NaN)) return safeNum(samples[0]?.elevationM, NaN);
@@ -11159,6 +11250,11 @@ function queue3DViewerGoogleTerrainProfile(forceReload = false) {
   const promise = Promise.resolve(window.ensureGoogleTerrainProfile(forceReload))
     .then((profile) => {
       viewer3dGoogleTerrainProfile = profile;
+      if (profile?.samples?.length && !viewer3dArcGISTerrainProfile?.samples?.length) {
+        viewer3dSourceStatus.terrainSource = "Google Terrain";
+        viewer3dSourceStatus.terrainSamples = profile.samples.length;
+        update3DViewerSourceBadge();
+      }
       const viewerModal = document.getElementById("viewer3dModal");
       if (profile && viewer3dScene && viewerModal?.open) {
         generate3DMesh();
@@ -11170,6 +11266,73 @@ function queue3DViewerGoogleTerrainProfile(forceReload = false) {
       viewer3dGoogleTerrainProfilePromise = null;
     });
   viewer3dGoogleTerrainProfilePromise = { key, promise };
+  return promise;
+}
+
+function queue3DViewerArcGISTerrainProfile(forceReload = false) {
+  if (!Array.isArray(state.calcRows) || !state.calcRows.length || !state?.kmlData?.points?.length) {
+    viewer3dArcGISTerrainProfile = null;
+    if (!viewer3dGoogleTerrainProfile?.samples?.length) {
+      viewer3dSourceStatus.terrainSource = "Model RL fallback";
+      viewer3dSourceStatus.terrainSamples = 0;
+      update3DViewerSourceBadge();
+    }
+    return Promise.resolve(null);
+  }
+
+  const key = get3DViewerArcGISTerrainProfileKey();
+  if (!forceReload && viewer3dArcGISTerrainProfile?.key === key) {
+    return Promise.resolve(viewer3dArcGISTerrainProfile);
+  }
+  if (!forceReload && viewer3dArcGISTerrainProfilePromise?.key === key) {
+    return viewer3dArcGISTerrainProfilePromise.promise;
+  }
+
+  const promise = ensure3DViewerCesiumLoaded()
+    .then(async (Cesium) => {
+      const sourcePoints = reduce3DViewerProfilePoints(state.kmlData.points, 512)
+        .filter((p) => Number.isFinite(safeNum(p?.lat, NaN)) && Number.isFinite(safeNum(p?.lng, NaN)))
+        .map((p) => ({ lat: safeNum(p.lat, NaN), lng: safeNum(p.lng, NaN), ch: safeNum(p.ch, NaN) }))
+        .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+      if (sourcePoints.length < 2) return null;
+
+      let provider = null;
+      if (Cesium.ArcGISTiledElevationTerrainProvider?.fromUrl) {
+        provider = await Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
+          "https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer"
+        );
+      }
+      if (!provider) return null;
+
+      const firstChAbs = safeNum(state.calcRows?.[0]?.chainage, 0);
+      const cartos = sourcePoints.map((p) => Cesium.Cartographic.fromDegrees(p.lng, p.lat));
+      const sampled = await Cesium.sampleTerrainMostDetailed(provider, cartos);
+      const samples = sampled.map((c, idx) => ({
+        chainage: firstChAbs + Math.max(0, safeNum(sourcePoints[idx]?.ch, 0)),
+        elevationM: safeNum(c?.height, NaN),
+      })).filter((s) => Number.isFinite(s.chainage) && Number.isFinite(s.elevationM));
+
+      if (!samples.length) return null;
+      viewer3dArcGISTerrainProfile = { key, source: "arcgis", samples };
+      viewer3dSourceStatus.terrainSource = "ArcGIS Elevation";
+      viewer3dSourceStatus.terrainSamples = samples.length;
+      update3DViewerSourceBadge();
+      return viewer3dArcGISTerrainProfile;
+    })
+    .catch((error) => {
+      console.warn("[3D Viewer] ArcGIS terrain profile failed:", error);
+      if (!viewer3dGoogleTerrainProfile?.samples?.length) {
+        viewer3dSourceStatus.terrainSource = "Model RL fallback";
+        viewer3dSourceStatus.terrainSamples = 0;
+        update3DViewerSourceBadge();
+      }
+      return null;
+    })
+    .finally(() => {
+      viewer3dArcGISTerrainProfilePromise = null;
+    });
+
+  viewer3dArcGISTerrainProfilePromise = { key, promise };
   return promise;
 }
 
@@ -12509,6 +12672,12 @@ function init3DViewer() {
    gridHelper.position.y = -10;
    viewer3dScene.add(gridHelper);
 
+   viewer3dSourceStatus.terrainSource = "Loading";
+   viewer3dSourceStatus.terrainSamples = 0;
+   viewer3dSourceStatus.mapSource = get3DViewerActiveOptions().satellite ? "Loading" : "Off";
+   viewer3dSourceStatus.mapZoom = null;
+   update3DViewerSourceBadge();
+
    generate3DMesh();
 
    function animate() {
@@ -12571,31 +12740,14 @@ function init3DViewer() {
 
 async function ensure3DViewerSatelliteTexture() {
   const points = state?.kmlData?.points;
-  // Try multiple sources for the Google Maps API key
-  let apiKey = "";
-  if (typeof getStoredGoogleMapsApiKey === "function") {
-    apiKey = getStoredGoogleMapsApiKey() || "";
-  }
-  if (!apiKey) {
-    try { apiKey = String(localStorage.getItem("earthsoft_google_maps_api_key") || "").trim(); } catch(_) {}
-  }
-  if (!apiKey) {
-    apiKey = String(window.EARTHSOFT_GOOGLE_MAPS_API_KEY || "").trim();
-  }
-  console.log("[3D Satellite] ensure called. points:", points?.length || 0, "apiKey:", apiKey ? "present (" + apiKey.slice(0,8) + "...)" : "MISSING");
-  if (!points?.length || !apiKey) {
-    console.warn("[3D Satellite] Skipping — no alignment points or no Google Maps API Key.");
-    if (points?.length && !apiKey) {
-      // Show a brief notification to the user
-      const label = document.getElementById("flyHotspotLabel");
-      if (label) {
-        label.textContent = "⚠ Satellite Map requires a Google Maps API Key. Set it in your browser storage or app configuration.";
-        label.style.color = "#f97316";
-        setTimeout(() => { label.style.color = ""; }, 8000);
-      }
-    }
+  console.log("[3D Satellite] ensure called. points:", points?.length || 0);
+  if (!points?.length) {
+    console.warn("[3D Satellite] Skipping — no alignment points.");
     viewer3dSatelliteTexture = null;
     viewer3dSatelliteBounds = null;
+    viewer3dSourceStatus.mapSource = "Off";
+    viewer3dSourceStatus.mapZoom = null;
+    update3DViewerSourceBadge();
     return null;
   }
 
@@ -12610,30 +12762,39 @@ async function ensure3DViewerSatelliteTexture() {
   const cacheKey = [minLat.toFixed(6), maxLat.toFixed(6), minLng.toFixed(6), maxLng.toFixed(6)].join("|");
   if (viewer3dSatelliteTexture && viewer3dSatelliteBounds?.key === cacheKey) {
     console.log("[3D Satellite] Using cached texture.");
+    viewer3dSourceStatus.mapSource = "ArcGIS Imagery";
+    viewer3dSourceStatus.mapZoom = safeNum(viewer3dSatelliteBounds?.zoom, NaN);
+    update3DViewerSourceBadge();
     return viewer3dSatelliteTexture;
   }
 
-  // Use Esri World_Street_Map tiles (free, CORS-enabled). 
-  // We use Street Map instead of Imagery so the user explicitly sees map features (roads, text, land use) 
-  // instead of ambiguous desert sand.
+  // Use ArcGIS World_Imagery tiles so the corridor runs over realistic map context.
   const tileSize = 256;
-  const canvasSize = 2048;
-  const tilesPerSide = canvasSize / tileSize; // 8x8 grid
+  const maxTexSize = Number.isFinite(viewer3dRenderer?.capabilities?.maxTextureSize)
+    ? viewer3dRenderer.capabilities.maxTextureSize
+    : 4096;
+  const canvasSize = maxTexSize >= 4096 ? 4096 : 3072;
+  const tilesPerSide = Math.max(8, Math.floor(canvasSize / tileSize));
 
-  // Pick zoom based on corridor length for optimal detail
-  const corridorLengthM = (state.calcRows?.length || 1) * (get3DViewerRowSpacingM?.() || 1);
-  const corridorLengthKm = corridorLengthM / 1000;
-  
-  // Choose zoom to roughly bounds the corridor in the 8x8 tile grid.
+  const lngToTileX = (lng, z) => ((lng + 180) / 360) * Math.pow(2, z);
+  const latToTileY = (lat, z) => {
+    const rad = lat * Math.PI / 180;
+    return (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * Math.pow(2, z);
+  };
+  // Highest zoom that still fits full corridor bbox in the stitched tile grid.
   let zoom = 11;
-  if (corridorLengthKm <= 8) zoom = 15;
-  else if (corridorLengthKm <= 16) zoom = 14;
-  else if (corridorLengthKm <= 30) zoom = 13;
-  else if (corridorLengthKm <= 60) zoom = 12;
+  for (let z = 17; z >= 10; z -= 1) {
+    const spanX = Math.ceil(Math.abs(lngToTileX(maxLng, z) - lngToTileX(minLng, z))) + 2;
+    const spanY = Math.ceil(Math.abs(latToTileY(maxLat, z) - latToTileY(minLat, z))) + 2;
+    if (spanX <= tilesPerSide && spanY <= tilesPerSide) {
+      zoom = z;
+      break;
+    }
+  }
 
   const centerLat = (minLat + maxLat) / 2;
   const centerLng = (minLng + maxLng) / 2;
-  console.log("[3D Satellite] Map center:", centerLat.toFixed(5), centerLng.toFixed(5), "zoom:", zoom, "corridorKm:", corridorLengthKm.toFixed(1));
+  console.log("[3D Satellite] Map center:", centerLat.toFixed(5), centerLng.toFixed(5), "zoom:", zoom, "tilesPerSide:", tilesPerSide);
 
   // Convert lat/lng to real tile coordinates at this zoom
   const n = Math.pow(2, zoom);
@@ -12670,6 +12831,11 @@ async function ensure3DViewerSatelliteTexture() {
         const tex = new THREE.Texture(canvas);
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.flipY = true; // For tile drawing to canvas, WebGL expects flipY=true
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        if (viewer3dRenderer?.capabilities?.getMaxAnisotropy) {
+          tex.anisotropy = Math.min(16, viewer3dRenderer.capabilities.getMaxAnisotropy());
+        }
         tex.needsUpdate = true;
         viewer3dSatelliteTexture = tex;
         viewer3dSatelliteBounds = {
@@ -12678,12 +12844,19 @@ async function ensure3DViewerSatelliteTexture() {
           minLng: gridMinLng,
           maxLng: gridMaxLng,
           key: cacheKey,
+          zoom,
         };
+        viewer3dSourceStatus.mapSource = "ArcGIS Imagery";
+        viewer3dSourceStatus.mapZoom = zoom;
+        update3DViewerSourceBadge();
         resolve(tex);
       } else {
         console.error("[3D Satellite] All map tiles failed to load.");
         viewer3dSatelliteTexture = null;
         viewer3dSatelliteBounds = null;
+        viewer3dSourceStatus.mapSource = "ArcGIS load failed";
+        viewer3dSourceStatus.mapZoom = null;
+        update3DViewerSourceBadge();
         resolve(null);
       }
     };
@@ -12692,8 +12865,7 @@ async function ensure3DViewerSatelliteTexture() {
       for (let dx = 0; dx < tilesPerSide; dx++) {
         const tileX = startTileX + dx;
         const tileY = startTileY + dy;
-        // ArcGIS street map provides a clear cartographic map.
-        const url = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${zoom}/${tileY}/${tileX}`;
+        const url = `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${tileY}/${tileX}`;
         
         const img = new Image();
         img.crossOrigin = "anonymous";
@@ -12711,6 +12883,7 @@ async function ensure3DViewerSatelliteTexture() {
 function generate3DMesh() {
 	   if (!viewer3dScene) return;
 	   viewer3dPathCache = null;
+	   queue3DViewerArcGISTerrainProfile();
 	   const cachedGoogleTerrain = typeof window.getCachedGoogleTerrainProfile === "function" ? window.getCachedGoogleTerrainProfile() : null;
 	   if (cachedGoogleTerrain?.key === get3DViewerGoogleTerrainProfileKey()) {
 	     viewer3dGoogleTerrainProfile = cachedGoogleTerrain;
@@ -12734,10 +12907,16 @@ function generate3DMesh() {
       // Satellite toggled off → clear cached texture so it's re-fetched if toggled back
       viewer3dSatelliteTexture = null;
       viewer3dSatelliteBounds = null;
+      viewer3dSourceStatus.mapSource = "Off";
+      viewer3dSourceStatus.mapZoom = null;
+      update3DViewerSourceBadge();
    }
 
 
    if (state.calcRows.length === 0) {
+      viewer3dSourceStatus.terrainSource = "Model RL fallback";
+      viewer3dSourceStatus.terrainSamples = 0;
+      update3DViewerSourceBadge();
       const helper = new THREE.GridHelper(200, 20, 0x3b82f6, 0x1e293b);
       helper.name = 'trackCorridor';
       viewer3dScene.add(helper);
@@ -13784,59 +13963,111 @@ function generate3DMesh() {
 	   });
 
   if (options.terrain && pointsGL.length > 1) {
-     const verts = [];
-     const indices = [];
-     const uvs = [];
+     const leftVerts = [];
+     const leftIndices = [];
+     const leftUvs = [];
+     const rightVerts = [];
+     const rightIndices = [];
+     const rightUvs = [];
      const contourMinorTransforms = [];
      const contourMajorTransforms = [];
-     const halfW = 120;
+     const getToeWidthForRow = (row, profile) => {
+       const envelope = profile?.envelope || {};
+       const baseWidth = Math.max(
+         safeNum(envelope.overallWidth, 0),
+         safeNum(envelope.currentFormationW, formationW),
+         safeNum(formationW, 0),
+         8
+       );
+       if (safeNum(row?.bank, 0) > 0.001) return Math.max(baseWidth, safeNum(row?.fillBottom, baseWidth));
+       if (safeNum(row?.cut, 0) > 0.001) return Math.max(baseWidth, safeNum(row?.cutBottom, baseWidth));
+       return baseWidth;
+     };
+     let maxInnerHalf = 8;
+     for (let i = 0; i < pointsGL.length; i += 1) {
+       const profile = rowProfiles[i];
+       const row = profile?.row || state.calcRows?.[i] || null;
+       const toeWidth = getToeWidthForRow(row, profile);
+       maxInnerHalf = Math.max(maxInnerHalf, (toeWidth / 2) + 4);
+     }
+     const halfW = Math.max(120, Math.min(360, maxInnerHalf + 36));
+     const origin = state.kmlData?.points?.[0];
+     const b = viewer3dSatelliteBounds;
+     const metersPerDegLat = 111320;
+     const metersPerDegLng = Number.isFinite(origin?.lat)
+       ? Math.cos(origin.lat * Math.PI / 180) * metersPerDegLat
+       : metersPerDegLat;
+
+     const getUV = (vec) => {
+       if (!(options.satellite && b && Number.isFinite(origin?.lat) && Number.isFinite(origin?.lng))) return null;
+       const lat = origin.lat + (-vec.z / metersPerDegLat);
+       const lng = origin.lng + (vec.x / metersPerDegLng);
+       const u = Math.max(0, Math.min(1, (lng - b.minLng) / (b.maxLng - b.minLng)));
+       const v = Math.max(0, Math.min(1, 1.0 - (lat - b.minLat) / (b.maxLat - b.minLat)));
+       return [u, v];
+     };
+
+     const pushStripRow = (outerVec, innerVec, rowRatio, stripVerts, stripUvs) => {
+       stripVerts.push(outerVec.x, outerVec.y, outerVec.z);
+       stripVerts.push(innerVec.x, innerVec.y, innerVec.z);
+       const uvOuter = getUV(outerVec);
+       const uvInner = getUV(innerVec);
+       if (uvOuter && uvInner) {
+         stripUvs.push(...uvOuter, ...uvInner);
+       } else {
+         stripUvs.push(0, rowRatio, 1, rowRatio);
+       }
+     };
+
      for (let i = 0; i < pointsGL.length; i += 1) {
        const point = pointsGL[i];
        const frame = rowFrames[i];
-       const leftVec = (useAlignedPath && frame) 
+       const profile = rowProfiles[i];
+       const row = profile?.row || state.calcRows?.[i] || null;
+       const toeWidth = getToeWidthForRow(row, profile);
+       const innerHalf = Math.max(8, Math.min(halfW - 8, (toeWidth / 2) + 4));
+
+       const leftOuter = (useAlignedPath && frame)
          ? frame.centerVec.clone().add(frame.normalVec.clone().multiplyScalar(-halfW)).setY(point.y)
          : new THREE.Vector3(-halfW, point.y, point.z);
-       const rightVec = (useAlignedPath && frame)
+       const leftInner = (useAlignedPath && frame)
+         ? frame.centerVec.clone().add(frame.normalVec.clone().multiplyScalar(-innerHalf)).setY(point.y)
+         : new THREE.Vector3(-innerHalf, point.y, point.z);
+       const rightInner = (useAlignedPath && frame)
+         ? frame.centerVec.clone().add(frame.normalVec.clone().multiplyScalar(innerHalf)).setY(point.y)
+         : new THREE.Vector3(innerHalf, point.y, point.z);
+       const rightOuter = (useAlignedPath && frame)
          ? frame.centerVec.clone().add(frame.normalVec.clone().multiplyScalar(halfW)).setY(point.y)
          : new THREE.Vector3(halfW, point.y, point.z);
-       
-       verts.push(leftVec.x, leftVec.y, leftVec.z);
-       verts.push(rightVec.x, rightVec.y, rightVec.z);
+       const rowRatio = pointsGL.length > 1 ? (i / (pointsGL.length - 1)) : 0;
+       pushStripRow(leftOuter, leftInner, rowRatio, leftVerts, leftUvs);
+       pushStripRow(rightInner, rightOuter, rowRatio, rightVerts, rightUvs);
 
-       if (options.satellite && viewer3dSatelliteBounds) {
-         const b = viewer3dSatelliteBounds;
-         const origin = state.kmlData.points[0];
-         const metersPerDegLat = 111320;
-         const metersPerDegLng = Math.cos(origin.lat * Math.PI / 180) * metersPerDegLat;
-
-         const getUV = (vec) => {
-            const lat = origin.lat + (-vec.z / metersPerDegLat);
-            const lng = origin.lng + (vec.x / metersPerDegLng);
-            const u = Math.max(0, Math.min(1, (lng - b.minLng) / (b.maxLng - b.minLng)));
-            // flipY=false: v=0 is top of image (north), v=1 is bottom (south)
-            const v = Math.max(0, Math.min(1, 1.0 - (lat - b.minLat) / (b.maxLat - b.minLat)));
-            return [u, v];
-         };
-         uvs.push(...getUV(leftVec), ...getUV(rightVec));
-       } else {
-         uvs.push(0, i / pointsGL.length, 1, i / pointsGL.length);
+     }
+     const buildStripIndices = (target, rowCount) => {
+       for (let i = 0; i < rowCount - 1; i += 1) {
+         const a = i * 2;
+         const b2 = (i * 2) + 1;
+         const c = (i + 1) * 2;
+         const d = ((i + 1) * 2) + 1;
+         target.push(a, b2, d);
+         target.push(a, d, c);
        }
+     };
+     buildStripIndices(leftIndices, pointsGL.length);
+     buildStripIndices(rightIndices, pointsGL.length);
 
-     }
-     for (let i = 0; i < pointsGL.length - 1; i += 1) {
-       const a = i * 2;
-       const b = (i * 2) + 1;
-       const c = (i + 1) * 2;
-       const d = ((i + 1) * 2) + 1;
-       indices.push(a, b, d);
-       indices.push(a, d, c);
-     }
-     const groundGeo = new THREE.BufferGeometry();
-     groundGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-     groundGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-     groundGeo.setIndex(indices);
-     groundGeo.computeVertexNormals();
-     terrainGroup.add(new THREE.Mesh(groundGeo, landMat));
+     const addGroundStrip = (verts, uvs, indices) => {
+       if (!verts.length || !indices.length) return;
+       const geo = new THREE.BufferGeometry();
+       geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+       geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+       geo.setIndex(indices);
+       geo.computeVertexNormals();
+       terrainGroup.add(new THREE.Mesh(geo, landMat));
+     };
+     addGroundStrip(leftVerts, leftUvs, leftIndices);
+     addGroundStrip(rightVerts, rightUvs, rightIndices);
 
      const groundLevels = pointsGL.map((point) => point.y).filter((value) => Number.isFinite(value));
      if (groundLevels.length > 1) {
@@ -14140,6 +14371,27 @@ function generate3DMesh() {
 	       });
 	     });
 	   }
+
+   terrainGroup.renderOrder = 0;
+   corridorGroup.renderOrder = 2;
+   earthworkGroup.renderOrder = 3;
+   structuresGroup.renderOrder = 4;
+   labelsGroup.renderOrder = 5;
+   overlayGroup.renderOrder = 4;
+
+   terrainGroup.traverse((node) => {
+     if (!node?.isMesh || !node.material) return;
+     node.renderOrder = 0;
+     node.material.polygonOffset = true;
+     node.material.polygonOffsetFactor = 1;
+     node.material.polygonOffsetUnits = 1;
+   });
+   earthworkGroup.traverse((node) => {
+     if (!node?.isMesh || !node.material) return;
+     node.material.polygonOffset = true;
+     node.material.polygonOffsetFactor = 1.5;
+     node.material.polygonOffsetUnits = 2;
+   });
 
    viewer3dScene.add(trackGroup);
 }
