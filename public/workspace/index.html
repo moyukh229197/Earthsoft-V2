@@ -2606,6 +2606,12 @@
                 <button class="cam-preset-btn" data-cam="right" title="Right Side View" style="background: transparent; border: 1px solid rgba(255,255,255,0.15); color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 0.7rem; font-weight: 600;">Right</button>
                 <button class="cam-preset-btn" data-cam="iso" title="Isometric View" style="background: transparent; border: 1px solid rgba(255,255,255,0.15); color: white; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 0.7rem; font-weight: 600;">ISO</button>
                 <div style="width: 1px; height: 16px; background: rgba(255,255,255,0.2); margin: 0 4px;"></div>
+                <div style="display: flex; align-items: center; gap: 8px; padding-left: 4px;">
+                  <span style="font-size: 0.65rem; color: var(--text-muted); font-weight: 700; letter-spacing: 0.05em;">HEIGHT</span>
+                  <input type="range" id="flyCameraHeightSlider" min="1" max="200" value="10" style="width: 70px; height: 4px; appearance: none; -webkit-appearance: none; background: rgba(255,255,255,0.2); border-radius: 2px; outline: none; cursor: pointer;" />
+                  <span id="flyCameraHeightVal" style="font-size: 0.7rem; color: #facc15; font-weight: 700; min-width: 32px;">10m</span>
+                </div>
+                <div style="width: 1px; height: 16px; background: rgba(255,255,255,0.2); margin: 0 4px;"></div>
                 <button id="togglePanModeBtn" title="Toggle Left-Click: Pan or Rotate" style="background: transparent; border: 1px solid rgba(255,255,255,0.15); color: #a78bfa; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 0.7rem; font-weight: 600; display:flex; align-items:center; gap:4px;"><i class="ri-drag-move-fill"></i> Pan</button>
 	              </div>
 	              <!-- Action Buttons -->
@@ -2638,12 +2644,32 @@
 	            .layer-toggle input[type="checkbox"]:checked::after {
 	              transform: translateX(16px);
 	            }
+	            #flyCameraHeightSlider::-webkit-slider-thumb {
+	              appearance: none; -webkit-appearance: none; width: 12px; height: 12px;
+	              background: #facc15; border-radius: 50%; border: none; box-shadow: 0 0 6px rgba(0,0,0,0.5);
+	            }
+	            .station-jump-item {
+	              background: rgba(11, 16, 32, 0.4); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+	              border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px 18px; border-radius: 12px;
+	              color: #f1f5f9; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+	              transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column;
+	              gap: 2px; pointer-events: auto; border-left: 3px solid transparent; width: 140px; margin-bottom: 6px;
+	            }
+	            .station-jump-item:hover {
+	              background: rgba(30, 41, 59, 0.6); border-color: rgba(56, 189, 248, 0.4);
+	              border-left-color: #38bdf8; transform: translateX(-8px); color: #ffffff;
+	              box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+	            }
+	            .station-jump-item .ch-label {
+	              font-size: 0.65rem; color: rgba(255, 255, 255, 0.45); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+	            }
 	          </style>
 	          <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
 	            <span style="font-size:0.72rem; color:rgba(255,255,255,0.55); font-weight:700; letter-spacing:0.08em; text-transform:uppercase; margin-right: 4px;">Layers</span>
-	            <label class="layer-toggle"><input id="viewer3dTerrainToggle" data-viewer3d-toggle="terrain" type="checkbox" checked /> Terrain</label>
+	            <label class="layer-toggle"><input id="viewer3dTerrainToggle" data-viewer3d-toggle="terrain" type="checkbox" /> Terrain</label>
 	            <label class="layer-toggle"><input id="viewer3dEarthworkToggle" data-viewer3d-toggle="earthwork" type="checkbox" checked /> Earthwork</label>
 	            <label class="layer-toggle"><input id="viewer3dStructuresToggle" data-viewer3d-toggle="structures" type="checkbox" checked /> Bridges / Tunnels</label>
+	            <label class="layer-toggle"><input id="viewer3dInfrastructureToggle" data-viewer3d-toggle="infrastructure" type="checkbox" /> Infra & Assets</label>
 	            <label class="layer-toggle"><input id="viewer3dLabelsToggle" data-viewer3d-toggle="labels" type="checkbox" checked /> Labels</label>
 	            <label class="layer-toggle"><input id="viewer3dBoundaryToggle" data-viewer3d-toggle="boundary" type="checkbox" checked /> Land Boundary</label>
 	            <label class="layer-toggle"><input id="viewer3dEWStructuresToggle" data-viewer3d-toggle="ew_structures" type="checkbox" checked /> RW / Drains</label>
@@ -2653,6 +2679,10 @@
 	          <div id="flyHotspotLabel" style="font-size:0.82rem; font-weight:600; color:#facc15;">Open corridor</div>
 	        </div>
 	        <div id="threeContainer" style="flex: 1; background: #0b1020; position: relative;">
+	          <!-- Station Jump Menu -->
+	          <div id="stationJumpMenu" style="position: absolute; right: 20px; top: 20px; z-index: 10; display: flex; flex-direction: column; gap: 8px; max-height: calc(100% - 100px); overflow-y: auto; pointer-events: none; scrollbar-width: none;">
+	            <!-- Dynamically populated by app.js -->
+	          </div>
 	          <!-- HUD Overlay -->
 	          <div id="flyHUD" style="position: absolute; bottom: 20px; left: 20px; z-index: 10; display: flex; gap: 12px; pointer-events: none; flex-wrap: wrap; max-width: calc(100% - 40px);">
 	            <div style="background: rgba(11,16,32,0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px 16px; display: flex; flex-direction: column;">

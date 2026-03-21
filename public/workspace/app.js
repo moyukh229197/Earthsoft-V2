@@ -11049,6 +11049,7 @@ window.addEventListener("keydown", (e) => {
 let viewer3dScene, viewer3dCamera, viewer3dRenderer, viewer3dControls;
 let animationId;
 let flying = false;
+let viewer3dFlyZTarget = null;
 let flyZ = 0;
 const flyStep = 10;
 let flySpeed = 0.5; // Default speed multiplier
@@ -11082,6 +11083,7 @@ function get3DViewerActiveOptions() {
     contours: document.getElementById("viewer3dContoursToggle")?.checked ?? true,
     earthwork: document.getElementById("viewer3dEarthworkToggle")?.checked ?? true,
     structures: document.getElementById("viewer3dStructuresToggle")?.checked ?? true,
+    infrastructure: document.getElementById("viewer3dInfrastructureToggle")?.checked ?? false,
     labels: document.getElementById("viewer3dLabelsToggle")?.checked ?? true,
     boundary: document.getElementById("viewer3dBoundaryToggle")?.checked ?? true,
     ewStructures: document.getElementById("viewer3dEWStructuresToggle")?.checked ?? true,
@@ -11681,6 +11683,92 @@ function build3DViewerRibbonGeometry(samples, xMinResolver, xMaxResolver, yResol
   return geometry;
 }
 
+function build3DViewerProfileExtrusion(samples, xCenterResolver, yBaseResolver, profilePoints) {
+  const sourceSamples = densify3DViewerSamples(samples);
+  if (!Array.isArray(sourceSamples) || sourceSamples.length < 2) return null;
+  const verts = [];
+  const indices = [];
+  let validCount = 0;
+  
+  const N = profilePoints.length;
+
+  sourceSamples.forEach((sample) => {
+    if (!sample?.frame) return;
+    const xc = xCenterResolver(sample);
+    const yb = yBaseResolver(sample);
+    if (!Number.isFinite(xc) || !Number.isFinite(yb)) return;
+
+    for (let p = 0; p < N; p++) {
+      const pt = profilePoints[p];
+      const vec3 = get3DViewerFramePoint(sample.frame, xc + pt.dx, yb + pt.dy, 0);
+      verts.push(vec3.x, vec3.y, vec3.z);
+    }
+    validCount += 1;
+  });
+
+  if (validCount < 2) return null;
+  
+  for (let i = 0; i < validCount - 1; i++) {
+    const rCurrent = i * N;
+    const rNext = (i + 1) * N;
+    for (let p = 0; p < N; p++) {
+      const pNext = (p + 1) % N;
+      const v0 = rCurrent + p;
+      const v1 = rCurrent + pNext;
+      const v2 = rNext + pNext;
+      const v3 = rNext + p;
+      indices.push(v0, v1, v2);
+      indices.push(v0, v2, v3);
+    }
+  }
+
+  // Generate End Caps
+  for (let p = 1; p < N - 1; p++) {
+    indices.push(0, p + 1, p);
+    const offset = (validCount - 1) * N;
+    indices.push(offset, offset + p, offset + p + 1);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function build3DStraightRailGeometry(frame, centerOffset, yBase, length, profile) {
+    if (!frame) return null;
+    const geometry = new THREE.BufferGeometry();
+    const verts = [];
+    const indices = [];
+    const N = profile.length;
+    for (let i = 0; i < N; i++) {
+        const pt = get3DViewerFramePoint(frame, centerOffset + profile[i].dx, yBase + profile[i].dy, -length / 2);
+        verts.push(pt.x, pt.y, pt.z);
+    }
+    for (let i = 0; i < N; i++) {
+        const pt = get3DViewerFramePoint(frame, centerOffset + profile[i].dx, yBase + profile[i].dy, length / 2);
+        verts.push(pt.x, pt.y, pt.z);
+    }
+    for (let i = 0; i < N; i++) {
+        const next = (i + 1) % N;
+        const v0 = i;
+        const v1 = next;
+        const v2 = next + N;
+        const v3 = i + N;
+        indices.push(v0, v1, v2, v0, v2, v3);
+    }
+    for (let i = 1; i < N - 1; i++) {
+        indices.push(0, i + 1, i);
+        indices.push(N, N + i, N + i + 1);
+    }
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    return geometry;
+}
+
+
 function build3DViewerSideGeometry(samples, xResolver, yTopResolver, yBottomResolver) {
   const sourceSamples = densify3DViewerSamples(samples);
   if (!Array.isArray(sourceSamples) || sourceSamples.length < 2) return null;
@@ -11750,6 +11838,71 @@ function build3DViewerSlopedSideGeometry(samples, xTopResolver, xBottomResolver,
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   return geometry;
+}
+
+function build3DG44SleeperGeometry() {
+  const geom = new THREE.BufferGeometry();
+  const vertices = [];
+  const indices = [];
+
+  // G44 dimensions (meters)
+  // X = transversal across track, Y = vertical height, Z = longitudinal along track
+  const xProfile = [-1.25, -0.8425, 0, 0.8425, 1.25];
+  const yTop = [0.210, 0.200, 0.175, 0.200, 0.210];
+  const topZ = 0.100; // 200mm width at top
+  const botZ = 0.1425; // 285mm width at bottom
+
+  const sections = xProfile.length; // 5
+  
+  // Create 5 transversal cross-sections resulting in a lofted structure
+  for (let i = 0; i < sections; i++) {
+    let x = xProfile[i];
+    let yT = yTop[i];
+    vertices.push(x, 0, -botZ);  // 0: Bottom-Back
+    vertices.push(x, 0, botZ);   // 1: Bottom-Front
+    vertices.push(x, yT, topZ);  // 2: Top-Front
+    vertices.push(x, yT, -topZ); // 3: Top-Back
+  }
+
+  // Connect the loft segments
+  for (let i = 0; i < sections - 1; i++) {
+    let base = i * 4;
+    let next = (i + 1) * 4;
+
+    // Bottom face
+    indices.push(base+0, next+1, next+0);
+    indices.push(base+0, base+1, next+1);
+
+    // Front face
+    indices.push(base+1, next+2, next+1);
+    indices.push(base+1, base+2, next+2);
+
+    // Top face
+    indices.push(base+2, next+3, next+2);
+    indices.push(base+2, base+3, next+3);
+
+    // Back face
+    indices.push(base+3, next+0, next+3);
+    indices.push(base+3, base+0, next+0);
+  }
+
+  // Endcaps
+  // Left cap (X = -1.25)
+  indices.push(0, 3, 2);
+  indices.push(0, 2, 1);
+  
+  // Right cap (X = 1.25)
+  indices.push(16, 17, 18);
+  indices.push(16, 18, 19);
+
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geom.setIndex(indices);
+  geom.computeVertexNormals();
+
+  // Offset geometry Y vertically by half its tallest height so `sleeperCenterY` inherently aligns with geometry origin
+  geom.translate(0, -0.105, 0);
+
+  return geom;
 }
 
 function build3DTunnelGeometry(samples, innerRadius, outerRadius, yOffset = 0) {
@@ -12229,14 +12382,22 @@ function focus3DCameraAtIndex(idx) {
 function jump3DToChainage(chainage, options = {}) {
   if (!Number.isFinite(chainage) || !Array.isArray(state.calcRows) || !state.calcRows.length) return;
   const idx = findNearestCalcRowIndexByChainage(chainage);
-  flyZ = -idx * flyStep;
+  const targetZ = -idx * flyStep;
+  
   if (options.pause) {
     flying = false;
     const playBtn = document.getElementById("playFlyBtn");
     if (playBtn) playBtn.innerHTML = '<i class="ri-play-fill" style="margin-right:4px;"></i> Simulate';
   }
-  focus3DCameraAtIndex(idx);
-  update3DHUD(state.calcRows[idx], idx);
+
+  if (options.smooth) {
+    viewer3dFlyZTarget = targetZ;
+  } else {
+    flyZ = targetZ;
+    viewer3dFlyZTarget = null; // Abort any ongoing smooth jump
+    focus3DCameraAtIndex(idx);
+    update3DHUD(state.calcRows[idx], idx);
+  }
 }
 
 function collect3DHotspots() {
@@ -12272,6 +12433,38 @@ function collect3DHotspots() {
 
   hotspots.sort((a, b) => a.idx - b.idx);
   return hotspots.slice(0, 40);
+}
+
+function update3DStationJumpMenu() {
+  const container = document.getElementById("stationJumpMenu");
+  if (!container) return;
+  container.innerHTML = "";
+  
+  const stations = getGroupedStations();
+  if (!stations || !stations.length) return;
+  
+  stations.sort((a, b) => {
+    const chA = Number.isFinite(a.csb) ? a.csb : a.loopStartCh;
+    const chB = Number.isFinite(b.csb) ? b.csb : b.loopStartCh;
+    return chA - chB;
+  });
+  
+  stations.forEach(st => {
+    const ch = Number.isFinite(st.csb) ? st.csb : st.loopStartCh;
+    if (!Number.isFinite(ch)) return;
+    
+    const item = document.createElement("div");
+    item.className = "station-jump-item";
+    item.innerHTML = `
+      <span class="ch-label">${formatReportChainage(ch)}</span>
+      <span>${st.station}</span>
+    `;
+    item.onclick = (e) => {
+      e.stopPropagation();
+      jump3DToChainage(ch, { pause: true, smooth: true });
+    };
+    container.appendChild(item);
+  });
 }
 
 function init3DViewer() {
@@ -12323,7 +12516,15 @@ function init3DViewer() {
      animationId = requestAnimationFrame(animate);
      
      if (state.calcRows.length > 0) {
-        if (flying) {
+        if (viewer3dFlyZTarget !== null) {
+          const delta = viewer3dFlyZTarget - flyZ;
+          if (Math.abs(delta) < 0.2) {
+            flyZ = viewer3dFlyZTarget;
+            viewer3dFlyZTarget = null;
+          } else {
+            flyZ += delta * 0.12;
+          }
+        } else if (flying) {
           const speedMultiplier = parseFloat(document.getElementById("flySpeedSelect")?.value || "0.5");
           flyZ -= (flyStep * 0.1) * speedMultiplier;
           
@@ -12552,8 +12753,20 @@ function generate3DMesh() {
    trackGroup.name = 'trackCorridor';
    const RAIL_GAUGE_M = 1.676;
    const RAIL_CENTER_OFFSET_M = RAIL_GAUGE_M / 2;
-   const RAIL_HEAD_WIDTH_M = 0.1;
-   const RAIL_HALF_WIDTH_M = RAIL_HEAD_WIDTH_M / 2;
+   const RAIL_PROFILE_90RA = [
+     { dx: -0.0651, dy: 0 },         // Foot bottom left
+     { dx: 0.0651, dy: 0 },          // Foot bottom right
+     { dx: 0.0651, dy: 0.008 },       // Foot edge
+     { dx: 0.00715, dy: 0.0254 },     // Foot top / Web start (1" height at center)
+     { dx: 0.00715, dy: 0.1056 },     // Web top
+     { dx: 0.03255, dy: 0.115 },      // Head flare start
+     { dx: 0.03255, dy: 0.1429 },     // Head top outer
+     { dx: -0.03255, dy: 0.1429 },    // Head top outer left
+     { dx: -0.03255, dy: 0.115 },     // Head flare start left
+     { dx: -0.00715, dy: 0.1056 },    // Web top left
+     { dx: -0.00715, dy: 0.0254 },    // Web start left
+     { dx: -0.0651, dy: 0.008 }       // Foot edge left
+   ];
 
    const terrainGroup = new THREE.Group();
    const corridorGroup = new THREE.Group();
@@ -12592,7 +12805,7 @@ function generate3DMesh() {
 	   const ballastMat = new THREE.MeshStandardMaterial({ color: 0x4b5563, side: THREE.DoubleSide, roughness: 0.95, metalness: 0.04 });
 	   const formationMat = new THREE.MeshStandardMaterial({ color: 0xB2BEB5, side: THREE.DoubleSide, roughness: 0.82, metalness: 0.05 });
 	   const railMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, side: THREE.DoubleSide, metalness: 0.9, roughness: 0.15 });
-	   const sleeperMat = new THREE.MeshStandardMaterial({ color: 0x4b5563, side: THREE.DoubleSide, roughness: 0.85 });
+	   const sleeperMat = new THREE.MeshStandardMaterial({ color: 0x9ca3af, side: THREE.DoubleSide, roughness: 0.95, metalness: 0.1 });
 	   const platformTopMat = new THREE.MeshStandardMaterial({
 	     color: 0xbfb8ab,
 	     map: get3DViewerPlatformSurfaceTexture(),
@@ -12821,7 +13034,7 @@ function generate3DMesh() {
 	     tracks.forEach((track) => {
 	       const cx = safeNum(track.offset, 0);
 	       if (!useAlignedPath && i % 2 === 0) {
-	         const sleeper = new THREE.Mesh(new THREE.BoxGeometry(2.75, trackProfile.sleeperThickness, 0.42), sleeperMat);
+	         const sleeper = new THREE.Mesh(build3DG44SleeperGeometry(), sleeperMat);
 	         sleeper.position.copy(get3DViewerFramePoint(frame, cx, (trackProfile.sleeperTop + trackProfile.sleeperBottom) / 2, 0));
 	         if (frame) sleeper.rotation.y = frame.headingY;
 	         corridorGroup.add(sleeper);
@@ -12842,14 +13055,11 @@ function generate3DMesh() {
 	           sleeperThickness: trackProfile.sleeperThickness,
 	         });
 	       } else {
-	         const railL = new THREE.Mesh(new THREE.BoxGeometry(RAIL_HEAD_WIDTH_M, trackProfile.railHeight, flyStep), railMat);
-	         railL.position.copy(get3DViewerFramePoint(frame, cx - RAIL_CENTER_OFFSET_M, trackProfile.railCenter, 0));
-	         if (frame) railL.rotation.y = frame.headingY;
-	         corridorGroup.add(railL);
-	         const railR = new THREE.Mesh(new THREE.BoxGeometry(RAIL_HEAD_WIDTH_M, trackProfile.railHeight, flyStep), railMat);
-	         railR.position.copy(get3DViewerFramePoint(frame, cx + RAIL_CENTER_OFFSET_M, trackProfile.railCenter, 0));
-	         if (frame) railR.rotation.y = frame.headingY;
-	         corridorGroup.add(railR);
+	         const railLGeo = build3DStraightRailGeometry(frame, cx - RAIL_CENTER_OFFSET_M, trackProfile.railCenter - (trackProfile.railHeight / 2), flyStep, RAIL_PROFILE_90RA);
+	         const railRGeo = build3DStraightRailGeometry(frame, cx + RAIL_CENTER_OFFSET_M, trackProfile.railCenter - (trackProfile.railHeight / 2), flyStep, RAIL_PROFILE_90RA);
+	         
+	         if (railLGeo) corridorGroup.add(new THREE.Mesh(railLGeo, railMat));
+	         if (railRGeo) corridorGroup.add(new THREE.Mesh(railRGeo, railMat));
 	       }
 	     });
 
@@ -12885,41 +13095,6 @@ function generate3DMesh() {
 	         corridorGroup.add(platformMesh);
 	       }
 
-	       if (options.labels && i % 12 === 0 && platformIdx === 0) {
-	         const stationName = String(platform.row?.station || "Station").trim() || "Station";
-	         const stationKey = stationName.toLowerCase();
-	         if (renderedStationBoards.has(stationKey)) return;
-	         renderedStationBoards.add(stationKey);
-	         const canvas = document.createElement('canvas');
-         canvas.width = 512;
-         canvas.height = 128;
-         const ctx = canvas.getContext('2d');
-         ctx.fillStyle = '#facc15';
-         ctx.fillRect(0, 0, 512, 128);
-         ctx.fillStyle = '#0f172a';
-         ctx.font = 'bold 64px sans-serif';
-         ctx.textAlign = 'center';
-         ctx.textBaseline = 'middle';
-         ctx.fillText(stationName.toUpperCase(), 256, 64);
-         ctx.lineWidth = 10;
-         ctx.strokeStyle = '#0f172a';
-         ctx.strokeRect(0, 0, 512, 128);
-         const texture = new THREE.CanvasTexture(canvas);
-         const board = new THREE.Mesh(new THREE.BoxGeometry(8, 2, 0.2), new THREE.MeshBasicMaterial({ map: texture }));
-	         board.position.copy(get3DViewerFramePoint(frame, cx, topY + 2.6, 0));
-         if (frame) board.rotation.y = frame.headingY;
-         labelsGroup.add(board);
-         const postGeo = new THREE.BoxGeometry(0.2, 3, 0.2);
-         const postMat = new THREE.MeshBasicMaterial({ color: 0x334155 });
-         const post1 = new THREE.Mesh(postGeo, postMat);
-	         post1.position.copy(get3DViewerFramePoint(frame, cx - 3.5, topY + 1.1, 0));
-         if (frame) post1.rotation.y = frame.headingY;
-         const post2 = new THREE.Mesh(postGeo, postMat);
-	         post2.position.copy(get3DViewerFramePoint(frame, cx + 3.5, topY + 1.1, 0));
-         if (frame) post2.rotation.y = frame.headingY;
-         labelsGroup.add(post1);
-         labelsGroup.add(post2);
-       }
      });
 
      if (options.structures && bridgeInRange) {
@@ -13012,35 +13187,17 @@ function generate3DMesh() {
        }
      }
 
-     if (options.labels) {
+     if (options.infrastructure) {
        const currentKm = Math.floor(safeNum(row.chainage, 0) / 1000);
        if (currentKm > lastRenderedKm || i === 0 || i === maxDisplay - 1) {
-         if (i !== 0 || currentKm >= 0) {
-           const canvas = document.createElement('canvas');
-           canvas.width = 256;
-           canvas.height = 128;
-           const ctx = canvas.getContext('2d');
-           ctx.fillStyle = '#facc15';
-           ctx.fillRect(0, 0, 256, 128);
-           ctx.fillStyle = '#0f172a';
-           ctx.font = 'bold 54px sans-serif';
-           ctx.textAlign = 'center';
-           ctx.textBaseline = 'middle';
-           ctx.fillText(`KM ${currentKm}`, 128, 64);
-           ctx.lineWidth = 10;
-           ctx.strokeStyle = '#0f172a';
-           ctx.strokeRect(0, 0, 256, 128);
-           const tex = new THREE.CanvasTexture(canvas);
-           const board = new THREE.Mesh(new THREE.BoxGeometry(5, 3, 0.2), new THREE.MeshBasicMaterial({ map: tex }));
-           board.position.copy(get3DViewerFramePoint(frame, centerOffset + (currentFormationW / 2) + 5, yPos + 5, 0));
-           if (frame) board.rotation.y = frame.headingY;
-           labelsGroup.add(board);
-           const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, 5, 0.4), new THREE.MeshBasicMaterial({ color: 0x334155 }));
-           post.position.copy(get3DViewerFramePoint(frame, centerOffset + (currentFormationW / 2) + 5, yPos + 2.5, 0));
-           if (frame) post.rotation.y = frame.headingY;
-           labelsGroup.add(post);
-           lastRenderedKm = currentKm;
-         }
+          if (i !== 0 || currentKm >= 0) {
+            if (frame) {
+              const kmStoneOffset = centerOffset - (currentFormationW / 2) - 3.5;
+              const stone = createKMStone(frame, kmStoneOffset, yPos, `KM ${currentKm}`);
+              labelsGroup.add(stone);
+            }
+            lastRenderedKm = currentKm;
+          }
        }
      }
    }
@@ -13112,32 +13269,144 @@ function generate3DMesh() {
 
 	   railRibbonSamplesByKey.forEach((samples, key) => {
 	     split3DViewerSamplesByGap(samples).forEach((group) => {
-       const leftRail = build3DViewerRibbonGeometry(
+       const leftRail = build3DViewerProfileExtrusion(
          group,
-         (sample) => sample.centerOffset - RAIL_CENTER_OFFSET_M - RAIL_HALF_WIDTH_M,
-         (sample) => sample.centerOffset - RAIL_CENTER_OFFSET_M + RAIL_HALF_WIDTH_M,
-         (sample) => sample.yCenter + (sample.thickness / 2),
+         (sample) => sample.centerOffset - RAIL_CENTER_OFFSET_M,
+         (sample) => sample.yCenter - (sample.thickness / 2), // yBase sits perfectly on ballast/sleeper
+         RAIL_PROFILE_90RA
        );
-       const rightRail = build3DViewerRibbonGeometry(
+       const rightRail = build3DViewerProfileExtrusion(
          group,
-         (sample) => sample.centerOffset + RAIL_CENTER_OFFSET_M - RAIL_HALF_WIDTH_M,
-         (sample) => sample.centerOffset + RAIL_CENTER_OFFSET_M + RAIL_HALF_WIDTH_M,
-         (sample) => sample.yCenter + (sample.thickness / 2),
+         (sample) => sample.centerOffset + RAIL_CENTER_OFFSET_M,
+         (sample) => sample.yCenter - (sample.thickness / 2),
+         RAIL_PROFILE_90RA
        );
        if (leftRail) corridorGroup.add(new THREE.Mesh(leftRail, railMat));
+       // OHE MASTS: Placed every 40-60m depending on curvature
+       const sgStart = safeNum(group[0]?.chainageAbs, NaN);
+       const sgEnd = safeNum(group[group.length - 1]?.chainageAbs, NaN);
+       const oheSpacingM = 50;
+       const oheStart = Math.ceil(sgStart / oheSpacingM) * oheSpacingM;
+       const oheChainages = [];
+       for (let ch = oheStart; ch <= sgEnd; ch += oheSpacingM) oheChainages.push(ch);
+       
+       if (options.infrastructure) {
+         oheChainages.forEach(ch => {
+           const oheFrame = get3DViewerPathFrameForChainage(ch);
+           if (!oheFrame) return;
+           const s = interpolate3DViewerSampleAtChainage(group, ch);
+           if (!s) return;
+           const sideDir = (ch % (oheSpacingM * 2) === 0) ? -1 : 1;
+           const mastOffset = s.centerOffset + sideDir * (RAIL_CENTER_OFFSET_M + 1.8); // 1.8m clearance from rail
+           const groundY = safeNum(s.groundY, s.yCenter - 0.5);
+           const mast = createOHEMast(oheFrame, mastOffset, groundY);
+           structuresGroup.add(mast);
+         });
+       }
        if (rightRail) corridorGroup.add(new THREE.Mesh(rightRail, railMat));
 
+       if (options.infrastructure) {
+           // SIGNALS: Place one roughly every 1.5km
+           const sigSpacingM = 1500;
+           const sigStart = Math.ceil(sgStart / sigSpacingM) * sigSpacingM;
+           const sigChainages = [];
+           for (let ch = sigStart; ch <= sgEnd; ch += sigSpacingM) sigChainages.push(ch);
+           sigChainages.forEach(ch => {
+             const sigFrame = get3DViewerPathFrameForChainage(ch);
+             if (!sigFrame) return;
+             const s = interpolate3DViewerSampleAtChainage(group, ch);
+             if (!s) return;
+             // Place signal on left side of track facing oncoming
+             const sigOffset = s.centerOffset - (RAIL_CENTER_OFFSET_M + 2.5);
+             const groundY = safeNum(s.groundY, s.yCenter - 0.5);
+             const sigNode = createSignalPole(sigFrame, sigOffset, groundY);
+             structuresGroup.add(sigNode);
+           });
+
+           // CATENARY WIRE: Contact wire + messenger wire between OHE mast positions (main lines only)
+           if (key.startsWith("main") && oheChainages.length >= 2) {
+             const contactWirePoints = [];
+             const messengerWirePoints = [];
+             oheChainages.forEach(ch => {
+               const wFrame = get3DViewerPathFrameForChainage(ch);
+               const wS = interpolate3DViewerSampleAtChainage(group, ch);
+               if (!wFrame || !wS) return;
+               const wireGroundY = safeNum(wS.groundY, wS.yCenter - 0.5);
+               // Contact wire at 5.5m above rail, messenger at 6.5m
+               const contactPt = get3DViewerFramePoint(wFrame, wS.centerOffset, wireGroundY + 5.5, 0);
+               const messengerPt = get3DViewerFramePoint(wFrame, wS.centerOffset, wireGroundY + 6.5, 0);
+               contactWirePoints.push(contactPt);
+               messengerWirePoints.push(messengerPt);
+             });
+             const contactWire = build3DCatenaryWire(contactWirePoints, 0x444444);
+             const messengerWire = build3DCatenaryWire(messengerWirePoints, 0x555555);
+             if (contactWire) structuresGroup.add(contactWire);
+             if (messengerWire) structuresGroup.add(messengerWire);
+           }
+
+           // LAND BOUNDARY FENCING: Posts every 10m with horizontal wire rails (main lines only)
+           if (key.startsWith("main")) {
+             const fenceSpacingM = 10;
+             const fenceStartCh = Math.ceil(sgStart / fenceSpacingM) * fenceSpacingM;
+             // Left side fence posts & wires
+             const leftFencePoints = [];
+             const rightFencePoints = [];
+             for (let ch = fenceStartCh; ch <= sgEnd; ch += fenceSpacingM) {
+               const fFrame = get3DViewerPathFrameForChainage(ch);
+               const fS = interpolate3DViewerSampleAtChainage(group, ch);
+               if (!fFrame || !fS) continue;
+               const fGy = safeNum(fS.groundY, fS.yCenter - 0.5);
+               // Place fencing at ~8m from track center on each side
+               const leftOffset = fS.centerOffset - 8.0;
+               const rightOffset = fS.centerOffset + 8.0;
+               // Fence posts every 3rd interval (30m) for performance
+               if (ch % (fenceSpacingM * 3) === 0) {
+                 const leftPost = createFencePost(fFrame, leftOffset, fGy);
+                 const rightPost = createFencePost(fFrame, rightOffset, fGy);
+                 boundaryGroup.add(leftPost);
+                 boundaryGroup.add(rightPost);
+               }
+               // Wire points for every interval
+               const leftPt = get3DViewerFramePoint(fFrame, leftOffset, fGy + 1.0, 0);
+               const rightPt = get3DViewerFramePoint(fFrame, rightOffset, fGy + 1.0, 0);
+               leftFencePoints.push(leftPt);
+               rightFencePoints.push(rightPt);
+             }
+             // Draw fence wire lines (3 horizontal wires at different heights would be ideal, but 1 for performance)
+             if (leftFencePoints.length >= 2) {
+               const leftWire = build3DCatenaryWire(leftFencePoints, 0x888888);
+               if (leftWire) boundaryGroup.add(leftWire);
+             }
+             if (rightFencePoints.length >= 2) {
+               const rightWire = build3DCatenaryWire(rightFencePoints, 0x888888);
+               if (rightWire) boundaryGroup.add(rightWire);
+             }
+           }
+
+           // CORRIDOR VEGETATION: Procedural trees along the boundary (main lines only)
+           if (key.startsWith("main")) {
+             const treeSpacing = 45;
+             for (let ch = Math.ceil(sgStart / treeSpacing) * treeSpacing; ch <= sgEnd; ch += treeSpacing) {
+               const tF = get3DViewerPathFrameForChainage(ch);
+               const tS = interpolate3DViewerSampleAtChainage(group, ch);
+               if (!tF || !tS) continue;
+               const sDir = (Math.sin(ch * 0.1) > 0) ? 1 : -1; // deterministic randomness
+               const tOff = tS.centerOffset + sDir * (12.0 + (Math.abs(Math.cos(ch)) * 5.0));
+               const tGy = safeNum(tS.groundY, tS.yCenter - 0.5);
+               const tree = createLowPolyTree(tF, tOff, tGy, 0.8 + (Math.abs(Math.sin(ch*0.5)) * 0.7));
+               terrainGroup.add(tree);
+             }
+           }
+       }
+
        const sleeperPitchM = 1000 / 1660;
-       const sleeperStart = safeNum(group[0]?.chainageAbs, NaN);
-       const sleeperEnd = safeNum(group[group.length - 1]?.chainageAbs, NaN);
-       
        const drawSleepers = (startCh, endCh, sampleGroup) => {
            if (Number.isFinite(startCh) && Number.isFinite(endCh) && endCh > startCh) {
              const firstSleeper = Math.ceil(startCh / sleeperPitchM) * sleeperPitchM;
              const sleeperChainages = [];
              for (let ch = firstSleeper; ch <= endCh; ch += sleeperPitchM) sleeperChainages.push(ch);
              if (sleeperChainages.length) {
-               const sleeperGeometry = new THREE.BoxGeometry(2.75, Math.max(0.12, safeNum(sampleGroup[0]?.sleeperThickness, 0.25)), 0.28);
+               const sleeperGeometry = build3DG44SleeperGeometry();
                const sleeperMesh = new THREE.InstancedMesh(sleeperGeometry, sleeperMat, sleeperChainages.length);
                const sleeperNode = new THREE.Object3D();
                sleeperChainages.forEach((chainageAbs, sleeperIndex) => {
@@ -13158,10 +13427,10 @@ function generate3DMesh() {
            }
        };
 
-       drawSleepers(sleeperStart, sleeperEnd, group);
+       drawSleepers(sgStart, sgEnd, group);
 
        // Build smooth crossovers connecting aux (loop) lines back to the main line
-       if (key.startsWith("aux") && sleeperStart && sleeperEnd) {
+       if (key.startsWith("aux") && sgStart && sgEnd) {
            const buildCrossover = (chA, chB, offsetA, offsetB) => {
                const crossoverLength = Math.abs(chB - chA);
                if (crossoverLength < 5) return;
@@ -13183,14 +13452,14 @@ function generate3DMesh() {
                    }
                }
                if (crossSamples.length > 2) {
-                   const crossL = build3DViewerRibbonGeometry(crossSamples, 
-                       s => s.centerOffset - RAIL_CENTER_OFFSET_M - RAIL_HALF_WIDTH_M, 
-                       s => s.centerOffset - RAIL_CENTER_OFFSET_M + RAIL_HALF_WIDTH_M, 
-                       s => s.yCenter + (s.thickness / 2));
-                   const crossR = build3DViewerRibbonGeometry(crossSamples, 
-                       s => s.centerOffset + RAIL_CENTER_OFFSET_M - RAIL_HALF_WIDTH_M, 
-                       s => s.centerOffset + RAIL_CENTER_OFFSET_M + RAIL_HALF_WIDTH_M, 
-                       s => s.yCenter + (s.thickness / 2));
+                   const crossL = build3DViewerProfileExtrusion(crossSamples, 
+                       s => s.centerOffset - RAIL_CENTER_OFFSET_M, 
+                       s => s.yCenter - (s.thickness / 2),
+                       RAIL_PROFILE_90RA);
+                   const crossR = build3DViewerProfileExtrusion(crossSamples, 
+                       s => s.centerOffset + RAIL_CENTER_OFFSET_M, 
+                       s => s.yCenter - (s.thickness / 2),
+                       RAIL_PROFILE_90RA);
                    if (crossL) corridorGroup.add(new THREE.Mesh(crossL, railMat));
                    if (crossR) corridorGroup.add(new THREE.Mesh(crossR, railMat));
                    drawSleepers(Math.min(chA, chB), Math.max(chA, chB), crossSamples);
@@ -13198,12 +13467,12 @@ function generate3DMesh() {
            };
 
            // Dynamic Overrun Safety Length (OSL): Aim for 120m, but shrink dynamically for short loops
-           const loopTotalLen = sleeperEnd - sleeperStart;
+           const loopTotalLen = sgEnd - sgStart;
            const turnoutLen = 45;
            const oslLength = Math.max(0, Math.min(120, (loopTotalLen / 2) - turnoutLen - 5));
            
-           const juncStart = sleeperStart + oslLength;
-           const juncEnd = sleeperEnd - oslLength;
+           const juncStart = sgStart + oslLength;
+           const juncEnd = sgEnd - oslLength;
            
            let mainStartOffset = 0;
            let mainEndOffset = 0;
@@ -13217,17 +13486,17 @@ function generate3DMesh() {
            });
 
            // Build Crossover 1: Diverges inwards exactly at juncStart (e.g. 1120 to 1165)
-           if (juncStart < sleeperEnd) {
+           if (juncStart < sgEnd) {
                buildCrossover(juncStart, juncStart + turnoutLen, group[0].centerOffset, mainStartOffset);
            }
            
            // Build Crossover 2: Diverges inwards exactly at juncEnd (e.g. 1835 to 1880)
-           if (juncEnd > sleeperStart) {
+           if (juncEnd > sgStart) {
                buildCrossover(juncEnd - turnoutLen, juncEnd, mainEndOffset, group[group.length-1].centerOffset);
            }
            
            // Dead End / Realistic Buffer Stops at BOTH ends of the auxiliary line
-           [sleeperStart, sleeperEnd].forEach((ch, idx) => {
+           [sgStart, sgEnd].forEach((ch, idx) => {
                const bframe = get3DViewerPathFrameForChainage(ch);
                if (!bframe) return;
                
@@ -13303,32 +13572,50 @@ function generate3DMesh() {
      });
    });
    bridgeRibbonSamplesByKey.forEach((samples) => {
-     split3DViewerSamplesByGap(samples).forEach((group) => {
-       const family = String(group[0]?.family || "bridge");
-       const deckMaterial = bridgeMatByFamily[family] || bridgeMatByFamily.bridge;
-       const edgeMaterial = bridgeEdgeMatByFamily[family] || bridgeEdgeMatByFamily.bridge;
-       const topGeometry = build3DViewerRibbonGeometry(
-         group,
-         (sample) => sample.centerOffset - (sample.width / 2),
-         (sample) => sample.centerOffset + (sample.width / 2),
-         (sample) => sample.yCenter + (sample.thickness / 2),
-       );
-       const leftGeometry = build3DViewerSideGeometry(
-         group,
-         (sample) => sample.centerOffset - (sample.width / 2),
-         (sample) => sample.yCenter + (sample.thickness / 2),
-         (sample) => sample.yCenter - (sample.thickness / 2),
-       );
-       const rightGeometry = build3DViewerSideGeometry(
-         group,
-         (sample) => sample.centerOffset + (sample.width / 2),
-         (sample) => sample.yCenter + (sample.thickness / 2),
-         (sample) => sample.yCenter - (sample.thickness / 2),
-       );
-       if (topGeometry) structuresGroup.add(new THREE.Mesh(topGeometry, deckMaterial));
-       if (leftGeometry) structuresGroup.add(new THREE.Mesh(leftGeometry, edgeMaterial));
-       if (rightGeometry) structuresGroup.add(new THREE.Mesh(rightGeometry, edgeMaterial));
-     });
+      split3DViewerSamplesByGap(samples).forEach((group) => {
+        const family = String(group[0]?.family || "bridge");
+        const deckMaterial = bridgeMatByFamily[family] || bridgeMatByFamily.bridge;
+        const edgeMaterial = bridgeEdgeMatByFamily[family] || bridgeEdgeMatByFamily.bridge;
+        const topGeometry = build3DViewerRibbonGeometry(
+          group,
+          (sample) => sample.centerOffset - (sample.width / 2),
+          (sample) => sample.centerOffset + (sample.width / 2),
+          (sample) => sample.yCenter + (sample.thickness / 2),
+        );
+        const leftGeometry = build3DViewerSideGeometry(
+          group,
+          (sample) => sample.centerOffset - (sample.width / 2),
+          (sample) => sample.yCenter + (sample.thickness / 2),
+          (sample) => sample.yCenter - (sample.thickness / 2),
+        );
+        const rightGeometry = build3DViewerSideGeometry(
+          group,
+          (sample) => sample.centerOffset + (sample.width / 2),
+          (sample) => sample.yCenter + (sample.thickness / 2),
+          (sample) => sample.yCenter - (sample.thickness / 2),
+        );
+        if (topGeometry) structuresGroup.add(new THREE.Mesh(topGeometry, deckMaterial));
+        if (leftGeometry) structuresGroup.add(new THREE.Mesh(leftGeometry, edgeMaterial));
+        if (rightGeometry) structuresGroup.add(new THREE.Mesh(rightGeometry, edgeMaterial));
+
+        // Add Bridge Piers every ~20m for significant spans
+        if (options.infrastructure) {
+            const bridgeSpan = group[group.length - 1].chainageAbs - group[0].chainageAbs;
+            if (bridgeSpan > 15) {
+                const pierSpacing = 20;
+                const startCh = group[0].chainageAbs;
+                for (let ch = startCh + (pierSpacing / 2); ch <= group[group.length - 1].chainageAbs - (pierSpacing / 2); ch += pierSpacing) {
+                    const bFrame = get3DViewerPathFrameForChainage(ch);
+                    const bSample = interpolate3DViewerSampleAtChainage(group, ch);
+                    if (!bFrame || !bSample) continue;
+                    const dBot = bSample.yCenter - (bSample.thickness / 2);
+                    const gY = bSample.groundY ?? (bSample.yCenter - (bSample.thickness / 2) - 10); 
+                    const pier = createBridgePier(bFrame, bSample.centerOffset, dBot, gY);
+                    structuresGroup.add(pier);
+                }
+            }
+        }
+      });
    });
 
    bridgeParapetSamplesByKey.forEach((samples) => {
@@ -13402,6 +13689,7 @@ function generate3DMesh() {
 	         );
 	         if (tactileRightGeometry) corridorGroup.add(new THREE.Mesh(tactileRightGeometry, platformTactileMat));
 	       }
+
            
 	       // Build Sloped Ramps on the platform ends
            [0, group.length - 1].forEach((idx) => {
@@ -13441,6 +13729,62 @@ function generate3DMesh() {
                    if (tRG) corridorGroup.add(new THREE.Mesh(tRG, platformTactileMat));
                }
            });
+
+           // Add Platform Benches and Shelters
+           if (options.infrastructure) {
+               const pfStartCh = group[0].chainageAbs;
+               const pfEndCh = group[group.length - 1].chainageAbs;
+               const pfSpacing = 30; // Every 30m place an asset
+               for (let ch = pfStartCh + 15; ch <= pfEndCh - 15; ch += pfSpacing) {
+                   const pfFrame = get3DViewerPathFrameForChainage(ch);
+                   const pfS = interpolate3DViewerSampleAtChainage(group, ch);
+                   if (!pfFrame || !pfS) continue;
+                   
+                   const pfTopY = safeNum(pfS.yTop, pfS.yCenter + (pfS.thickness / 2));
+                   
+                   // Alternate between bench and shelter
+                   if (Math.floor((ch - pfStartCh) / pfSpacing) % 2 === 0) {
+                       const shelter = createPlatformShelter(pfFrame, pfS.centerOffset, pfTopY);
+                       structuresGroup.add(shelter);
+                   } else {
+                       const bench = createPlatformBench(pfFrame, pfS.centerOffset, pfTopY);
+                       structuresGroup.add(bench);
+                   }
+                }
+           }
+
+           // Station Name Boards at Ends of Platform
+           if (options.labels && group.length > 5) {
+               [0, group.length - 1].forEach(idx => {
+                   const s = group[idx];
+                   const sName = String(s.row?.station || "Station").trim() || "Station";
+                   const canv = document.createElement('canvas');
+                   canv.width = 512; canv.height = 128;
+                   const ctx = canv.getContext('2d');
+                   ctx.fillStyle = '#facc15'; ctx.fillRect(0, 0, 512, 128);
+                   ctx.fillStyle = '#010101'; ctx.font = 'bold 72px sans-serif';
+                   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                   ctx.fillText(sName.toUpperCase(), 256, 64);
+                   ctx.lineWidth = 12; ctx.strokeStyle = '#010101'; ctx.strokeRect(0, 0, 512, 128);
+                   const tex = new THREE.CanvasTexture(canv);
+                   const boardMesh = new THREE.Mesh(new THREE.BoxGeometry(10, 2.5, 0.3), new THREE.MeshBasicMaterial({ map: tex }));
+                   
+                   // Position 3m above platform, 1m from edge
+                   const bPos = get3DViewerFramePoint(s.frame, s.centerOffset, s.yTop + 2.8, 0);
+                   boardMesh.position.copy(bPos);
+                   if (s.frame) boardMesh.rotation.y = s.frame.headingY;
+                   labelsGroup.add(boardMesh);
+                   
+                   const pGeo = new THREE.BoxGeometry(0.3, 3.5, 0.3);
+                   const pMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.6 });
+                   const p1 = new THREE.Mesh(pGeo, pMat);
+                   p1.position.copy(get3DViewerFramePoint(s.frame, s.centerOffset - 4.2, s.yTop + 1.2, 0));
+                   const p2 = new THREE.Mesh(pGeo, pMat);
+                   p2.position.copy(get3DViewerFramePoint(s.frame, s.centerOffset + 4.2, s.yTop + 1.2, 0));
+                   if (s.frame) { p1.rotation.y = s.frame.headingY; p2.rotation.y = s.frame.headingY; }
+                   labelsGroup.add(p1, p2);
+               });
+           }
 	     });
 	   });
 
@@ -13810,11 +14154,34 @@ document.addEventListener("DOMContentLoaded", () => {
        viewer3dHotspotCursor = -1;
        document.getElementById("viewer3dModal").showModal();
        setTimeout(() => {
-           init3DViewer();
-           queue3DViewerGoogleTerrainProfile();
-           generate3DMesh();
-           focus3DCameraAtIndex(get3DViewerRowIndexFromFlyZ());
-           update3DHUD(state.calcRows[get3DViewerRowIndexFromFlyZ()], get3DViewerRowIndexFromFlyZ());
+           try {
+               init3DViewer();
+               queue3DViewerGoogleTerrainProfile();
+               generate3DMesh();
+               
+               // Sync height slider
+               const hSlider = document.getElementById("flyCameraHeightSlider");
+               const hVal = document.getElementById("flyCameraHeightVal");
+               if (hSlider) hSlider.value = camOffsetY;
+               if (hVal) hVal.textContent = Math.round(camOffsetY) + "m";
+
+               focus3DCameraAtIndex(get3DViewerRowIndexFromFlyZ());
+               update3DHUD(state.calcRows[get3DViewerRowIndexFromFlyZ()], get3DViewerRowIndexFromFlyZ());
+               update3DStationJumpMenu();
+           } catch(e) {
+               console.error('3D Viewer Error', e);
+               const errorDiv = document.createElement('div');
+               errorDiv.style.position = 'absolute';
+               errorDiv.style.top = '10%';
+               errorDiv.style.left = '10%';
+               errorDiv.style.width = '80%';
+               errorDiv.style.background = 'rgba(255,0,0,0.8)';
+               errorDiv.style.color = '#fff';
+               errorDiv.style.padding = '20px';
+               errorDiv.style.zIndex = '999999';
+               errorDiv.innerHTML = '<h3>3D Engine Error:</h3><pre style="white-space:pre-wrap;">' + String(e.stack) + '</pre>';
+               document.getElementById('threeContainer').appendChild(errorDiv);
+           }
        }, 150);
    };
    document.querySelectorAll('[data-open-3d="true"]').forEach((btn) => {
@@ -13883,10 +14250,27 @@ document.addEventListener("DOMContentLoaded", () => {
                camOffsetX = 40; camOffsetY = 30; camOffsetZ = 60; currentLookAhead = 15;
            }
            
+           // Sync height HUD
+           const hSlider = document.getElementById("flyCameraHeightSlider");
+           const hVal = document.getElementById("flyCameraHeightVal");
+           if (hSlider) hSlider.value = camOffsetY;
+           if (hVal) hVal.textContent = Math.round(camOffsetY) + "m";
+
            if (viewer3dCamera && state.calcRows.length > 0) {
               focus3DCameraAtIndex(get3DViewerRowIndexFromFlyZ());
            }
        });
+   });
+
+   const hSliderTop = document.getElementById("flyCameraHeightSlider");
+   const hValTop = document.getElementById("flyCameraHeightVal");
+   hSliderTop?.addEventListener("input", (e) => {
+       const val = parseInt(e.target.value);
+       camOffsetY = val;
+       if (hValTop) hValTop.textContent = val + "m";
+       if (viewer3dCamera && state.calcRows.length > 0) {
+          focus3DCameraAtIndex(get3DViewerRowIndexFromFlyZ());
+       }
    });
 
    document.getElementById("jump3dBtn")?.addEventListener("click", () => {
@@ -17521,3 +17905,358 @@ document.addEventListener('DOMContentLoaded', () => {
   window.renderPwayGrid = renderPwayGrid;
 
 });
+function createOHEMast(frame, centerOffset, yGround) {
+    const group = new THREE.Group();
+    // Mast (steel beam)
+    const mastMat = new THREE.MeshStandardMaterial({ color: 0x8a929a, metalness: 0.8, roughness: 0.4 });
+    const mastGeo = new THREE.BoxGeometry(0.3, 7.5, 0.3); // Typical height is 7.5m
+    const mast = new THREE.Mesh(mastGeo, mastMat);
+    mast.position.set(0, 3.75, 0); // Center is half height
+    group.add(mast);
+
+    // Cantilever assembly
+    const cantileverMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.6, roughness: 0.5 });
+    
+    // Top tube (stay tube)
+    const stayTubeGeo = new THREE.CylinderGeometry(0.04, 0.04, 3.2, 8);
+    stayTubeGeo.rotateZ(Math.PI / 2);
+    const stayTube = new THREE.Mesh(stayTubeGeo, cantileverMat);
+    stayTube.position.set(1.6, 6.8, 0);
+    group.add(stayTube);
+
+    // Bottom tube (bracket tube)
+    const bracketGeo = new THREE.CylinderGeometry(0.05, 0.05, 3.5, 8);
+    bracketGeo.rotateZ(Math.PI / 2);
+    const bracket = new THREE.Mesh(bracketGeo, cantileverMat);
+    bracket.position.set(1.75, 6.0, 0);
+    group.add(bracket);
+
+    // Diagonal strut
+    const strutGeo = new THREE.CylinderGeometry(0.03, 0.03, 1.2, 8);
+    strutGeo.rotateZ(Math.PI / 4);
+    const strut = new THREE.Mesh(strutGeo, cantileverMat);
+    strut.position.set(0.6, 6.4, 0);
+    group.add(strut);
+
+    // Insulators (porcelain)
+    const insMat = new THREE.MeshStandardMaterial({ color: 0xdddddf, roughness: 0.8 });
+    const insGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.4, 12);
+    
+    const insTop = new THREE.Mesh(insGeo, insMat);
+    insTop.position.set(0.2, 6.8, 0);
+    insTop.rotation.z = Math.PI / 2;
+    group.add(insTop);
+
+    const insBot = new THREE.Mesh(insGeo, insMat);
+    insBot.position.set(0.2, 6.0, 0);
+    insBot.rotation.z = Math.PI / 2;
+    group.add(insBot);
+
+    // Contact wire holder (register arm)
+    const regArmGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.8, 8);
+    const regArm = new THREE.Mesh(regArmGeo, cantileverMat);
+    regArm.position.set(3.0, 5.6, 0);
+    group.add(regArm);
+
+    // Base foundation (concrete)
+    const baseMat = new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.9 });
+    const baseGeo = new THREE.BoxGeometry(0.8, 1.0, 0.8);
+    const base = new THREE.Mesh(baseGeo, baseMat);
+    base.position.set(0, 0.5, 0);
+    group.add(base);
+
+    // Position and Orient
+    const pos = get3DViewerFramePoint(frame, centerOffset, yGround, 0);
+    group.position.copy(pos);
+    
+    // Determine orientation based on which side of the track it is
+    // If offset is positive (right side), cantilever points left (-X relative to mast)
+    // If offset is negative(left side), cantilever points right (+X relative to mast)
+    
+    // The mast base is placed at 'centerOffset'.
+    // The cantilever arm extends along +X locally.
+    // We want the arm to reach back over the track center (offset 0).
+    const pointingDir = centerOffset > 0 ? -1 : 1;
+    group.rotation.y = frame.headingY;
+    
+    if (centerOffset > 0) {
+        group.rotation.y += Math.PI; // flip 180 degrees
+    }
+    
+    return group;
+}
+
+function createSignalPole(frame, centerOffset, groundY) {
+    const group = new THREE.Group();
+
+    // Signal Pole (Concrete/Steel)
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.7 });
+    const poleGeo = new THREE.CylinderGeometry(0.15, 0.2, 5.5, 12);
+    const pole = new THREE.Mesh(poleGeo, poleMat);
+    pole.position.set(0, 2.75, 0);
+    group.add(pole);
+
+    // Maintenance Ladder
+    const ladderMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.8 });
+    const ladderGroup = new THREE.Group();
+    const lRailGeo = new THREE.CylinderGeometry(0.02, 0.02, 4.0, 8);
+    const lRailL = new THREE.Mesh(lRailGeo, ladderMat);
+    lRailL.position.set(-0.15, 2.5, -0.25);
+    const lRailR = new THREE.Mesh(lRailGeo, ladderMat);
+    lRailR.position.set(0.15, 2.5, -0.25);
+    ladderGroup.add(lRailL, lRailR);
+    const rungGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.3, 8);
+    rungGeo.rotateZ(Math.PI / 2);
+    for (let i = 0.8; i <= 4.2; i += 0.3) {
+        const rung = new THREE.Mesh(rungGeo, ladderMat);
+        rung.position.set(0, i, -0.25);
+        ladderGroup.add(rung);
+    }
+    group.add(ladderGroup);
+
+    // Main Signal Head (Color Light Signal)
+    const headMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
+    const headGeo = new THREE.BoxGeometry(0.6, 1.4, 0.2);
+    const head = new THREE.Mesh(headGeo, headMat);
+    head.position.set(0.4, 4.5, 0);
+    group.add(head);
+
+    // Number Plate
+    const plateGeo = new THREE.BoxGeometry(0.4, 0.3, 0.05);
+    const plateMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    const plate = new THREE.Mesh(plateGeo, plateMat);
+    plate.position.set(0.4, 3.6, 0.1);
+    group.add(plate);
+
+    // Signal Lights (Red, Yellow, Green)
+    const createSigLight = (colorHex, yPos) => {
+        const hoodGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.15, 16, 1, true, Math.PI, Math.PI);
+        const hoodMat = new THREE.MeshStandardMaterial({ color: 0x111111, side: THREE.DoubleSide });
+        const hood = new THREE.Mesh(hoodGeo, hoodMat);
+        hood.rotation.x = Math.PI / 2;
+        hood.position.set(0.4, yPos, 0.1);
+        const lightGeo = new THREE.CircleGeometry(0.1, 16);
+        const lightMat = new THREE.MeshBasicMaterial({ color: colorHex });
+        const light = new THREE.Mesh(lightGeo, lightMat);
+        light.position.set(0.4, yPos, 0.11);
+        group.add(hood, light);
+    };
+
+    createSigLight(0xff0000, 4.9); // Red
+    createSigLight(0xffff00, 4.5); // Yellow
+    createSigLight(0x00ff00, 4.1); // Green
+
+    // Route Indicator
+    const routeBoxGeo = new THREE.BoxGeometry(0.5, 0.5, 0.2);
+    const routeBox = new THREE.Mesh(routeBoxGeo, headMat);
+    routeBox.position.set(0.4, 5.5, 0);
+    const wLightGeo = new THREE.CircleGeometry(0.04, 8);
+    const wLightMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    [[-0.15, 0.15], [0, 0.15], [0.15, 0.15], [-0.15, 0], [0, 0], [0.15, 0], [-0.15, -0.15], [0, -0.15], [0.15, -0.15]].forEach(pt => {
+        const wDot = new THREE.Mesh(wLightGeo, wLightMat);
+        wDot.position.set(0.4 + pt[0], 5.5 + pt[1], 0.11);
+        group.add(wDot);
+    });
+    group.add(routeBox);
+
+    // Foundation Base
+    const sBaseMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.9 });
+    const sBaseGeo = new THREE.BoxGeometry(0.8, 0.6, 0.8);
+    const sBase = new THREE.Mesh(sBaseGeo, sBaseMat);
+    sBase.position.set(0, 0.3, 0);
+    group.add(sBase);
+
+    // Position and Orient
+    const pos = get3DViewerFramePoint(frame, centerOffset, groundY, 0);
+    group.position.copy(pos);
+    group.rotation.y = frame.headingY;
+    if (centerOffset > 0) {
+       group.rotation.y += Math.PI;
+    }
+    return group;
+}
+
+// ========== CATENARY WIRE (OHE Wire between masts) ==========
+function build3DCatenaryWire(pointsArray, color) {
+    // pointsArray: array of THREE.Vector3
+    if (!pointsArray || pointsArray.length < 2) return null;
+    const curve = new THREE.CatmullRomCurve3(pointsArray);
+    const tubeGeo = new THREE.TubeGeometry(curve, pointsArray.length * 4, 0.02, 4, false);
+    const wireMat = new THREE.MeshBasicMaterial({ color: color || 0x333333 });
+    return new THREE.Mesh(tubeGeo, wireMat);
+}
+
+// ========== LAND BOUNDARY FENCING ==========
+function createFencePost(frame, centerOffset, groundY) {
+    const group = new THREE.Group();
+    // Concrete post
+    const postMat = new THREE.MeshStandardMaterial({ color: 0xbbbbbb, roughness: 0.9 });
+    const postGeo = new THREE.BoxGeometry(0.12, 1.8, 0.12);
+    const post = new THREE.Mesh(postGeo, postMat);
+    post.position.set(0, 0.9, 0);
+    group.add(post);
+
+    // Top cap
+    const capGeo = new THREE.BoxGeometry(0.18, 0.06, 0.18);
+    const cap = new THREE.Mesh(capGeo, postMat);
+    cap.position.set(0, 1.83, 0);
+    group.add(cap);
+
+    // Position
+    const pos = get3DViewerFramePoint(frame, centerOffset, groundY, 0);
+    group.position.copy(pos);
+    group.rotation.y = frame.headingY;
+    return group;
+}
+
+// ========== KILOMETER STONES ==========
+function createKMStone(frame, centerOffset, groundY, kmText) {
+    const group = new THREE.Group();
+    
+    // The main stone body
+    const stoneGeo = new THREE.BoxGeometry(0.5, 0.8, 0.2);
+    const stoneMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.9 });
+    const stone = new THREE.Mesh(stoneGeo, stoneMat);
+    stone.position.set(0, 0.4, 0);
+    group.add(stone);
+    
+    // Rounded top
+    const topGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.2, 16);
+    topGeo.rotateX(Math.PI / 2);
+    const topMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.9 }); // Yellow top
+    const topPart = new THREE.Mesh(topGeo, topMat);
+    topPart.position.set(0, 0.8, 0);
+    group.add(topPart);
+
+    // Number text plate
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#eeeeee';
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillStyle = '#111111';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${kmText}`, 64, 64);
+    
+    const tex = new THREE.CanvasTexture(canvas);
+    const plateGeo = new THREE.PlaneGeometry(0.5, 0.5);
+    const plateMat = new THREE.MeshBasicMaterial({ map: tex });
+    const plate = new THREE.Mesh(plateGeo, plateMat);
+    plate.position.set(0, 0.45, 0.101); // Positioned slightly off front face
+    group.add(plate);
+
+    // Position and orient
+    const pos = get3DViewerFramePoint(frame, centerOffset, groundY, 0);
+    group.position.copy(pos);
+    
+    // Face track
+    let angle = frame.headingY;
+    if (centerOffset > 0) angle += Math.PI / 2; 
+    else angle -= Math.PI / 2; 
+    group.rotation.y = angle;
+    
+    return group;
+}
+
+// ========== PLATFORM BENCHES ==========
+function createPlatformBench(frame, centerOffset, topY) {
+    const group = new THREE.Group();
+    // Concrete bench legs
+    const legGeo = new THREE.BoxGeometry(0.1, 0.4, 0.4);
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.9 });
+    const leg1 = new THREE.Mesh(legGeo, legMat);
+    leg1.position.set(-0.8, 0.2, 0);
+    const leg2 = new THREE.Mesh(legGeo, legMat);
+    leg2.position.set(0.8, 0.2, 0);
+    group.add(leg1, leg2);
+    
+    // Bench seat
+    const seatGeo = new THREE.BoxGeometry(2.0, 0.1, 0.5);
+    const seatMat = new THREE.MeshStandardMaterial({ color: 0xaa5533, roughness: 0.8 });
+    const seat = new THREE.Mesh(seatGeo, seatMat);
+    seat.position.set(0, 0.45, 0);
+    group.add(seat);
+    
+    const pos = get3DViewerFramePoint(frame, centerOffset, topY, 0);
+    group.position.copy(pos);
+    group.rotation.y = frame.headingY; // Align with track
+    return group;
+}
+
+// ========== PLATFORM SHELTERS ==========
+function createPlatformShelter(frame, centerOffset, topY) {
+    const group = new THREE.Group();
+    // Supporting pillars
+    const pillarGeo = new THREE.CylinderGeometry(0.1, 0.1, 3.5, 8);
+    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.5, roughness: 0.5 });
+    const pillarL = new THREE.Mesh(pillarGeo, pillarMat);
+    pillarL.position.set(-2, 1.75, 0);
+    const pillarR = new THREE.Mesh(pillarGeo, pillarMat);
+    pillarR.position.set(2, 1.75, 0);
+    group.add(pillarL, pillarR);
+    
+    // Roof canopy
+    const roofGeo = new THREE.BoxGeometry(6, 0.2, 4);
+    const roofMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.2, roughness: 0.8 });
+    const roof = new THREE.Mesh(roofGeo, roofMat);
+    roof.position.set(0, 3.6, 0);
+    roof.rotation.x = Math.PI / 36;
+    group.add(roof);
+
+    const pos = get3DViewerFramePoint(frame, centerOffset, topY, 0);
+    group.position.copy(pos);
+    group.rotation.y = frame.headingY; // Align with track
+    return group;
+}
+
+// ========== BRIDGE PIERS ==========
+function createBridgePier(frame, centerOffset, deckBottomY, groundY) {
+    const group = new THREE.Group();
+    const pierHeight = Math.max(0.5, deckBottomY - groundY);
+    
+    // Main column
+    const pierMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.8 });
+    const columnGeo = new THREE.BoxGeometry(2.0, pierHeight, 4.0);
+    const column = new THREE.Mesh(columnGeo, pierMat);
+    column.position.set(0, -pierHeight / 2, 0);
+    group.add(column);
+    
+    // Pier cap
+    const capGeo = new THREE.BoxGeometry(2.8, 0.8, 5.0);
+    const cap = new THREE.Mesh(capGeo, pierMat);
+    cap.position.set(0, -0.4, 0); // At the top of pier
+    group.add(cap);
+
+    const pos = get3DViewerFramePoint(frame, centerOffset, deckBottomY, 0);
+    group.position.copy(pos);
+    group.rotation.y = frame.headingY;
+    return group;
+}
+
+// ========== CORRIDOR VEGETATION (TREES) ==========
+function createLowPolyTree(frame, centerOffset, groundY, scale = 1.0) {
+    const group = new THREE.Group();
+    
+    // Trunk
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4d3319 });
+    const trunkGeo = new THREE.CylinderGeometry(0.15 * scale, 0.25 * scale, 1.5 * scale, 6);
+    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+    trunk.position.set(0, 0.75 * scale, 0);
+    group.add(trunk);
+    
+    // Leaves (Conical)
+    const leafMat = new THREE.MeshStandardMaterial({ color: 0x2d5a27 });
+    const leafGeo = new THREE.ConeGeometry(1.2 * scale, 3.5 * scale, 6);
+    const leaf = new THREE.Mesh(leafGeo, leafMat);
+    leaf.position.set(0, 3.25 * scale, 0);
+    group.add(leaf);
+
+    const pos = get3DViewerFramePoint(frame, centerOffset, groundY, 0);
+    group.position.copy(pos);
+    // Random rotation for variety
+    group.rotation.y = Math.random() * Math.PI * 2;
+    return group;
+}
