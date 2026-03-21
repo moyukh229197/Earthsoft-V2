@@ -4661,11 +4661,6 @@ function setWorkPage(pageName) {
       if (typeof updateVEDOM === "function") updateVEDOM();
     });
   }
-  if (selected === "google-earth") {
-    requestAnimationFrame(() => {
-      if (typeof renderGoogleEarthPage === "function") renderGoogleEarthPage();
-    });
-  }
   if (selected === "bridges") {
     renderBridgeInputs();
   }
@@ -12582,11 +12577,6 @@ async function ensure3DViewerSatelliteTexture() {
   if (!apiKey) {
     apiKey = String(window.EARTHSOFT_GOOGLE_MAPS_API_KEY || "").trim();
   }
-  if (!apiKey) {
-    // Last resort: try reading from the Google Earth settings input field
-    const inputEl = document.getElementById("googleEarthApiKeyInput");
-    if (inputEl) apiKey = String(inputEl.value || "").trim();
-  }
   console.log("[3D Satellite] ensure called. points:", points?.length || 0, "apiKey:", apiKey ? "present (" + apiKey.slice(0,8) + "...)" : "MISSING");
   if (!points?.length || !apiKey) {
     console.warn("[3D Satellite] Skipping — no alignment points or no Google Maps API Key.");
@@ -12594,7 +12584,7 @@ async function ensure3DViewerSatelliteTexture() {
       // Show a brief notification to the user
       const label = document.getElementById("flyHotspotLabel");
       if (label) {
-        label.textContent = "⚠ Satellite Map requires a Google Maps API Key. Set it in Alignment Map → Google Earth tab.";
+        label.textContent = "⚠ Satellite Map requires a Google Maps API Key. Set it in your browser storage or app configuration.";
         label.style.color = "#f97316";
         setTimeout(() => { label.style.color = ""; }, 8000);
       }

@@ -192,15 +192,6 @@
             </svg>
             <span class="nav-text">Alignment Map</span>
           </button>
-          <button class="work-nav-btn" data-work-page-btn="google-earth" type="button">
-            <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="10" cy="10" r="7"></circle>
-              <path d="M3 10h14"></path>
-              <path d="M10 3a11 11 0 0 1 0 14"></path>
-              <path d="M10 3a11 11 0 0 0 0 14"></path>
-            </svg>
-            <span class="nav-text">Google Earth</span>
-          </button>
         </div>
 
         <div class="work-nav-section" data-work-nav-section="estimation">
@@ -1711,109 +1702,6 @@
             <p style="font-size:14px;margin:0;">Import a KML file to see the alignment on the map.</p>
           </div>
           <div id="alignmentMapContainer" style="display:none;width:100%;height:calc(100vh - 220px);min-height:500px;">
-          </div>
-        </div>
-      </section>
-
-      <section class="work-page" data-work-page="google-earth">
-        <header class="page-header">
-          <div>
-            <h2>Google Earth</h2>
-            <p class="text-secondary">Satellite review tab for the imported alignment KML with direct Earth export support</p>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <button id="googleEarthImportKmlBtn" class="btn btn-secondary" type="button">
-              <i class="ri-map-pin-line" style="margin-right:4px;"></i> Import / Replace KML
-            </button>
-            <button id="downloadAlignmentKmlBtn" class="btn btn-secondary" type="button">
-              <i class="ri-download-2-line" style="margin-right:4px;"></i> Download 3D Alignment KMZ
-            </button>
-            <button id="openGoogleEarthWebBtn" class="btn btn-primary" type="button">
-              <i class="ri-earth-line" style="margin-right:4px;"></i> Open Google Earth Web
-            </button>
-            <button id="refreshGoogleEarthBtn" class="btn btn-secondary" type="button">
-              <i class="ri-refresh-line" style="margin-right:4px;"></i> Refresh View
-            </button>
-          </div>
-        </header>
-
-        <div class="google-earth-shell">
-          <aside class="google-earth-sidebar glass">
-            <div class="google-earth-sidebar-head">
-              <h3>Viewer Setup</h3>
-              <p class="muted">Use a Google Maps JavaScript API key to render the corridor in-app. The key stays in this browser only.</p>
-            </div>
-
-            <label class="google-earth-field">
-              <span>Google Maps API Key</span>
-              <input id="googleEarthApiKeyInput" type="password" placeholder="Paste API key for this browser" autocomplete="off" />
-            </label>
-
-            <label class="google-earth-field">
-              <span>Google Vector Map ID</span>
-              <input id="googleEarthMapIdInput" type="text" placeholder="Optional map ID for vector rendering" autocomplete="off" />
-            </label>
-
-            <div class="google-earth-actions">
-              <button id="saveGoogleEarthApiKeyBtn" class="btn btn-primary" type="button">Save Setup</button>
-              <button id="clearGoogleEarthApiKeyBtn" class="btn btn-secondary" type="button">Clear Setup</button>
-            </div>
-
-            <div id="googleEarthApiStatus" class="google-earth-status-card">
-              Add an API key to render the satellite map here.
-            </div>
-
-            <div class="google-earth-stats">
-              <div class="google-earth-stat">
-                <span class="google-earth-stat-label">Alignment</span>
-                <strong id="googleEarthAlignmentStatus">No KML imported</strong>
-              </div>
-              <div class="google-earth-stat">
-                <span class="google-earth-stat-label">Length</span>
-                <strong id="googleEarthLengthStat">0.000 km</strong>
-              </div>
-              <div class="google-earth-stat">
-                <span class="google-earth-stat-label">Markers</span>
-                <strong id="googleEarthMarkerStat">0 items</strong>
-              </div>
-            </div>
-
-            <div class="google-earth-note">
-              <div class="google-earth-note-title">What this tab does</div>
-              <p class="muted">It reuses the same imported KML alignment from the Alignment Map page, draws it over Google satellite imagery, and exports a 3D alignment KMZ using the Earthsoft formation levels and corridor width so Google Earth can show the route as an actual elevated corridor. Add a vector map ID as well if you want Google Maps vector rendering support.</p>
-            </div>
-          </aside>
-
-          <div class="google-earth-stage card glass">
-            <div id="googleEarthEmpty" class="google-earth-empty">
-              <svg viewBox="0 0 48 48" width="52" height="52" fill="none" stroke="currentColor" stroke-width="1.5">
-                <circle cx="24" cy="24" r="16"></circle>
-                <path d="M8 24h32"></path>
-                <path d="M24 8a24 24 0 0 1 0 32"></path>
-                <path d="M24 8a24 24 0 0 0 0 32"></path>
-              </svg>
-              <h3 id="googleEarthEmptyTitle">Import a KML to begin</h3>
-              <p id="googleEarthEmptyText">This tab will render the imported corridor on Google satellite imagery and generate an alignment KML for Google Earth.</p>
-            </div>
-            <div id="googleEarthControlDeck" class="google-earth-control-deck" style="display:none;">
-              <div class="google-earth-control-row">
-                <button id="googleEarthTiltUpBtn" class="google-earth-control-btn" type="button">Tilt +</button>
-                <button id="googleEarthTiltDownBtn" class="google-earth-control-btn" type="button">Tilt -</button>
-                <button id="googleEarthRotateLeftBtn" class="google-earth-control-btn" type="button">Rotate Left</button>
-                <button id="googleEarthRotateRightBtn" class="google-earth-control-btn" type="button">Rotate Right</button>
-              </div>
-              <div class="google-earth-control-row">
-                <button id="googleEarthAlignCameraBtn" class="google-earth-control-btn google-earth-control-btn-primary" type="button">Align To Corridor</button>
-                <button id="googleEarthResetCameraBtn" class="google-earth-control-btn" type="button">Reset View</button>
-              </div>
-              <div class="google-earth-view-hud">
-                <span id="googleEarthModeBadge" class="google-earth-view-badge">2D</span>
-                <span id="googleEarthTiltValue">Tilt 0°</span>
-                <span id="googleEarthHeadingValue">Heading 0°</span>
-                <span id="googleEarthZoomValue">Zoom 5.0</span>
-              </div>
-            </div>
-            <div id="googleEarthMapContainer" class="google-earth-map" style="display:none;"></div>
           </div>
         </div>
       </section>
