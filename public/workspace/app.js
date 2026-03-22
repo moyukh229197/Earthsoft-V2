@@ -11073,6 +11073,8 @@ let viewer3dGoogleTerrainProfilePromise = null;
 let viewer3dArcGISTerrainProfile = null;
 let viewer3dArcGISTerrainProfilePromise = null;
 let viewer3dCesiumLoadPromise = null;
+let viewer3dSatelliteRetilePromise = null;
+let viewer3dLastRetileCheckMs = 0;
 const viewer3dSourceStatus = {
   terrainSource: "Loading",
   terrainSamples: 0,
@@ -11085,6 +11087,7 @@ const VIEWER3D_CAMERA_EASE = 0.1;
 const VIEWER3D_LOOK_EASE = 0.16;
 const VIEWER3D_GEOMETRY_SPACING_M = 1.5;
 const VIEWER3D_PATH_TANGENT_SMOOTHING_M = 25;
+const VIEWER3D_SATELLITE_REFOCUS_RATIO = 0.38;
 
 function update3DViewerSourceBadge() {
   const badge = document.getElementById("flyTerrainSourceBadge");
@@ -12561,6 +12564,10 @@ function jump3DToChainage(chainage, options = {}) {
     focus3DCameraAtIndex(idx);
     update3DHUD(state.calcRows[idx], idx);
   }
+
+  if (viewer3dScene && get3DViewerActiveOptions().satellite && !options.smooth) {
+    maybeRefresh3DSatelliteWindow(true);
+  }
 }
 
 function collect3DHotspots() {
@@ -12643,7 +12650,7 @@ function init3DViewer() {
    viewer3dCamera.position.set(20, 30, 100);
 
    viewer3dRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-   viewer3dRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+   viewer3dRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
    viewer3dRenderer.setSize(container.clientWidth, container.clientHeight);
    viewer3dRenderer.shadowMap.enabled = true;
    container.appendChild(viewer3dRenderer.domElement);
@@ -12707,6 +12714,11 @@ function init3DViewer() {
         const row = state.calcRows[idx];
 	       if (row) {
 	          update3DHUD(row, idx);
+            const nowMs = (typeof performance !== "undefined" && performance?.now) ? performance.now() : Date.now();
+            if (get3DViewerActiveOptions().satellite && nowMs - viewer3dLastRetileCheckMs > 1200) {
+              viewer3dLastRetileCheckMs = nowMs;
+              maybeRefresh3DSatelliteWindow(false);
+            }
 
 	          if (flying) {
 	             const chainageAbs = get3DViewerChainageFromFlyZ();
@@ -12738,8 +12750,18 @@ function init3DViewer() {
    });
 }
 
-async function ensure3DViewerSatelliteTexture() {
-  const points = state?.kmlData?.points;
+async function ensure3DViewerSatelliteTexture(options = {}) {
+  const rawPoints = state?.kmlData?.points;
+  const points = Array.isArray(rawPoints)
+    ? rawPoints
+        .map((p) => ({
+          ...p,
+          lat: safeNum(p?.lat, NaN),
+          lng: safeNum(p?.lng, NaN),
+          ch: safeNum(p?.ch, NaN),
+        }))
+        .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng))
+    : [];
   console.log("[3D Satellite] ensure called. points:", points?.length || 0);
   if (!points?.length) {
     console.warn("[3D Satellite] Skipping — no alignment points.");
@@ -12751,18 +12773,39 @@ async function ensure3DViewerSatelliteTexture() {
     return null;
   }
 
+  const firstChainageAbs = safeNum(state?.calcRows?.[0]?.chainage, 0);
+  const lastChainageAbs = safeNum(state?.calcRows?.[state?.calcRows?.length - 1]?.chainage, firstChainageAbs);
+  const corridorSpanM = Math.max(0, Math.abs(lastChainageAbs - firstChainageAbs));
+  // Keep the sampled window tighter so imagery remains legible at engineering scale.
+  const defaultWindowM = Math.max(4500, Math.min(9000, corridorSpanM * 0.05 || 6000));
+  const focusChainageAbs = safeNum(options?.focusChainageAbs, get3DViewerChainageFromFlyZ());
+  const requestedWindowM = Math.max(3000, safeNum(options?.windowMeters, defaultWindowM));
+  const halfWindowM = requestedWindowM / 2;
+  const focusRelChainage = Number.isFinite(focusChainageAbs) ? (focusChainageAbs - firstChainageAbs) : NaN;
+
+  let sourcePoints = points;
+  if (Number.isFinite(focusRelChainage)) {
+    const focusedPoints = points.filter((p) => {
+      const relCh = safeNum(p?.ch, NaN);
+      return Number.isFinite(relCh) && Math.abs(relCh - focusRelChainage) <= halfWindowM;
+    });
+    if (focusedPoints.length >= 8) sourcePoints = focusedPoints;
+  }
+
   let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
-  points.forEach(p => {
+  sourcePoints.forEach(p => {
     minLat = Math.min(minLat, p.lat);
     maxLat = Math.max(maxLat, p.lat);
     minLng = Math.min(minLng, p.lng);
     maxLng = Math.max(maxLng, p.lng);
   });
 
-  const cacheKey = [minLat.toFixed(6), maxLat.toFixed(6), minLng.toFixed(6), maxLng.toFixed(6)].join("|");
+  const focusKey = Number.isFinite(focusChainageAbs) ? Math.round(focusChainageAbs / 250) * 250 : "all";
+  const cacheKey = [minLat.toFixed(6), maxLat.toFixed(6), minLng.toFixed(6), maxLng.toFixed(6), focusKey, Math.round(requestedWindowM)].join("|");
   if (viewer3dSatelliteTexture && viewer3dSatelliteBounds?.key === cacheKey) {
     console.log("[3D Satellite] Using cached texture.");
-    viewer3dSourceStatus.mapSource = "ArcGIS Imagery";
+    const cacheWindowKm = Math.max(1, Math.round(safeNum(viewer3dSatelliteBounds?.windowMeters, requestedWindowM) / 1000));
+    viewer3dSourceStatus.mapSource = `ArcGIS Imagery (${cacheWindowKm} km window)`;
     viewer3dSourceStatus.mapZoom = safeNum(viewer3dSatelliteBounds?.zoom, NaN);
     update3DViewerSourceBadge();
     return viewer3dSatelliteTexture;
@@ -12772,9 +12815,12 @@ async function ensure3DViewerSatelliteTexture() {
   const tileSize = 256;
   const maxTexSize = Number.isFinite(viewer3dRenderer?.capabilities?.maxTextureSize)
     ? viewer3dRenderer.capabilities.maxTextureSize
-    : 4096;
-  const canvasSize = maxTexSize >= 4096 ? 4096 : 3072;
-  const tilesPerSide = Math.max(8, Math.floor(canvasSize / tileSize));
+    : 8192;
+  // Max detail budget: stretch to GPU limit (capped for browser stability).
+  const maxCanvasSize = Math.max(4096, Math.min(maxTexSize, 16384));
+  const maxTilesPerSide = Math.max(8, Math.floor(maxCanvasSize / tileSize));
+  const maxTilesTotal = Math.max(256, Math.min(1600, maxTilesPerSide * maxTilesPerSide));
+  const tilePadding = 1;
 
   const lngToTileX = (lng, z) => ((lng + 180) / 360) * Math.pow(2, z);
   const latToTileY = (lat, z) => {
@@ -12783,46 +12829,85 @@ async function ensure3DViewerSatelliteTexture() {
   };
   // Highest zoom that still fits full corridor bbox in the stitched tile grid.
   let zoom = 11;
-  for (let z = 17; z >= 10; z -= 1) {
-    const spanX = Math.ceil(Math.abs(lngToTileX(maxLng, z) - lngToTileX(minLng, z))) + 2;
-    const spanY = Math.ceil(Math.abs(latToTileY(maxLat, z) - latToTileY(minLat, z))) + 2;
-    if (spanX <= tilesPerSide && spanY <= tilesPerSide) {
+  let startTileX = 0;
+  let endTileX = 0;
+  let startTileY = 0;
+  let endTileY = 0;
+  for (let z = 19; z >= 9; z -= 1) {
+    const minTileX = lngToTileX(minLng, z);
+    const maxTileX = lngToTileX(maxLng, z);
+    const northTileY = latToTileY(maxLat, z);
+    const southTileY = latToTileY(minLat, z);
+    const candidateStartX = Math.floor(minTileX) - tilePadding;
+    const candidateEndX = Math.ceil(maxTileX) + tilePadding;
+    const candidateStartY = Math.floor(northTileY) - tilePadding;
+    const candidateEndY = Math.ceil(southTileY) + tilePadding;
+    const spanX = candidateEndX - candidateStartX;
+    const spanY = candidateEndY - candidateStartY;
+    if (spanX <= maxTilesPerSide && spanY <= maxTilesPerSide && (spanX * spanY) <= maxTilesTotal) {
       zoom = z;
+      startTileX = candidateStartX;
+      endTileX = candidateEndX;
+      startTileY = candidateStartY;
+      endTileY = candidateEndY;
       break;
     }
   }
 
-  const centerLat = (minLat + maxLat) / 2;
-  const centerLng = (minLng + maxLng) / 2;
-  console.log("[3D Satellite] Map center:", centerLat.toFixed(5), centerLng.toFixed(5), "zoom:", zoom, "tilesPerSide:", tilesPerSide);
+  // If no candidate loop updated extents, derive them from selected zoom.
+  if (endTileX <= startTileX || endTileY <= startTileY) {
+    const minTileX = lngToTileX(minLng, zoom);
+    const maxTileX = lngToTileX(maxLng, zoom);
+    const northTileY = latToTileY(maxLat, zoom);
+    const southTileY = latToTileY(minLat, zoom);
+    startTileX = Math.floor(minTileX) - tilePadding;
+    endTileX = Math.ceil(maxTileX) + tilePadding;
+    startTileY = Math.floor(northTileY) - tilePadding;
+    endTileY = Math.ceil(southTileY) + tilePadding;
+  }
+
+  const tilesX = Math.max(1, endTileX - startTileX);
+  const tilesY = Math.max(1, endTileY - startTileY);
+  const canvasWidth = tilesX * tileSize;
+  const canvasHeight = tilesY * tileSize;
+  console.log(
+    "[3D Satellite] bbox:",
+    minLat.toFixed(5),
+    maxLat.toFixed(5),
+    minLng.toFixed(5),
+    maxLng.toFixed(5),
+    "zoom:",
+    zoom,
+    "tiles:",
+    `${tilesX}x${tilesY}`,
+    "canvas:",
+    `${canvasWidth}x${canvasHeight}`,
+    "windowM:",
+    Math.round(requestedWindowM),
+    "focusedPoints:",
+    sourcePoints.length
+  );
 
   // Convert lat/lng to real tile coordinates at this zoom
   const n = Math.pow(2, zoom);
-  const centerTileX = Math.floor((centerLng + 180) / 360 * n);
-  const latRad = centerLat * Math.PI / 180;
-  const centerTileY = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
-
-  const halfTiles = Math.floor(tilesPerSide / 2);
-  const startTileX = centerTileX - halfTiles;
-  const startTileY = centerTileY - halfTiles;
 
   // Calculate exact geographic bounds of the stitched tile grid
   const gridMinLng = (startTileX / n) * 360 - 180;
-  const gridMaxLng = ((startTileX + tilesPerSide) / n) * 360 - 180;
+  const gridMaxLng = ((startTileX + tilesX) / n) * 360 - 180;
   const gridMaxLat = Math.atan(Math.sinh(Math.PI * (1 - 2 * startTileY / n))) * 180 / Math.PI;
-  const gridMinLat = Math.atan(Math.sinh(Math.PI * (1 - 2 * (startTileY + tilesPerSide) / n))) * 180 / Math.PI;
+  const gridMinLat = Math.atan(Math.sinh(Math.PI * (1 - 2 * (startTileY + tilesY) / n))) * 180 / Math.PI;
 
   return new Promise((resolve) => {
     const canvas = document.createElement("canvas");
-    canvas.width = canvasSize;
-    canvas.height = canvasSize;
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#e5e5e5";
-    ctx.fillRect(0, 0, canvasSize, canvasSize);
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
     let loaded = 0;
     let failed = 0;
-    const totalTiles = tilesPerSide * tilesPerSide;
+    const totalTiles = tilesX * tilesY;
 
     const finish = () => {
       if (loaded + failed < totalTiles) return;
@@ -12845,8 +12930,12 @@ async function ensure3DViewerSatelliteTexture() {
           maxLng: gridMaxLng,
           key: cacheKey,
           zoom,
+          focusChainageAbs: Number.isFinite(focusChainageAbs) ? focusChainageAbs : null,
+          windowMeters: requestedWindowM,
+          minChainageAbs: Number.isFinite(focusChainageAbs) ? (focusChainageAbs - halfWindowM) : firstChainageAbs,
+          maxChainageAbs: Number.isFinite(focusChainageAbs) ? (focusChainageAbs + halfWindowM) : lastChainageAbs,
         };
-        viewer3dSourceStatus.mapSource = "ArcGIS Imagery";
+        viewer3dSourceStatus.mapSource = `ArcGIS Imagery (${Math.round(requestedWindowM / 1000)} km window)`;
         viewer3dSourceStatus.mapZoom = zoom;
         update3DViewerSourceBadge();
         resolve(tex);
@@ -12861,11 +12950,17 @@ async function ensure3DViewerSatelliteTexture() {
       }
     };
 
-    for (let dy = 0; dy < tilesPerSide; dy++) {
-      for (let dx = 0; dx < tilesPerSide; dx++) {
+    for (let dy = 0; dy < tilesY; dy++) {
+      for (let dx = 0; dx < tilesX; dx++) {
         const tileX = startTileX + dx;
         const tileY = startTileY + dy;
-        const url = `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${tileY}/${tileX}`;
+        if (tileY < 0 || tileY >= n) {
+          failed++;
+          finish();
+          continue;
+        }
+        const wrappedTileX = ((tileX % n) + n) % n;
+        const url = `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${tileY}/${wrappedTileX}`;
         
         const img = new Image();
         img.crossOrigin = "anonymous";
@@ -12877,6 +12972,35 @@ async function ensure3DViewerSatelliteTexture() {
         img.src = url;
       }
     }
+  });
+}
+
+function maybeRefresh3DSatelliteWindow(force = false) {
+  if (!viewer3dScene) return;
+  const options = get3DViewerActiveOptions();
+  if (!options.satellite) return;
+  if (viewer3dSatelliteRetilePromise) return;
+
+  const currentChainageAbs = get3DViewerChainageFromFlyZ();
+  if (!Number.isFinite(currentChainageAbs)) return;
+  const currentFocusAbs = safeNum(viewer3dSatelliteBounds?.focusChainageAbs, NaN);
+  const existingWindowMeters = safeNum(viewer3dSatelliteBounds?.windowMeters, 0);
+  const windowMeters = existingWindowMeters > 0 ? existingWindowMeters : 6000;
+  const maxAllowedDrift = windowMeters * VIEWER3D_SATELLITE_REFOCUS_RATIO;
+
+  if (!force && Number.isFinite(currentFocusAbs) && Math.abs(currentChainageAbs - currentFocusAbs) <= maxAllowedDrift) {
+    return;
+  }
+
+  viewer3dSatelliteTexture = null;
+  viewer3dSatelliteBounds = null;
+  viewer3dSatelliteRetilePromise = ensure3DViewerSatelliteTexture({
+    focusChainageAbs: currentChainageAbs,
+    windowMeters: Number.isFinite(windowMeters) ? windowMeters : undefined,
+  }).then((tex) => {
+    if (tex && viewer3dScene) generate3DMesh();
+  }).finally(() => {
+    viewer3dSatelliteRetilePromise = null;
   });
 }
 
@@ -12894,9 +13018,11 @@ function generate3DMesh() {
    if (oldTrack) viewer3dScene.remove(oldTrack);
 
    const options = get3DViewerActiveOptions();
-   if (options.satellite && !viewer3dSatelliteTexture) {
+   if (options.satellite && !viewer3dSatelliteTexture && !viewer3dSatelliteRetilePromise) {
       console.log("[3D Satellite] Satellite enabled but texture not loaded yet. Starting async load...");
-      ensure3DViewerSatelliteTexture().then((tex) => {
+      ensure3DViewerSatelliteTexture({
+        focusChainageAbs: get3DViewerChainageFromFlyZ(),
+      }).then((tex) => {
         if (tex && viewer3dScene) {
           console.log("[3D Satellite] Texture ready! Regenerating 3D mesh with satellite imagery...");
           const stillOpen = document.getElementById("viewer3dModal")?.open;
@@ -14000,10 +14126,15 @@ function generate3DMesh() {
 
      const getUV = (vec) => {
        if (!(options.satellite && b && Number.isFinite(origin?.lat) && Number.isFinite(origin?.lng))) return null;
+       const lngSpan = b.maxLng - b.minLng;
+       const latSpan = b.maxLat - b.minLat;
+       if (!Number.isFinite(lngSpan) || !Number.isFinite(latSpan) || Math.abs(lngSpan) < 1e-12 || Math.abs(latSpan) < 1e-12) {
+         return null;
+       }
        const lat = origin.lat + (-vec.z / metersPerDegLat);
        const lng = origin.lng + (vec.x / metersPerDegLng);
-       const u = Math.max(0, Math.min(1, (lng - b.minLng) / (b.maxLng - b.minLng)));
-       const v = Math.max(0, Math.min(1, 1.0 - (lat - b.minLat) / (b.maxLat - b.minLat)));
+       const u = Math.max(0, Math.min(1, (lng - b.minLng) / lngSpan));
+       const v = Math.max(0, Math.min(1, 1.0 - (lat - b.minLat) / latSpan));
        return [u, v];
      };
 
@@ -14019,7 +14150,15 @@ function generate3DMesh() {
        }
      };
 
-     for (let i = 0; i < pointsGL.length; i += 1) {
+     let terrainStartIdx = 0;
+     let terrainEndIdx = pointsGL.length - 1;
+     if (options.satellite && Number.isFinite(viewer3dSatelliteBounds?.minChainageAbs) && Number.isFinite(viewer3dSatelliteBounds?.maxChainageAbs)) {
+       terrainStartIdx = Math.max(0, findNearestCalcRowIndexByChainage(viewer3dSatelliteBounds.minChainageAbs) - 2);
+       terrainEndIdx = Math.min(pointsGL.length - 1, findNearestCalcRowIndexByChainage(viewer3dSatelliteBounds.maxChainageAbs) + 2);
+     }
+     const terrainRowCount = Math.max(0, terrainEndIdx - terrainStartIdx + 1);
+
+     for (let i = terrainStartIdx; i <= terrainEndIdx; i += 1) {
        const point = pointsGL[i];
        const frame = rowFrames[i];
        const profile = rowProfiles[i];
@@ -14039,7 +14178,8 @@ function generate3DMesh() {
        const rightOuter = (useAlignedPath && frame)
          ? frame.centerVec.clone().add(frame.normalVec.clone().multiplyScalar(halfW)).setY(point.y)
          : new THREE.Vector3(halfW, point.y, point.z);
-       const rowRatio = pointsGL.length > 1 ? (i / (pointsGL.length - 1)) : 0;
+       const localIdx = i - terrainStartIdx;
+       const rowRatio = terrainRowCount > 1 ? (localIdx / (terrainRowCount - 1)) : 0;
        pushStripRow(leftOuter, leftInner, rowRatio, leftVerts, leftUvs);
        pushStripRow(rightInner, rightOuter, rowRatio, rightVerts, rightUvs);
 
@@ -14054,8 +14194,8 @@ function generate3DMesh() {
          target.push(a, d, c);
        }
      };
-     buildStripIndices(leftIndices, pointsGL.length);
-     buildStripIndices(rightIndices, pointsGL.length);
+     buildStripIndices(leftIndices, terrainRowCount);
+     buildStripIndices(rightIndices, terrainRowCount);
 
      const addGroundStrip = (verts, uvs, indices) => {
        if (!verts.length || !indices.length) return;
@@ -14440,6 +14580,8 @@ document.addEventListener("DOMContentLoaded", () => {
        viewer3dScene = null; // Reset for next open
        viewer3dPathCache = null;
        viewer3dSmoothedLookTarget = null;
+       viewer3dSatelliteRetilePromise = null;
+       viewer3dLastRetileCheckMs = 0;
        flying = false;
        viewer3dHotspotCursor = -1;
        document.getElementById("playFlyBtn").innerHTML = '<i class="ri-play-fill" style="margin-right:4px;"></i> Simulate';
